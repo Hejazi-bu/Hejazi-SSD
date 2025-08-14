@@ -1,0 +1,52 @@
+export default {
+  emailOrId: "Email, Job Number or Phone",
+  password: "Password",
+  confirmPassword: "Confirm Password", // لم يُستخدم حاليا، لكنه شائع
+  showPassword: "Show Password",
+  hidePassword: "Hide Password",
+  login: "Login",
+  forgotPassword: "Forgot Password?",
+
+  invalidFields: "Invalid or missing fields",
+  loginFailed: "Incorrect email or password.",
+
+  signingIn: "Signing in...",
+  createNewAccount: "Create new account",
+
+  language: "Language",
+  changeLanguage: "Change Language",
+
+  meetingSystem: "Meeting Management",
+  parkingManagement: "Parking Management",
+  materialControl: "Material Control",
+  visitorControl: "Visitor Control",
+  guardsCompanyRating: "Security Companies Rating",
+  guardsManagement: "Guards Management",
+  violationsManagement: "Violations Management",
+  inspectionSystemTitle: "Inspection Management",
+  riskSystem: "Risk Management",
+  reportsSystem: "Incident Reports",
+  firstAidSystem: "First Aid Management",
+  fireExtSystem: "Fire Extinguisher Management",
+  complaintSystem: "Complaints & Suggestions",
+  supportSystem: "Technical Support",
+  
+  pageInProgress: "Page under development",
+  backToHome: "Home",
+  inspectionRecords: "Inspection Records",
+  inspectionReports: "Inspection Reports",
+  newInspection: "New Inspection",
+  records: "Records",
+  reports: "Reports",
+  new: "New",
+
+  inspectionData: "Inspection Data",
+  inspectionType: "Inspection Type",
+  scheduled: "Scheduled",
+  random: "Random",
+  sector: "Sector",
+  selectSector: "Select sector",
+  building: "Building",
+  selectBuilding: "Select building",
+  showMap: "Show map",
+};
