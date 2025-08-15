@@ -186,7 +186,7 @@ export function LoginForm({ language, onLanguageChange, onLogin, onForgotPasswor
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-gray-100 px-2 sm:px-4">
       {loading && <LoadingOverlay />}
       <div
-        className="w-full sm:max-w-md bg-white shadow-md rounded-2xl p-6 sm:p-8 space-y-6"
+        className="w-full sm:max-w-md bg-white shadow-md rounded-2xl p-4 sm:p-8 space-y-6 min-h-[90vh] flex flex-col justify-center"
         dir={language === "ar" ? "rtl" : "ltr"}
       >
         <div className="text-center">
