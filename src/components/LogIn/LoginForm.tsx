@@ -182,10 +182,10 @@ export function LoginForm({ language, onLanguageChange, onLogin, onForgotPasswor
   };
 
   return (
-    <div className="w-[calc(100%-1rem)] min-h-screen overflow-x-hidden flex items-center justify-center bg-gradient-to-br from-blue-50 to-gray-100 px-2">
+    <div className="min-h-screen overflow-x-hidden flex items-center justify-center bg-gradient-to-br from-blue-50 to-gray-100 px-2">
       {loading && <LoadingOverlay />}
       <div
-        className="w-full bg-white shadow-md rounded-2xl px-4 sm:px-6 md:px-8 py-6 sm:py-8 space-y-6 flex flex-col justify-center"
+        className="w-full max-w-[calc(100%-1rem)] sm:max-w-md lg:max-w-lg bg-white shadow-md rounded-2xl px-4 sm:px-6 md:px-8 py-6 sm:py-8 space-y-6 flex flex-col justify-center"
         dir={language === "ar" ? "rtl" : "ltr"}
       >
         <div className="text-center">
