@@ -183,10 +183,10 @@ export function LoginForm({ language, onLanguageChange, onLogin, onForgotPasswor
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-gray-100 px-2 sm:px-4">
+    <div className="min-h-screen flex items-start justify-center bg-gradient-to-br from-blue-50 to-gray-100 px-2 sm:px-4">
       {loading && <LoadingOverlay />}
       <div
-        className="w-full sm:max-w-md bg-white shadow-md rounded-2xl p-4 sm:p-8 space-y-6 min-h-[90vh] flex flex-col justify-center"
+        className="w-full sm:max-w-md bg-white shadow-md rounded-2xl px-4 sm:px-8 py-6 sm:py-8 space-y-6 max-h-[calc(100vh-2rem)] flex flex-col justify-center"
         dir={language === "ar" ? "rtl" : "ltr"}
       >
         <div className="text-center">
