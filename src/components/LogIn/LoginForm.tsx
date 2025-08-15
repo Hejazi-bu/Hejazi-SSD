@@ -6,9 +6,6 @@ import en from "../../locales/en";
 import { toast } from "sonner";
 import type { User } from "../../types/user";
 
-// تأكد من إضافة هذا في ملف index.html أو _document.tsx داخل <head>:
-// <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-
 interface Props {
   language: "ar" | "en";
   onLanguageChange: (lang: "ar" | "en") => void;
@@ -80,7 +77,6 @@ export function LoginForm({ language, onLanguageChange, onLogin, onForgotPasswor
 
       const userEmail = userRecord.email;
 
-      // محاكاة تقدم التحميل
       let fakeProgress = 0;
       const progressInterval = setInterval(() => {
         fakeProgress += 10;
@@ -186,10 +182,10 @@ export function LoginForm({ language, onLanguageChange, onLogin, onForgotPasswor
   };
 
   return (
-    <div className="w-screen min-h-screen overflow-x-hidden flex items-center justify-center bg-gradient-to-br from-blue-50 to-gray-100 px-2">
+    <div className="w-[calc(100%-1rem)] min-h-screen overflow-x-hidden flex items-center justify-center bg-gradient-to-br from-blue-50 to-gray-100 px-2">
       {loading && <LoadingOverlay />}
       <div
-        className="w-full max-w-[calc(100%-1rem)] sm:max-w-md bg-white shadow-md rounded-2xl px-4 sm:px-6 md:px-8 py-6 sm:py-8 space-y-6 flex flex-col justify-center"
+        className="w-full bg-white shadow-md rounded-2xl px-4 sm:px-6 md:px-8 py-6 sm:py-8 space-y-6 flex flex-col justify-center"
         dir={language === "ar" ? "rtl" : "ltr"}
       >
         <div className="text-center">
