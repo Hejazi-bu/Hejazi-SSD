@@ -186,12 +186,11 @@ export function LoginForm({ language, onLanguageChange, onLogin, onForgotPasswor
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-gray-100 px-4 sm:px-6 md:px-8 overflow-x-hidden">
+    <div className="w-screen min-h-screen overflow-x-hidden flex items-center justify-center bg-gradient-to-br from-blue-50 to-gray-100 px-2">
       {loading && <LoadingOverlay />}
       <div
-        className="w-full max-w-[100%] sm:max-w-md bg-white shadow-md rounded-2xl px-4 sm:px-6 md:px-8 py-6 sm:py-8 space-y-6 flex flex-col justify-center"
+        className="w-full max-w-[calc(100%-1rem)] sm:max-w-md bg-white shadow-md rounded-2xl px-4 sm:px-6 md:px-8 py-6 sm:py-8 space-y-6 flex flex-col justify-center"
         dir={language === "ar" ? "rtl" : "ltr"}
-        style={{ overflowX: "hidden" }}
       >
         <div className="text-center">
           <h1 className="text-3xl font-bold text-blue-800 mb-1">Hejazi SSD</h1>
