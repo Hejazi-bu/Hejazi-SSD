@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { User } from "../types/user";
-
+import type { PageType } from "../types/pages"; 
 import { supabase } from "../lib/supabaseClient";
 import {
   LogOut,
@@ -40,7 +40,7 @@ type Props = {
   onLanguageChange: (lang: "ar" | "en") => void;
   onLogout: () => void;
   user: User;
-  onNavigateTo: (page: string) => void;
+  onNavigateTo: (page: PageType) => void; // ✅ هنا بدل string استخدم PageType
 };
 
 type Service = {

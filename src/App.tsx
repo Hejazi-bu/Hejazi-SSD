@@ -15,25 +15,20 @@ import { Toaster } from "sonner";
 function App() {
   const [language, setLanguage] = useState<"ar" | "en">("ar");
 
-  const [page, setPage] = useState<
-    | "inspection"
-    | "riskOrMaintenance"
-    | "login"
-    | "forgot"
-    | "dashboard"
-    | "reset"
-    | "register"
-    | "otp"
-    | "guards-rating"
-    | "evaluation-records"
-    | "violation-new"
-  >("login");
-
+  const [page, setPage] = useState<PageType>("login"); // استخدم PageType
   const [user, setUser] = useState<User | null>(null);
   const [currentServiceId, setCurrentServiceId] = useState<string>("new-evaluation");
 
+  // ✅ تعيين الصفحة وحفظها في localStorage
+  const setPageAndSave = (newPage: PageType) => {
+    setPage(newPage);
+    localStorage.setItem("lastPage", newPage);
+  };
+
   // ✅ التحقق من الجلسة عند تحميل التطبيق
   useEffect(() => {
+    const lastPage = localStorage.getItem("lastPage") as PageType | null;
+
     const checkSession = async () => {
       const { data } = await supabase.auth.getSession();
       if (data.session && data.session.user) {
@@ -53,7 +48,7 @@ function App() {
           last_login: new Date().toISOString(),
         };
         setUser(userData);
-        setPage("dashboard");
+        setPage(lastPage || "dashboard"); // ← آخر صفحة أو داشبورد
       }
     };
 
@@ -61,9 +56,10 @@ function App() {
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
+        const sessionUser = session.user;
         setUser({
-          id: session.user.id,
-          email: session.user.email || "",
+          id: sessionUser.id,
+          email: sessionUser.email || "",
           name_ar: "",
           name_en: "",
           job_title_ar: "",
@@ -75,7 +71,7 @@ function App() {
           role: "user",
           last_login: new Date().toISOString(),
         });
-        setPage("dashboard");
+        setPage(lastPage || "dashboard");
       } else {
         setUser(null);
         setPage("login");
@@ -89,19 +85,19 @@ function App() {
 
   const handleLogin = (userData: User) => {
     setUser(userData);
-    setPage("dashboard");
+    setPageAndSave("dashboard");
   };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setUser(null);
-    setPage("login");
+    setPageAndSave("login");
   };
 
   const handleLanguageChange = (lang: "ar" | "en") => setLanguage(lang);
-  const handleForgotPassword = () => setPage("forgot");
-  const handleBackToLogin = () => setPage("login");
-  const handleBackToHome = () => setPage("dashboard");
+  const handleForgotPassword = () => setPageAndSave("forgot");
+  const handleBackToLogin = () => setPageAndSave("login");
+  const handleBackToHome = () => setPageAndSave("dashboard");
 
   console.log("Current page:", page);
 
@@ -114,8 +110,8 @@ function App() {
           language={language}
           onLanguageChange={handleLanguageChange}
           onBackToHome={handleBackToHome}
-          onGoToReports={() => setPage("dashboard")}
-          onGoToRecords={() => setPage("dashboard")}
+          onGoToReports={() => setPageAndSave("dashboard")}
+          onGoToRecords={() => setPageAndSave("dashboard")}
         />
       )}
 
@@ -146,8 +142,8 @@ function App() {
           onLanguageChange={setLanguage}
           onNavigateTo={(serviceId) => {
             setCurrentServiceId(serviceId);
-            if (serviceId === "evaluation-records") setPage("evaluation-records");
-            else setPage("guards-rating");
+            if (serviceId === "evaluation-records") setPageAndSave("evaluation-records");
+            else setPageAndSave("guards-rating");
           }}
           currentServiceId={currentServiceId}
         />
@@ -159,8 +155,8 @@ function App() {
           onLanguageChange={setLanguage}
           onNavigateTo={(serviceId) => {
             setCurrentServiceId(serviceId);
-            if (serviceId === "new-evaluation") setPage("guards-rating");
-            else setPage(serviceId as PageType);
+            if (serviceId === "new-evaluation") setPageAndSave("guards-rating");
+            else setPageAndSave(serviceId as PageType);
           }}
         />
       )}
@@ -171,19 +167,19 @@ function App() {
           user={user}
           onLanguageChange={handleLanguageChange}
           onLogout={handleLogout}
-          onNavigateTo={(page: string) => {
-            // ✅ الاحتفاظ بالتحقق من الصفحات المسموح بها كما كان
+          onNavigateTo={(newPage: PageType) => {
+            // ✅ الاحتفاظ بالتحقق من الصفحات المسموح بها
             if (
-              page === "inspection" ||
-              page === "riskOrMaintenance" ||
-              page === "login" ||
-              page === "forgot" ||
-              page === "dashboard" ||
-              page === "reset" ||
-              page === "register" ||
-              page === "guards-rating"
+              newPage === "inspection" ||
+              newPage === "riskOrMaintenance" ||
+              newPage === "login" ||
+              newPage === "forgot" ||
+              newPage === "dashboard" ||
+              newPage === "reset" ||
+              newPage === "register" ||
+              newPage === "guards-rating"
             ) {
-              setPage(page);
+              setPageAndSave(newPage);
             }
           }}
         />

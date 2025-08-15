@@ -7,4 +7,6 @@ export type PageType =
   | "reset"
   | "register"
   | "otp"
-  | "guards-rating";
+  | "guards-rating"
+  | "evaluation-records"
+  | "violation-new";
