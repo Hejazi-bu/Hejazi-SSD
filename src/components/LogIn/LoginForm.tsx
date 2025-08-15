@@ -6,6 +6,9 @@ import en from "../../locales/en";
 import { toast } from "sonner";
 import type { User } from "../../types/user";
 
+// إضافة هذا في ملف index.html أو _document.tsx داخل <head>:
+// <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+
 interface Props {
   language: "ar" | "en";
   onLanguageChange: (lang: "ar" | "en") => void;
@@ -183,11 +186,12 @@ export function LoginForm({ language, onLanguageChange, onLogin, onForgotPasswor
   };
 
   return (
-    <div className="min-h-screen flex items-start justify-center bg-gradient-to-br from-blue-50 to-gray-100 px-2 sm:px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-gray-100 px-2 sm:px-4 overflow-x-hidden">
       {loading && <LoadingOverlay />}
       <div
-        className="w-full sm:max-w-md bg-white shadow-md rounded-2xl px-4 sm:px-8 py-6 sm:py-8 space-y-6 max-h-[calc(100vh-2rem)] flex flex-col justify-center"
+        className="w-full max-w-[calc(100vw-1rem)] sm:max-w-md bg-white shadow-md rounded-2xl px-4 sm:px-8 py-6 sm:py-8 space-y-6 flex flex-col justify-center"
         dir={language === "ar" ? "rtl" : "ltr"}
+        style={{ overflowX: "hidden" }}
       >
         <div className="text-center">
           <h1 className="text-3xl font-bold text-blue-800 mb-1">Hejazi SSD</h1>
