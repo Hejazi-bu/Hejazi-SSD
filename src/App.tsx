@@ -1,5 +1,5 @@
-// File: src/App.tsx
 import React, { useState, useEffect } from "react";
+import { supabase } from "./lib/supabaseClient";
 import InspectionNew from "./components/Inspection/InspectionNew";
 import { LoginForm } from "./components/LogIn/LoginForm";
 import { ForgotPasswordForm } from "./components/LogIn/ForgotPasswordForm";
@@ -30,27 +30,79 @@ function App() {
   >("login");
 
   const [user, setUser] = useState<User | null>(null);
+  const [currentServiceId, setCurrentServiceId] = useState<string>("new-evaluation");
+
+  // ✅ التحقق من الجلسة عند تحميل التطبيق
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session && data.session.user) {
+        const sessionUser = data.session.user;
+        const userData: User = {
+          id: sessionUser.id,
+          email: sessionUser.email || "",
+          name_ar: "",
+          name_en: "",
+          job_title_ar: "",
+          job_title_en: "",
+          phone: "",
+          job_number: "",
+          status: "active",
+          avatar_url: undefined,
+          role: "user",
+          last_login: new Date().toISOString(),
+        };
+        setUser(userData);
+        setPage("dashboard");
+      }
+    };
+
+    checkSession();
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser({
+          id: session.user.id,
+          email: session.user.email || "",
+          name_ar: "",
+          name_en: "",
+          job_title_ar: "",
+          job_title_en: "",
+          phone: "",
+          job_number: "",
+          status: "active",
+          avatar_url: undefined,
+          role: "user",
+          last_login: new Date().toISOString(),
+        });
+        setPage("dashboard");
+      } else {
+        setUser(null);
+        setPage("login");
+      }
+    });
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, []);
 
   const handleLogin = (userData: User) => {
     setUser(userData);
     setPage("dashboard");
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
     setPage("login");
   };
 
-  const handleLanguageChange = (lang: "ar" | "en") => {
-    setLanguage(lang);
-  };
-
+  const handleLanguageChange = (lang: "ar" | "en") => setLanguage(lang);
   const handleForgotPassword = () => setPage("forgot");
   const handleBackToLogin = () => setPage("login");
-  const handleRegisterPage = () => setPage("register");
   const handleBackToHome = () => setPage("dashboard");
 
-  const [currentServiceId, setCurrentServiceId] = useState<string>("new-evaluation");
   console.log("Current page:", page);
 
   return (
@@ -67,11 +119,7 @@ function App() {
         />
       )}
 
-      {page === "violation-new" && (
-        <ViolationNew
-          // مرر أي props تحتاجها، مثلا بيانات المستخدم الثابتة لاحقًا
-        />
-      )}
+      {page === "violation-new" && <ViolationNew />}
 
       {page === "login" && (
         <LoginForm
@@ -98,12 +146,8 @@ function App() {
           onLanguageChange={setLanguage}
           onNavigateTo={(serviceId) => {
             setCurrentServiceId(serviceId);
-            // إذا كان الانتقال لـ "evaluation-records" نذهب لصفحة evaluation-records
-            if (serviceId === "evaluation-records") {
-              setPage("evaluation-records");
-            } else {
-              setPage("guards-rating"); // دائماً ضمن guards-rating لباقي الخدمات مثل new-evaluation
-            }
+            if (serviceId === "evaluation-records") setPage("evaluation-records");
+            else setPage("guards-rating");
           }}
           currentServiceId={currentServiceId}
         />
@@ -115,23 +159,20 @@ function App() {
           onLanguageChange={setLanguage}
           onNavigateTo={(serviceId) => {
             setCurrentServiceId(serviceId);
-            // إذا كان الانتقال لـ "new-evaluation" نذهب لصفحة guards-rating
-            if (serviceId === "new-evaluation") {
-              setPage("guards-rating");
-            } else {
-              setPage(serviceId as PageType); // على سبيل المثال "evaluation-records" أو "evaluation-reports"
-            }
+            if (serviceId === "new-evaluation") setPage("guards-rating");
+            else setPage(serviceId as PageType);
           }}
         />
       )}
 
-{page === "dashboard" && user && (
+      {page === "dashboard" && user && (
         <Dashboard
           language={language}
           user={user}
           onLanguageChange={handleLanguageChange}
           onLogout={handleLogout}
           onNavigateTo={(page: string) => {
+            // ✅ الاحتفاظ بالتحقق من الصفحات المسموح بها كما كان
             if (
               page === "inspection" ||
               page === "riskOrMaintenance" ||
@@ -140,7 +181,7 @@ function App() {
               page === "dashboard" ||
               page === "reset" ||
               page === "register" ||
-              page === "guards-rating" // ✅ السماح بالتنقل للصفحة الجديدة
+              page === "guards-rating"
             ) {
               setPage(page);
             }
