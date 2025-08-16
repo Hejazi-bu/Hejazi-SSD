@@ -1,20 +1,22 @@
+// src/components/LogIn/LoginForm.tsx
 import { useState, FormEvent } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import ar from "../../locales/ar";
 import en from "../../locales/en";
 import { toast } from "sonner";
-import type { User } from "../../types/user";
+import { useUser, User } from "../contexts/UserContext";
 
 interface Props {
   language: "ar" | "en";
   onLanguageChange: (lang: "ar" | "en") => void;
-  onLogin: (user: User) => void;
   onForgotPassword: () => void;
+  onLogin: (userData: User) => void; // ← أضف هذا السطر
 }
 
-export function LoginForm({ language, onLanguageChange, onLogin, onForgotPassword }: Props) {
+export function LoginForm({ language, onLanguageChange, onForgotPassword, onLogin }: Props) {
   const t = language === "ar" ? ar : en;
+  const { setUser } = useUser();
 
   const [identifier, setIdentifier] = useState(""); 
   const [password, setPassword] = useState("");
@@ -34,7 +36,7 @@ export function LoginForm({ language, onLanguageChange, onLogin, onForgotPasswor
     setProgress(0);
 
     try {
-      let userRecord = null;
+      let userRecord: any = null;
 
       const isEmail = identifier.includes("@");
       const isPhone = /^[0-9]{9,15}$/.test(identifier);
@@ -80,7 +82,7 @@ export function LoginForm({ language, onLanguageChange, onLogin, onForgotPasswor
       let fakeProgress = 0;
       const progressInterval = setInterval(() => {
         fakeProgress += 10;
-        if (fakeProgress > 90) fakeProgress = 90; 
+        if (fakeProgress > 90) fakeProgress = 90;
         setProgress(fakeProgress);
       }, 100);
 
@@ -105,24 +107,28 @@ export function LoginForm({ language, onLanguageChange, onLogin, onForgotPasswor
         .update({ last_login: new Date().toISOString() })
         .eq("id", userRecord.id);
 
+      // إنشاء كائن المستخدم الجديد بناءً على UserContext و job_id
       const user: User = {
         id: signInData.user.id,
-        email: signInData.user.email || userEmail,
+        uuid: userRecord.uuid,
+        email: userRecord.email,
         name_ar: userRecord.name_ar,
         name_en: userRecord.name_en,
-        job_title_ar: userRecord.job_title_ar,
-        job_title_en: userRecord.job_title_en,
         phone: userRecord.phone,
         job_number: userRecord.job_number,
         status: userRecord.status,
-        avatar_url: userRecord.avatar_url || undefined,
+        created_at: userRecord.created_at,
+        avatar_url: userRecord.avatar_url,
         role: userRecord.role || "user",
         last_login: new Date().toISOString(),
+        job_id: userRecord.job_id,
       };
 
       setLoading(false);
       toast.success(language === "ar" ? "تم تسجيل الدخول بنجاح" : "Signed in successfully");
+
       onLogin(user);
+
     } catch (err: any) {
       setError(err.message || t.loginFailed);
       setLoading(false);

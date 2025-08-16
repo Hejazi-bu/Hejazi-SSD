@@ -4,6 +4,7 @@
   import { FaRegFileAlt, FaHistory, FaChartBar } from "react-icons/fa";
   import { CalendarIcon, UsersIcon, ExclamationTriangleIcon } from "@heroicons/react/24/solid";
   import { motion, AnimatePresence, Variants, useAnimation } from "framer-motion";
+  import { useUser, User } from "../contexts/UserContext";
   
   import {
     Menu,
@@ -40,7 +41,7 @@
   };
 
   type HeaderProps = GuardsRatingPageProps & { currentServiceId: string };
-
+  
   function StarRating({
     rating,
     onChange,
@@ -407,114 +408,120 @@
         )
       : 0;
 
-    const handleSubmit = async () => {
-      if (!selectedCompany || !selectedMonth || questions.length === 0) return;
 
-      // تحقق من وجود أسئلة غير مقيمة
-      const unratedIndex = questions.findIndex((q) => q.ratingValue === 0);
-      if (unratedIndex !== -1) {
-        setQuestions((prev) =>
-          prev.map((q) => ({
-            ...q,
-            invalid: q.ratingValue === 0,
-          }))
-        );
+const { user, setUser } = useUser();
 
-        const element = document.getElementById(`question-${questions[unratedIndex].id}`);
-        if (element) {
-          element.scrollIntoView({ behavior: "smooth", block: "center" });
-        }
-        alert(language === "ar" ? "يرجى تقييم جميع الأسئلة قبل الحفظ." : "Please rate all questions before saving.");
-        return;
-      }
+const handleSubmit = async () => {
+  if (!selectedCompany || !selectedMonth || questions.length === 0) return;
 
-      // استخراج السنة والشهر
-      const [yearStr, monthStr] = selectedMonth.split("-");
-      const year = Number(yearStr);
-      const month = Number(monthStr);
+  if (!user) {
+    alert(language === "ar" ? "يجب تسجيل الدخول أولاً" : "You must log in first.");
+    return;
+  }
 
-      // حساب المتوسط للعرض فقط (ليس للحفظ في تفاصيل الأسئلة)
-      const totalRating = questions.reduce((sum, q) => sum + q.ratingValue, 0);
-      const overallScore = parseFloat((totalRating / questions.length).toFixed(2));
-
-      setIsLoadingEvaluation(true);
-
-      const cleanedGeneralNotes = cleanText(notes);
-      const cleanedQuestions = questions.map(q => ({
+  // تحقق من وجود أسئلة غير مقيمة
+  const unratedIndex = questions.findIndex((q) => q.ratingValue === 0);
+  if (unratedIndex !== -1) {
+    setQuestions((prev) =>
+      prev.map((q) => ({
         ...q,
-        note: q.note ? cleanText(q.note) : null,
-      }));
-        
-      try {
-        // حفظ التقييم العام (security_evaluations)
-        const { data: insertEvalData, error: insertEvalError } = await supabase
-          .from("security_evaluations")
-          .insert({
-            operator_id: selectedCompany,
-            guard_count: companyGuardCount, // استخدم هنا القيمة من الشركة
-            violations_count: companyViolationsCount,
-            contract_no: companyContractNo, // استخدم رقم العقد من الشركة وليس ثابت
-            notes: cleanedGeneralNotes,
-            overall_score: overallScore,
-            year,
-            month,
-            evaluation_date: new Date().toISOString(),
-            evaluator_name: "محمد عبدالله السعدي",
-            evaluator_job: "ضابط امن اول",
-            client_name: "Abu Dhabi Municipality",
-            location: "ADM",
-          })
-          .select("id")
-          .single();
+        invalid: q.ratingValue === 0,
+      }))
+    );
 
-        if (insertEvalError || !insertEvalData) {
-          alert(language === "ar" ? "فشل حفظ التقييم العام." : "Failed to save evaluation.");
-          console.error(insertEvalError);
-          setIsLoadingEvaluation(false);
-          return;
-        }
+    const element = document.getElementById(`question-${questions[unratedIndex].id}`);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    alert(language === "ar" ? "يرجى تقييم جميع الأسئلة قبل الحفظ." : "Please rate all questions before saving.");
+    return;
+  }
 
-        const evaluation_id = insertEvalData.id;
+  const [yearStr, monthStr] = selectedMonth.split("-");
+  const year = Number(yearStr);
+  const month = Number(monthStr);
 
-        // حفظ تفاصيل التقييم (security_evaluation_details)
-        const details = cleanedQuestions.map((q) => ({
-          evaluation_id,
-          question_id: q.id,
-          selected_rating: q.ratingValue,
-          note: q.note,
-        }));
+  const totalRating = questions.reduce((sum, q) => sum + q.ratingValue, 0);
+  const overallScore = parseFloat((totalRating / questions.length).toFixed(2));
 
-        const { error: detailsError } = await supabase
-          .from("security_evaluation_details")
-          .insert(details);
+  setIsLoadingEvaluation(true);
 
-        if (detailsError) {
-          alert(language === "ar" ? "تم الحفظ جزئياً. (الأسئلة لم تُحفظ)." : "Partially saved. (Details failed)");
-          console.error(detailsError);
-          setIsLoadingEvaluation(false);
-          return;
-        }
+  const cleanedGeneralNotes = cleanText(notes);
+  const cleanedQuestions = questions.map(q => ({
+    ...q,
+    note: q.note ? cleanText(q.note) : null,
+  }));
 
-        // **تحديث تقييم الشركة بعد حفظ التقييمات**
-        const { error: companyUpdateError } = await supabase.rpc('update_company_overall_score', {
-          company_id: selectedCompany
-        });
+  try {
+    // حفظ التقييم العام
+    const { data: insertEvalData, error: insertEvalError } = await supabase
+      .from("security_evaluations")
+      .insert({
+        operator_id: selectedCompany,
+        guard_count: companyGuardCount,
+        violations_count: companyViolationsCount,
+        contract_no: companyContractNo,
+        notes: cleanedGeneralNotes,
+        overall_score: overallScore,
+        year,
+        month,
+        evaluation_date: new Date().toISOString(),
+        evaluator_name: user.id,    // استخدام user.id
+        evaluator_job: user.job_id, // استخدام job_id
+        client_name: "Abu Dhabi Municipality",
+        location: "ADM",
+      })
+      .select("id")
+      .single();
 
-        if (companyUpdateError) {
-          console.warn("فشل تحديث تقييم الشركة التراكمي:", companyUpdateError);
-          // لا توقف التنفيذ، فقط سجل الخطأ
-        }
+    if (insertEvalError || !insertEvalData) {
+      alert(language === "ar" ? "فشل حفظ التقييم العام." : "Failed to save evaluation.");
+      console.error(insertEvalError);
+      setIsLoadingEvaluation(false);
+      return;
+    }
 
-        alert(language === "ar" ? "تم حفظ التقييم بنجاح." : "Evaluation saved successfully.");
-        window.location.reload();
+    const evaluation_id = insertEvalData.id;
 
-      } catch (error) {
-        console.error(error);
-        alert(language === "ar" ? "حدث خطأ غير متوقع." : "An unexpected error occurred.");
-      } finally {
-        setIsLoadingEvaluation(false);
-      }
-    };
+    // حفظ تفاصيل التقييم
+    const details = cleanedQuestions.map((q) => ({
+      evaluation_id,
+      question_id: q.id,
+      selected_rating: q.ratingValue,
+      note: q.note,
+    }));
+
+    const { error: detailsError } = await supabase
+      .from("security_evaluation_details")
+      .insert(details);
+
+    if (detailsError) {
+      alert(language === "ar" ? "تم الحفظ جزئياً. (الأسئلة لم تُحفظ)." : "Partially saved. (Details failed)");
+      console.error(detailsError);
+      setIsLoadingEvaluation(false);
+      return;
+    }
+
+    // تحديث تقييم الشركة
+    const { error: companyUpdateError } = await supabase.rpc('update_company_overall_score', {
+      company_id: selectedCompany
+    });
+
+    if (companyUpdateError) {
+      console.warn("فشل تحديث تقييم الشركة التراكمي:", companyUpdateError);
+    }
+
+    alert(language === "ar" ? "تم حفظ التقييم بنجاح." : "Evaluation saved successfully.");
+    window.location.reload();
+
+  } catch (error) {
+    console.error(error);
+    alert(language === "ar" ? "حدث خطأ غير متوقع." : "An unexpected error occurred.");
+  } finally {
+    setIsLoadingEvaluation(false);
+  }
+};
+
 
     function Sidebar({
       isOpen,
@@ -795,12 +802,13 @@
 
                 <motion.button
                   variants={itemVariants}
-                  onClick={() => navigateWithConfirm("dashboard")}
+                  onClick={() => onNavigateTo("dashboard")}
                   className={`${baseButtonClass} flex-col gap-1 items-center lg:flex-row lg:gap-2`}
                 >
                   <span>Home</span>
                   <HomeIcon className="w-6 h-6" />
                 </motion.button>
+
               </>
             )}
           </motion.div>

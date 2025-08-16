@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from "react";
+// src/App.tsx
+import React from "react";
+import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { supabase } from "./lib/supabaseClient";
 import InspectionNew from "./components/Inspection/InspectionNew";
 import { LoginForm } from "./components/LogIn/LoginForm";
@@ -8,182 +10,148 @@ import Dashboard from "./components/Dashboard";
 import GuardsRatingPage from "./components/GuardsRating/GuardsRatingPage";
 import EvaluationRecordsPage from "./components/GuardsRating/EvaluationRecordsPage";
 import ViolationNew from "./components/Violation/ViolationNew";
-import type { User } from "./types/user";
-import type { PageType } from "./types/pages";
 import { Toaster } from "sonner";
+import { useUser, User } from "./components/contexts/UserContext";
 
 function App() {
-  const [language, setLanguage] = useState<"ar" | "en">("ar");
-
-  const [page, setPage] = useState<PageType>("login"); // استخدم PageType
-  const [user, setUser] = useState<User | null>(null);
-  const [currentServiceId, setCurrentServiceId] = useState<string>("new-evaluation");
-
-  // ✅ تعيين الصفحة وحفظها في localStorage
-  const setPageAndSave = (newPage: PageType) => {
-    setPage(newPage);
-    localStorage.setItem("lastPage", newPage);
-  };
-
-  // ✅ التحقق من الجلسة عند تحميل التطبيق
-  useEffect(() => {
-    const lastPage = localStorage.getItem("lastPage") as PageType | null;
-
-    const checkSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (data.session && data.session.user) {
-        const sessionUser = data.session.user;
-        const userData: User = {
-          id: sessionUser.id,
-          email: sessionUser.email || "",
-          name_ar: "",
-          name_en: "",
-          job_title_ar: "",
-          job_title_en: "",
-          phone: "",
-          job_number: "",
-          status: "active",
-          avatar_url: undefined,
-          role: "user",
-          last_login: new Date().toISOString(),
-        };
-        setUser(userData);
-        setPage(lastPage || "dashboard"); // ← آخر صفحة أو داشبورد
-      }
-    };
-
-    checkSession();
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        const sessionUser = session.user;
-        setUser({
-          id: sessionUser.id,
-          email: sessionUser.email || "",
-          name_ar: "",
-          name_en: "",
-          job_title_ar: "",
-          job_title_en: "",
-          phone: "",
-          job_number: "",
-          status: "active",
-          avatar_url: undefined,
-          role: "user",
-          last_login: new Date().toISOString(),
-        });
-        setPage(lastPage || "dashboard");
-      } else {
-        setUser(null);
-        setPage("login");
-      }
-    });
-
-    return () => {
-      listener.subscription.unsubscribe();
-    };
-  }, []);
+  const { user, setUser } = useUser();
+  const navigate = useNavigate();
+  const [language, setLanguage] = React.useState<"ar" | "en">("ar");
+  const [currentServiceId, setCurrentServiceId] = React.useState<string>("new-evaluation");
 
   const handleLogin = (userData: User) => {
     setUser(userData);
-    setPageAndSave("dashboard");
+    navigate("/dashboard");
   };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setUser(null);
-    setPageAndSave("login");
+    navigate("/login");
   };
 
   const handleLanguageChange = (lang: "ar" | "en") => setLanguage(lang);
-  const handleForgotPassword = () => setPageAndSave("forgot");
-  const handleBackToLogin = () => setPageAndSave("login");
-  const handleBackToHome = () => setPageAndSave("dashboard");
 
-  console.log("Current page:", page);
+  const handleNavigateTo = (page: string) => {
+    navigate(page);
+  };
 
   return (
     <>
       <Toaster position="bottom-center" />
-
-      {page === "inspection" && (
-        <InspectionNew
-          language={language}
-          onLanguageChange={handleLanguageChange}
-          onBackToHome={handleBackToHome}
-          onGoToReports={() => setPageAndSave("dashboard")}
-          onGoToRecords={() => setPageAndSave("dashboard")}
+      <Routes>
+        {/* Login */}
+        <Route
+          path="/login"
+          element={!user ? (
+            <LoginForm
+              language={language}
+              onLanguageChange={handleLanguageChange}
+              onForgotPassword={() => navigate("/forgot")}
+              onLogin={handleLogin}
+            />
+          ) : (
+            <Navigate to="/dashboard" />
+          )}
         />
-      )}
 
-      {page === "violation-new" && <ViolationNew />}
-
-      {page === "login" && (
-        <LoginForm
-          language={language}
-          onLanguageChange={handleLanguageChange}
-          onLogin={handleLogin}
-          onForgotPassword={handleForgotPassword}
+        {/* Forgot Password */}
+        <Route
+          path="/forgot"
+          element={!user ? (
+            <ForgotPasswordForm
+              language={language}
+              onLanguageChange={handleLanguageChange}
+              onBackToLogin={() => navigate("/login")}
+            />
+          ) : (
+            <Navigate to="/dashboard" />
+          )}
         />
-      )}
 
-      {page === "forgot" && (
-        <ForgotPasswordForm
-          language={language}
-          onLanguageChange={handleLanguageChange}
-          onBackToLogin={handleBackToLogin}
+        {/* Reset Password */}
+        <Route
+          path="/reset"
+          element={!user ? <ResetPassword /> : <Navigate to="/dashboard" />}
         />
-      )}
 
-      {page === "reset" && <ResetPassword />}
-
-      {page === "guards-rating" && (
-        <GuardsRatingPage
-          language={language}
-          onLanguageChange={setLanguage}
-          onNavigateTo={(serviceId) => {
-            setCurrentServiceId(serviceId);
-            if (serviceId === "evaluation-records") setPageAndSave("evaluation-records");
-            else setPageAndSave("guards-rating");
-          }}
-          currentServiceId={currentServiceId}
+        {/* Dashboard */}
+        <Route
+          path="/dashboard"
+          element={user ? (
+            <Dashboard
+              language={language}
+              onLanguageChange={handleLanguageChange}
+              onLogout={handleLogout}
+              onNavigateTo={handleNavigateTo}
+            />
+          ) : (
+            <Navigate to="/login" />
+          )}
         />
-      )}
 
-      {page === "evaluation-records" && (
-        <EvaluationRecordsPage
-          language={language}
-          onLanguageChange={setLanguage}
-          onNavigateTo={(serviceId) => {
-            setCurrentServiceId(serviceId);
-            if (serviceId === "new-evaluation") setPageAndSave("guards-rating");
-            else setPageAndSave(serviceId as PageType);
-          }}
+        {/* Inspection */}
+        <Route
+          path="/inspection"
+          element={user ? (
+            <InspectionNew
+              language={language}
+              onLanguageChange={handleLanguageChange}
+              onBackToHome={() => navigate("/dashboard")}
+              onGoToReports={() => navigate("/dashboard")}
+              onGoToRecords={() => navigate("/dashboard")}
+            />
+          ) : (
+            <Navigate to="/login" />
+          )}
         />
-      )}
 
-      {page === "dashboard" && user && (
-        <Dashboard
-          language={language}
-          user={user}
-          onLanguageChange={handleLanguageChange}
-          onLogout={handleLogout}
-          onNavigateTo={(newPage: PageType) => {
-            // ✅ الاحتفاظ بالتحقق من الصفحات المسموح بها
-            if (
-              newPage === "inspection" ||
-              newPage === "riskOrMaintenance" ||
-              newPage === "login" ||
-              newPage === "forgot" ||
-              newPage === "dashboard" ||
-              newPage === "reset" ||
-              newPage === "register" ||
-              newPage === "guards-rating"
-            ) {
-              setPageAndSave(newPage);
-            }
-          }}
+        {/* Violation */}
+        <Route
+          path="/violation-new"
+          element={user ? <ViolationNew /> : <Navigate to="/login" />}
         />
-      )}
+
+        {/* Guards Rating */}
+        <Route
+          path="/guards-rating"
+          element={user ? (
+            <GuardsRatingPage
+              language={language}
+              onLanguageChange={setLanguage}
+              currentServiceId={currentServiceId}
+              onNavigateTo={(serviceId) => {
+                setCurrentServiceId(serviceId);
+                if (serviceId === "evaluation-records") navigate("/evaluation-records");
+                else navigate("/guards-rating");
+              }}
+            />
+          ) : (
+            <Navigate to="/login" />
+          )}
+        />
+
+        {/* Evaluation Records */}
+        <Route
+          path="/evaluation-records"
+          element={user ? (
+            <EvaluationRecordsPage
+              language={language}
+              onLanguageChange={setLanguage}
+              onNavigateTo={(serviceId) => {
+                setCurrentServiceId(serviceId);
+                if (serviceId === "new-evaluation") navigate("/guards-rating");
+                else navigate(serviceId);
+              }}
+            />
+          ) : (
+            <Navigate to="/login" />
+          )}
+        />
+
+        {/* Redirect أي رابط غير معروف */}
+        <Route path="*" element={<Navigate to={user ? "/dashboard" : "/login"} />} />
+      </Routes>
     </>
   );
 }
