@@ -2,7 +2,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
-import type { User as LocalUser } from "../../types/user";
 
 // 🔹 نوع المستخدم النهائي
 export interface User {
@@ -31,13 +30,37 @@ const UserContext = createContext<UserContextProps>({
 export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null | undefined>(undefined);
 
+  // 🔹 جلب بيانات المستخدم الكاملة من Supabase
+  const fetchFullUserData = async (supabaseUser: SupabaseUser): Promise<User> => {
+    const { data, error } = await supabase
+      .from("Users") // تأكد من اسم جدول المستخدمين لديك
+      .select("*")
+      .eq("id", supabaseUser.id)
+      .single();
+
+    if (error || !data) return mapSupabaseUserToLocalUser(supabaseUser);
+
+    return {
+      id: supabaseUser.id,
+      email: supabaseUser.email ?? undefined,
+      uuid: supabaseUser.id,
+      created_at: supabaseUser.created_at,
+      name_ar: data.name_ar,
+      name_en: data.name_en,
+      job_id: data.job_id,
+      job_number: data.job_number,
+      role: data.role,
+    };
+  };
+
   useEffect(() => {
     const getSession = async () => {
       const { data } = await supabase.auth.getSession();
       const supabaseUser = data.session?.user;
 
       if (supabaseUser) {
-        setUser(mapSupabaseUserToLocalUser(supabaseUser));
+        const fullUser = await fetchFullUserData(supabaseUser);
+        setUser(fullUser);
       } else {
         setUser(null);
       }
@@ -45,9 +68,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     getSession();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
-        setUser(mapSupabaseUserToLocalUser(session.user));
+        const fullUser = await fetchFullUserData(session.user);
+        setUser(fullUser);
       } else {
         setUser(null);
       }
@@ -59,7 +83,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   return <UserContext.Provider value={{ user, setUser }}>{children}</UserContext.Provider>;
 };
 
-// 🔹 تحويل SupabaseUser → User النهائي
+// 🔹 تحويل SupabaseUser → User النهائي (افتراضي)
 function mapSupabaseUserToLocalUser(supabaseUser: SupabaseUser): User {
   return {
     id: supabaseUser.id,
