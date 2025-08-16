@@ -237,7 +237,14 @@ const Dashboard: React.FC<Props> = ({
           </div>
         </div>
       )}
-
+  <div className="p-4">
+    <button
+      onClick={onLogout}
+      className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+    >
+      {language === "ar" ? "تسجيل الخروج مؤقت" : "Temporary Log Out"}
+    </button>
+  </div>
       {/* شاشة تغيير كلمة المرور */}
       {showChangePassword && (
         <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4" dir={isRTL ? "rtl" : "ltr"}>
