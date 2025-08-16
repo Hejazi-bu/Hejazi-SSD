@@ -11,6 +11,7 @@ import Dashboard from "./components/Dashboard";
 import GuardsRatingPage from "./components/GuardsRating/GuardsRatingPage";
 import EvaluationRecordsPage from "./components/GuardsRating/EvaluationRecordsPage";
 import ViolationNew from "./components/Violation/ViolationNew";
+import NotFound from "./components/NotFound";
 import { Toaster } from "sonner";
 import { useUser, User } from "./components/contexts/UserContext";
 
@@ -33,12 +34,9 @@ function App() {
   };
 
   const handleLanguageChange = (lang: "ar" | "en") => setLanguage(lang);
+  const handleNavigateTo = (page: string) => navigate(page);
 
-  const handleNavigateTo = (page: string) => {
-    navigate(page);
-  };
-
-  // 🟢 معالجة حالة التحميل
+  // 🟢 عرض حالة التحميل
   if (user === undefined) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -173,11 +171,8 @@ function App() {
           }
         />
 
-        {/* Redirect أي رابط غير معروف */}
-        <Route
-          path="*"
-          element={<Navigate to={user ? "/dashboard" : "/login"} />}
-        />
+        {/* صفحة 404 لأي رابط غير معروف */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </>
   );
