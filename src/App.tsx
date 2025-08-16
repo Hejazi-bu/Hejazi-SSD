@@ -2,6 +2,7 @@
 import React from "react";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { supabase } from "./lib/supabaseClient";
+
 import InspectionNew from "./components/Inspection/InspectionNew";
 import { LoginForm } from "./components/LogIn/LoginForm";
 import { ForgotPasswordForm } from "./components/LogIn/ForgotPasswordForm";
@@ -17,7 +18,8 @@ function App() {
   const { user, setUser } = useUser();
   const navigate = useNavigate();
   const [language, setLanguage] = React.useState<"ar" | "en">("ar");
-  const [currentServiceId, setCurrentServiceId] = React.useState<string>("new-evaluation");
+  const [currentServiceId, setCurrentServiceId] =
+    React.useState<string>("new-evaluation");
 
   const handleLogin = (userData: User) => {
     setUser(userData);
@@ -36,6 +38,15 @@ function App() {
     navigate(page);
   };
 
+  // 🟢 معالجة حالة التحميل
+  if (user === undefined) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p>جار التحميل...</p>
+      </div>
+    );
+  }
+
   return (
     <>
       <Toaster position="bottom-center" />
@@ -43,30 +54,34 @@ function App() {
         {/* Login */}
         <Route
           path="/login"
-          element={!user ? (
-            <LoginForm
-              language={language}
-              onLanguageChange={handleLanguageChange}
-              onForgotPassword={() => navigate("/forgot")}
-              onLogin={handleLogin}
-            />
-          ) : (
-            <Navigate to="/dashboard" />
-          )}
+          element={
+            !user ? (
+              <LoginForm
+                language={language}
+                onLanguageChange={handleLanguageChange}
+                onForgotPassword={() => navigate("/forgot")}
+                onLogin={handleLogin}
+              />
+            ) : (
+              <Navigate to="/dashboard" />
+            )
+          }
         />
 
         {/* Forgot Password */}
         <Route
           path="/forgot"
-          element={!user ? (
-            <ForgotPasswordForm
-              language={language}
-              onLanguageChange={handleLanguageChange}
-              onBackToLogin={() => navigate("/login")}
-            />
-          ) : (
-            <Navigate to="/dashboard" />
-          )}
+          element={
+            !user ? (
+              <ForgotPasswordForm
+                language={language}
+                onLanguageChange={handleLanguageChange}
+                onBackToLogin={() => navigate("/login")}
+              />
+            ) : (
+              <Navigate to="/dashboard" />
+            )
+          }
         />
 
         {/* Reset Password */}
@@ -78,32 +93,36 @@ function App() {
         {/* Dashboard */}
         <Route
           path="/dashboard"
-          element={user ? (
-            <Dashboard
-              language={language}
-              onLanguageChange={handleLanguageChange}
-              onLogout={handleLogout}
-              onNavigateTo={handleNavigateTo}
-            />
-          ) : (
-            <Navigate to="/login" />
-          )}
+          element={
+            user ? (
+              <Dashboard
+                language={language}
+                onLanguageChange={handleLanguageChange}
+                onLogout={handleLogout}
+                onNavigateTo={handleNavigateTo}
+              />
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
         />
 
         {/* Inspection */}
         <Route
           path="/inspection"
-          element={user ? (
-            <InspectionNew
-              language={language}
-              onLanguageChange={handleLanguageChange}
-              onBackToHome={() => navigate("/dashboard")}
-              onGoToReports={() => navigate("/dashboard")}
-              onGoToRecords={() => navigate("/dashboard")}
-            />
-          ) : (
-            <Navigate to="/login" />
-          )}
+          element={
+            user ? (
+              <InspectionNew
+                language={language}
+                onLanguageChange={handleLanguageChange}
+                onBackToHome={() => navigate("/dashboard")}
+                onGoToReports={() => navigate("/dashboard")}
+                onGoToRecords={() => navigate("/dashboard")}
+              />
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
         />
 
         {/* Violation */}
@@ -115,42 +134,50 @@ function App() {
         {/* Guards Rating */}
         <Route
           path="/guards-rating"
-          element={user ? (
-            <GuardsRatingPage
-              language={language}
-              onLanguageChange={setLanguage}
-              currentServiceId={currentServiceId}
-              onNavigateTo={(serviceId) => {
-                setCurrentServiceId(serviceId);
-                if (serviceId === "evaluation-records") navigate("/evaluation-records");
-                else navigate("/guards-rating");
-              }}
-            />
-          ) : (
-            <Navigate to="/login" />
-          )}
+          element={
+            user ? (
+              <GuardsRatingPage
+                language={language}
+                onLanguageChange={setLanguage}
+                currentServiceId={currentServiceId}
+                onNavigateTo={(serviceId) => {
+                  setCurrentServiceId(serviceId);
+                  if (serviceId === "evaluation-records")
+                    navigate("/evaluation-records");
+                  else navigate("/guards-rating");
+                }}
+              />
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
         />
 
         {/* Evaluation Records */}
         <Route
           path="/evaluation-records"
-          element={user ? (
-            <EvaluationRecordsPage
-              language={language}
-              onLanguageChange={setLanguage}
-              onNavigateTo={(serviceId) => {
-                setCurrentServiceId(serviceId);
-                if (serviceId === "new-evaluation") navigate("/guards-rating");
-                else navigate(serviceId);
-              }}
-            />
-          ) : (
-            <Navigate to="/login" />
-          )}
+          element={
+            user ? (
+              <EvaluationRecordsPage
+                language={language}
+                onLanguageChange={setLanguage}
+                onNavigateTo={(serviceId) => {
+                  setCurrentServiceId(serviceId);
+                  if (serviceId === "new-evaluation") navigate("/guards-rating");
+                  else navigate(serviceId);
+                }}
+              />
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
         />
 
         {/* Redirect أي رابط غير معروف */}
-        <Route path="*" element={<Navigate to={user ? "/dashboard" : "/login"} />} />
+        <Route
+          path="*"
+          element={<Navigate to={user ? "/dashboard" : "/login"} />}
+        />
       </Routes>
     </>
   );
