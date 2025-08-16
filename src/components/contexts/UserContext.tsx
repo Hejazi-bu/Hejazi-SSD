@@ -59,21 +59,20 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       const supabaseUser = data.session?.user;
 
       if (supabaseUser) {
-        const fullUser = await fetchFullUserData(supabaseUser);
-        setUser(fullUser);
+        setUser(mapSupabaseUserToLocalUser(supabaseUser));
       } else {
+        // المستخدم غير موجود → حدد null بدلاً من undefined
         setUser(null);
       }
     };
 
     getSession();
 
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
-        const fullUser = await fetchFullUserData(session.user);
-        setUser(fullUser);
+        setUser(mapSupabaseUserToLocalUser(session.user));
       } else {
-        setUser(null);
+        setUser(null); // تأكد من أنه يتم تعيين null عند تسجيل الخروج
       }
     });
 
