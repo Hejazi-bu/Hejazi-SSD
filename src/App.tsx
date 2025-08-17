@@ -40,7 +40,19 @@ function App() {
   }
 
   if (user === null) {
-    return <div className="flex items-center justify-center min-h-screen">تعذر جلب بيانات المستخدم. حاول تسجيل الدخول مرة أخرى.</div>;
+    return (
+      <Routes>
+        <Route path="/login" element={
+          <LoginForm
+            language={language}
+            onLanguageChange={handleLanguageChange}
+            onForgotPassword={() => navigate("/forgot")}
+            onLogin={handleLogin}
+          />
+        } />
+        <Route path="*" element={<Navigate to="/login" />} />
+      </Routes>
+    );
   }
 
   return (
