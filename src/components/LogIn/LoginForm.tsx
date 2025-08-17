@@ -6,7 +6,7 @@ import ar from "../../locales/ar";
 import en from "../../locales/en";
 import { toast } from "sonner";
 import { useUser, User } from "../contexts/UserContext";
-import { useLocation } from "react-router-dom"; // ✅ استيراد useLocation
+import { useLocation } from "react-router-dom"; 
 
 interface Props {
   language: "ar" | "en";
@@ -19,7 +19,7 @@ export function LoginForm({ language, onLanguageChange, onForgotPassword, onLogi
   const t = language === "ar" ? ar : en;
   const { setUser } = useUser();
   const location = useLocation(); // ✅ الحصول على الموقع الحالي
-  const from = (location.state as any)?.from?.pathname || "/dashboard"; // ✅ الصفحة للعودة إليها بعد تسجيل الدخول
+  const from = (location.state as any)?.from || "/dashboard"; // ✅ الصفحة للعودة إليها بعد تسجيل الدخول
 
   const [identifier, setIdentifier] = useState(""); 
   const [password, setPassword] = useState("");
@@ -129,7 +129,7 @@ export function LoginForm({ language, onLanguageChange, onForgotPassword, onLogi
       setLoading(false);
       toast.success(language === "ar" ? "تم تسجيل الدخول بنجاح" : "Signed in successfully");
 
-      onLogin(user, from); // ✅ إعادة التوجيه إلى الصفحة المطلوبة
+      onLogin(user, from);
 
     } catch (err: any) {
       setError(err.message || t.loginFailed);

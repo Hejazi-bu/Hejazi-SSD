@@ -3,11 +3,9 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { supabase } from "../../lib/supabaseClient";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
-// 🔹 نوع المستخدم النهائي
-// src/components/contexts/UserContext.tsx
 export interface User {
-  id: string;              // من Supabase
-  email?: string;          // من Supabase
+  id: string;
+  email?: string;
   uuid?: string;
   created_at?: string;
 
@@ -20,6 +18,8 @@ export interface User {
   status?: string;
   avatar_url?: string | null;
   last_login?: string;
+
+  isFallback?: boolean;
 }
 
 interface UserContextProps {
@@ -44,7 +44,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         .eq("id", supabaseUser.id)
         .single();
 
-      if (error || !data) throw error || new Error("تعذر جلب بيانات المستخدم");
+      if (error || !data) {
+        console.warn("تعذر جلب بيانات كاملة، استخدام fallback");
+        return mapSupabaseUserToLocalUser(supabaseUser);
+      }
 
       return {
         id: supabaseUser.id,
@@ -56,10 +59,15 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         job_id: data.job_id,
         job_number: data.job_number,
         role: data.role,
+        phone: data.phone,
+        status: data.status,
+        avatar_url: data.avatar_url,
+        last_login: new Date().toISOString(),
+        isFallback: false, // ✅ بيانات كاملة
       };
     } catch (err) {
       console.error("خطأ في fetchFullUserData:", err);
-      return mapSupabaseUserToLocalUser(supabaseUser); // بيانات بديلة
+      return mapSupabaseUserToLocalUser(supabaseUser); // ✅ fallback
     }
   };
 
@@ -112,6 +120,7 @@ function mapSupabaseUserToLocalUser(supabaseUser: SupabaseUser): User {
     status: "active",
     avatar_url: null,
     last_login: undefined,
+    isFallback: true, // ✅ مهم
   };
 }
 
