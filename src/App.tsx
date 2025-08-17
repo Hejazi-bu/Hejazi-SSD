@@ -53,13 +53,7 @@ function App() {
       </Routes>
     );
   }
-  if (user?.isFallback) {
-    return (
-      <div className="flex items-center justify-center min-h-screen text-red-600">
-        ⚠️ حسابك غير مكتمل. يرجى التواصل مع الإدارة.
-      </div>
-    );
-  }
+
   return (
     <>
       <Toaster position="bottom-center" />

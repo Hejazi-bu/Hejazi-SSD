@@ -18,8 +18,6 @@ export interface User {
   status?: string | null;
   avatar_url?: string | null;
   last_login?: string;
-
-  isFallback?: boolean;
 }
 
 interface UserContextProps {
@@ -44,7 +42,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         .single();
 
       if (error || !data) {
-        console.warn("تعذر جلب بيانات كاملة، استخدام fallback");
+        console.warn("تعذر جلب بيانات كاملة، استخدام البيانات الأساسية من Supabase");
         return mapSupabaseUserToLocalUser(supabaseUser);
       }
 
@@ -62,11 +60,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         status: data.status ?? "active",
         avatar_url: data.avatar_url ?? null,
         last_login: new Date().toISOString(),
-        isFallback: false, // ✅ بيانات كاملة
       };
     } catch (err) {
       console.error("خطأ في fetchFullUserData:", err);
-      return mapSupabaseUserToLocalUser(supabaseUser); // ✅ fallback
+      return mapSupabaseUserToLocalUser(supabaseUser);
     }
   };
 
@@ -84,7 +81,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
       } catch (err) {
         console.error("خطأ في جلب الجلسة:", err);
-        setUser(null); // المستخدم غير موجود أو فشل الاتصال
+        setUser(null);
       }
     };
 
@@ -119,7 +116,6 @@ function mapSupabaseUserToLocalUser(supabaseUser: SupabaseUser): User {
     status: "active",
     avatar_url: null,
     last_login: undefined,
-    isFallback: true, // ✅ مهم
   };
 }
 
