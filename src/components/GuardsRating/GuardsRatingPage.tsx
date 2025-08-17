@@ -5,8 +5,6 @@
   import { CalendarIcon, UsersIcon, ExclamationTriangleIcon } from "@heroicons/react/24/solid";
   import { motion, AnimatePresence, Variants, useAnimation } from "framer-motion";
   import { useUser, User } from "../contexts/UserContext";
-  import { useData } from "../contexts/DataContext";
-  import { useNavigate } from "react-router-dom";
   import {
     Menu,
     Globe,
@@ -119,51 +117,6 @@
     onLanguageChange,
     onNavigateTo,
   }: GuardsRatingPageProps) {
-    const { data } = useData();
-    const navigate = useNavigate();
-    const [checkingData, setCheckingData] = useState(true);
-    const [alreadyNavigated, setAlreadyNavigated] = useState(false); // لمنع إعادة التوجيه
-
-    useEffect(() => {
-      if (alreadyNavigated) return; // ✅ إذا تم التوجيه سابقًا، لا نفعل أي شيء
-
-      const requiredTables = [
-        "users",
-        "companies",
-        "security_questions",
-        "security_evaluations",
-        "security_evaluation_details",
-        "violations",
-        "violation_types",
-        "violation_sends",
-      ];
-
-      const missing = requiredTables.some((table) => {
-        const value = data[table];
-        // بعض الجداول عبارة عن أرقام (companyGuardCount, companyViolationsCount)
-        if (typeof value === "number") return value === 0;
-        return !value || value.length === 0;
-      });
-
-      if (missing) {
-        const tablesQuery = requiredTables.join(",");
-        setAlreadyNavigated(true); // ✅ منع إعادة التوجيه
-        navigate(`/data-loader?tables=${tablesQuery}&target=/dashboard`);
-      } else {
-        setCheckingData(false); // ✅ البيانات سليمة
-      }
-    }, [data, navigate, alreadyNavigated]);
-
-    // ✅ شاشة انتظار أثناء التحقق من البيانات
-    if (checkingData) {
-      return (
-        <div className="w-full h-full flex items-center justify-center">
-          <span className="text-gray-500">
-            {language === "ar" ? "جارٍ التحقق من البيانات..." : "Checking data..."}
-          </span>
-        </div>
-      );
-    }
 
     const isRTL = language === "ar";
     const [userMenuOpen, setUserMenuOpen] = useState(false);

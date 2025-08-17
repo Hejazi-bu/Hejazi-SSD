@@ -57,56 +57,19 @@ const Dashboard: React.FC<Props> = ({
   onLogout,
   onNavigateTo,
 }) => {
-  const { data } = useData();
-  const navigate = useNavigate();
-  const [checkingData, setCheckingData] = useState(true);
-  const [alreadyNavigated, setAlreadyNavigated] = useState(false); // لمنع إعادة التوجيه
+  const t = language === "ar" ? ar : en;
+  const isRTL = language === "ar";
+  
+  const { user, setUser } = useUser();
 
-  const { user } = useUser();
-
-  useEffect(() => {
-    // ✅ التحقق من البيانات فقط إذا لم يتم التوجيه بعد
-    if (alreadyNavigated) return;
-
-    const requiredTables = ["users", "jobs"]; // الجداول المطلوبة للداشبورد
-    const missing = requiredTables.some(
-      (table) => !data[table] || data[table].length === 0
-    );
-
-    if (missing) {
-      const tablesQuery = requiredTables.join(",");
-      setAlreadyNavigated(true); // منع إعادة التوجيه
-      navigate(`/data-loader?tables=${tablesQuery}&target=/dashboard`);
-    } else {
-      setCheckingData(false); // البيانات سليمة
-    }
-  }, [data, navigate, alreadyNavigated]);
-
-  // ✅ شاشة انتظار أثناء التحقق من البيانات
-  if (checkingData) {
-    return (
-      <div className="w-full h-full flex items-center justify-center">
-        <span className="text-gray-500">
-          {language === "ar" ? "جارٍ التحقق من البيانات..." : "Checking data..."}
-        </span>
-      </div>
-    );
-  }
-
-  // ✅ شاشة تحميل إذا لم يكن هناك مستخدم
+  // ✅ إذا لم يكن هناك مستخدم، نعرض شاشة تحميل
   if (!user) {
     return (
       <div className="w-full h-full flex items-center justify-center">
-        <span className="text-gray-500">
-          {language === "ar" ? "جارٍ التحميل..." : "Loading..."}
-        </span>
+        <span className="text-gray-500">{language === "ar" ? "جارٍ التحميل..." : "Loading..."}</span>
       </div>
     );
   }
-
-  const t = language === "ar" ? ar : en;
-  const isRTL = language === "ar";
-
 
   const avatarOptionsRef = useRef<HTMLDivElement>(null);
 
