@@ -4,17 +4,22 @@ import { supabase } from "../../lib/supabaseClient";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 // 🔹 نوع المستخدم النهائي
+// src/components/contexts/UserContext.tsx
 export interface User {
-  id: string; // من Supabase
-  email?: string; // من Supabase
+  id: string;              // من Supabase
+  email?: string;          // من Supabase
   uuid?: string;
   created_at?: string;
-  // الحقول المخصصة
+
   name_ar: string;
   name_en: string;
   job_id: number;
   job_number: string;
   role: string;
+  phone?: string;
+  status?: string;
+  avatar_url?: string | null;
+  last_login?: string;
 }
 
 interface UserContextProps {
@@ -32,37 +37,47 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   // 🔹 جلب بيانات المستخدم الكاملة من Supabase
   const fetchFullUserData = async (supabaseUser: SupabaseUser): Promise<User> => {
-    const { data, error } = await supabase
-      .from("Users") // تأكد من اسم جدول المستخدمين لديك
-      .select("*")
-      .eq("id", supabaseUser.id)
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from("Users")
+        .select("*")
+        .eq("id", supabaseUser.id)
+        .single();
 
-    if (error || !data) return mapSupabaseUserToLocalUser(supabaseUser);
+      if (error || !data) throw error || new Error("تعذر جلب بيانات المستخدم");
 
-    return {
-      id: supabaseUser.id,
-      email: supabaseUser.email ?? undefined,
-      uuid: supabaseUser.id,
-      created_at: supabaseUser.created_at,
-      name_ar: data.name_ar,
-      name_en: data.name_en,
-      job_id: data.job_id,
-      job_number: data.job_number,
-      role: data.role,
-    };
+      return {
+        id: supabaseUser.id,
+        email: supabaseUser.email ?? undefined,
+        uuid: supabaseUser.id,
+        created_at: supabaseUser.created_at,
+        name_ar: data.name_ar,
+        name_en: data.name_en,
+        job_id: data.job_id,
+        job_number: data.job_number,
+        role: data.role,
+      };
+    } catch (err) {
+      console.error("خطأ في fetchFullUserData:", err);
+      return mapSupabaseUserToLocalUser(supabaseUser); // بيانات بديلة
+    }
   };
 
   useEffect(() => {
     const getSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      const supabaseUser = data.session?.user;
+      try {
+        const { data } = await supabase.auth.getSession();
+        const supabaseUser = data.session?.user;
 
-      if (supabaseUser) {
-        setUser(mapSupabaseUserToLocalUser(supabaseUser));
-      } else {
-        // المستخدم غير موجود → حدد null بدلاً من undefined
-        setUser(null);
+        if (supabaseUser) {
+          const fullUser = await fetchFullUserData(supabaseUser);
+          setUser(fullUser);
+        } else {
+          setUser(null);
+        }
+      } catch (err) {
+        console.error("خطأ في جلب الجلسة:", err);
+        setUser(null); // المستخدم غير موجود أو فشل الاتصال
       }
     };
 
@@ -70,9 +85,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
-        setUser(mapSupabaseUserToLocalUser(session.user));
+        fetchFullUserData(session.user).then(setUser);
       } else {
-        setUser(null); // تأكد من أنه يتم تعيين null عند تسجيل الخروج
+        setUser(null);
       }
     });
 
@@ -82,7 +97,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   return <UserContext.Provider value={{ user, setUser }}>{children}</UserContext.Provider>;
 };
 
-// 🔹 تحويل SupabaseUser → User النهائي (افتراضي)
 function mapSupabaseUserToLocalUser(supabaseUser: SupabaseUser): User {
   return {
     id: supabaseUser.id,
@@ -94,6 +108,10 @@ function mapSupabaseUserToLocalUser(supabaseUser: SupabaseUser): User {
     job_id: 0,
     job_number: "",
     role: "",
+    phone: "",
+    status: "active",
+    avatar_url: null,
+    last_login: undefined,
   };
 }
 

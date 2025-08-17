@@ -1,3 +1,4 @@
+// src/App.tsx
 import React from "react";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { supabase } from "./lib/supabaseClient";
@@ -13,36 +14,33 @@ import ViolationNew from "./components/Violation/ViolationNew";
 import { Toaster } from "sonner";
 import { useUser, User } from "./components/contexts/UserContext";
 
-import { useLocation } from "react-router-dom";
-
 function App() {
   const { user, setUser } = useUser();
   const navigate = useNavigate();
-  const location = useLocation(); // 🔹 احتفظ بموقع المستخدم الحالي
   const [language, setLanguage] = React.useState<"ar" | "en">("ar");
   const [currentServiceId, setCurrentServiceId] = React.useState<string>("new-evaluation");
 
   const handleLogin = (userData: User, redirectTo?: string) => {
     setUser(userData);
-    if (redirectTo) navigate(redirectTo); // 🔹 إعادة التوجيه للصفحة المطلوبة
+    if (redirectTo) navigate(redirectTo);
     else navigate("/dashboard");
   };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setUser(null);
-    navigate("/login"); // روابط نظيفة
+    navigate("/login");
   };
 
   const handleLanguageChange = (lang: "ar" | "en") => setLanguage(lang);
   const handleNavigateTo = (page: string) => navigate(page);
 
   if (user === undefined) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p>جار التحميل...</p>
-      </div>
-    );
+    return <div className="flex items-center justify-center min-h-screen">جار التحميل...</div>;
+  }
+
+  if (user === null) {
+    return <div className="flex items-center justify-center min-h-screen">تعذر جلب بيانات المستخدم. حاول تسجيل الدخول مرة أخرى.</div>;
   }
 
   return (
@@ -95,7 +93,7 @@ function App() {
                 onNavigateTo={handleNavigateTo}
               />
             ) : (
-              <Navigate to="/login" state={{ from: location }} />
+              <Navigate to="/login" state={{ from: window.location.pathname }} />
             )
           }
         />
@@ -112,12 +110,12 @@ function App() {
                 onGoToRecords={() => navigate("/dashboard")}
               />
             ) : (
-              <Navigate to="/login" />
+              <Navigate to="/login" state={{ from: window.location.pathname }} />
             )
           }
         />
 
-        <Route path="/violation-new" element={user ? <ViolationNew /> : <Navigate to="/login" />} />
+        <Route path="/violation-new" element={user ? <ViolationNew /> : <Navigate to="/login" state={{ from: window.location.pathname }} />} />
 
         <Route
           path="/guards-rating"
@@ -134,7 +132,7 @@ function App() {
                 }}
               />
             ) : (
-              <Navigate to="/login" />
+              <Navigate to="/login" state={{ from: window.location.pathname }} />
             )
           }
         />
@@ -153,7 +151,7 @@ function App() {
                 }}
               />
             ) : (
-              <Navigate to="/login" />
+              <Navigate to="/login" state={{ from: window.location.pathname }} />
             )
           }
         />

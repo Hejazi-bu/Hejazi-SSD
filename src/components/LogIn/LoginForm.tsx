@@ -6,17 +6,20 @@ import ar from "../../locales/ar";
 import en from "../../locales/en";
 import { toast } from "sonner";
 import { useUser, User } from "../contexts/UserContext";
+import { useLocation } from "react-router-dom"; // ✅ استيراد useLocation
 
 interface Props {
   language: "ar" | "en";
   onLanguageChange: (lang: "ar" | "en") => void;
   onForgotPassword: () => void;
-  onLogin: (userData: User, redirectTo?: string) => void; // ✅ التعديل هنا
+  onLogin: (userData: User, redirectTo?: string) => void;
 }
 
 export function LoginForm({ language, onLanguageChange, onForgotPassword, onLogin }: Props) {
   const t = language === "ar" ? ar : en;
   const { setUser } = useUser();
+  const location = useLocation(); // ✅ الحصول على الموقع الحالي
+  const from = (location.state as any)?.from?.pathname || "/dashboard"; // ✅ الصفحة للعودة إليها بعد تسجيل الدخول
 
   const [identifier, setIdentifier] = useState(""); 
   const [password, setPassword] = useState("");
@@ -107,7 +110,6 @@ export function LoginForm({ language, onLanguageChange, onForgotPassword, onLogi
         .update({ last_login: new Date().toISOString() })
         .eq("id", userRecord.id);
 
-      // إنشاء كائن المستخدم الجديد بناءً على UserContext و job_id
       const user: User = {
         id: signInData.user.id,
         uuid: userRecord.uuid,
@@ -127,9 +129,7 @@ export function LoginForm({ language, onLanguageChange, onForgotPassword, onLogi
       setLoading(false);
       toast.success(language === "ar" ? "تم تسجيل الدخول بنجاح" : "Signed in successfully");
 
-    // نرسل redirectTo إن وجد (قد يأتي من location.state)
-    const redirectTo = (window.history.state && (window.history.state as any).usr?.from) || "/dashboard";
-    onLogin(user, redirectTo);
+      onLogin(user, from); // ✅ إعادة التوجيه إلى الصفحة المطلوبة
 
     } catch (err: any) {
       setError(err.message || t.loginFailed);
