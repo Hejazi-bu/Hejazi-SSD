@@ -13,15 +13,19 @@ import ViolationNew from "./components/Violation/ViolationNew";
 import { Toaster } from "sonner";
 import { useUser, User } from "./components/contexts/UserContext";
 
+import { useLocation } from "react-router-dom";
+
 function App() {
   const { user, setUser } = useUser();
   const navigate = useNavigate();
+  const location = useLocation(); // 🔹 احتفظ بموقع المستخدم الحالي
   const [language, setLanguage] = React.useState<"ar" | "en">("ar");
   const [currentServiceId, setCurrentServiceId] = React.useState<string>("new-evaluation");
 
-  const handleLogin = (userData: User) => {
+  const handleLogin = (userData: User, redirectTo?: string) => {
     setUser(userData);
-    navigate("/dashboard"); // روابط نظيفة
+    if (redirectTo) navigate(redirectTo); // 🔹 إعادة التوجيه للصفحة المطلوبة
+    else navigate("/dashboard");
   };
 
   const handleLogout = async () => {
@@ -91,7 +95,7 @@ function App() {
                 onNavigateTo={handleNavigateTo}
               />
             ) : (
-              <Navigate to="/login" />
+              <Navigate to="/login" state={{ from: location }} />
             )
           }
         />

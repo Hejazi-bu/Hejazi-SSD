@@ -11,7 +11,7 @@ interface Props {
   language: "ar" | "en";
   onLanguageChange: (lang: "ar" | "en") => void;
   onForgotPassword: () => void;
-  onLogin: (userData: User) => void; // ← أضف هذا السطر
+  onLogin: (userData: User, redirectTo?: string) => void; // ✅ التعديل هنا
 }
 
 export function LoginForm({ language, onLanguageChange, onForgotPassword, onLogin }: Props) {
@@ -127,7 +127,9 @@ export function LoginForm({ language, onLanguageChange, onForgotPassword, onLogi
       setLoading(false);
       toast.success(language === "ar" ? "تم تسجيل الدخول بنجاح" : "Signed in successfully");
 
-      onLogin(user);
+    // نرسل redirectTo إن وجد (قد يأتي من location.state)
+    const redirectTo = (window.history.state && (window.history.state as any).usr?.from) || "/dashboard";
+    onLogin(user, redirectTo);
 
     } catch (err: any) {
       setError(err.message || t.loginFailed);
