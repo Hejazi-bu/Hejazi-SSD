@@ -1,6 +1,6 @@
 // src/App.tsx
 import React from "react";
-import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "./lib/supabaseClient";
 
 import InspectionNew from "./components/Inspection/InspectionNew";
@@ -16,14 +16,15 @@ import { useUser, User } from "./components/contexts/UserContext";
 
 function App() {
   const { user, setUser } = useUser();
+  const location = useLocation();
   const navigate = useNavigate();
   const [language, setLanguage] = React.useState<"ar" | "en">("ar");
   const [currentServiceId, setCurrentServiceId] = React.useState<string>("new-evaluation");
 
-  const handleLogin = (userData: User, redirectTo?: string) => {
+  const handleLogin = (userData: User) => {
     setUser(userData);
-    if (redirectTo) navigate(redirectTo);
-    else navigate("/dashboard");
+    const from = (location.state as any)?.from || "/dashboard";
+    navigate(from, { replace: true });
   };
 
   const handleLogout = async () => {
