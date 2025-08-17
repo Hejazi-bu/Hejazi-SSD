@@ -38,18 +38,34 @@ function App() {
   if (user === undefined) {
     return <div className="flex items-center justify-center min-h-screen">جار التحميل...</div>;
   }
+
   if (user === null) {
     return (
       <Routes>
-        <Route path="/login" element={
-          <LoginForm
-            language={language}
-            onLanguageChange={handleLanguageChange}
-            onForgotPassword={() => navigate("/forgot")}
-            onLogin={handleLogin}
-          />
-        } />
-        <Route path="*" element={<Navigate to="/login" />} />
+        <Route
+          path="/login"
+          element={
+            <LoginForm
+              language={language}
+              onLanguageChange={handleLanguageChange}
+              onForgotPassword={() => navigate("/forgot")}
+              onLogin={handleLogin}
+            />
+          }
+        />
+        <Route
+          path="/forgot"
+          element={
+            <ForgotPasswordForm
+              language={language}
+              onLanguageChange={handleLanguageChange}
+              onBackToLogin={() => navigate("/login")}
+            />
+          }
+        />
+        <Route path="/reset" element={<ResetPassword />} />
+        {/* أي محاولة الوصول لأي صفحة بدون تسجيل دخول */}
+        <Route path="*" element={<Navigate to="/login" state={{ from: window.location.pathname }} replace />} />
       </Routes>
     );
   }
@@ -58,7 +74,7 @@ function App() {
     <>
       <Toaster position="bottom-center" />
       <Routes>
-        <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Navigate to="/login" />} />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
         <Route
           path="/login"
@@ -71,7 +87,7 @@ function App() {
                 onLogin={handleLogin}
               />
             ) : (
-              <Navigate to="/dashboard" />
+              <Navigate to="/dashboard" replace />
             )
           }
         />
@@ -86,12 +102,12 @@ function App() {
                 onBackToLogin={() => navigate("/login")}
               />
             ) : (
-              <Navigate to="/dashboard" />
+              <Navigate to="/dashboard" replace />
             )
           }
         />
 
-        <Route path="/reset" element={!user ? <ResetPassword /> : <Navigate to="/dashboard" />} />
+        <Route path="/reset" element={!user ? <ResetPassword /> : <Navigate to="/dashboard" replace />} />
 
         <Route
           path="/dashboard"
@@ -104,7 +120,7 @@ function App() {
                 onNavigateTo={handleNavigateTo}
               />
             ) : (
-              <Navigate to="/login" state={{ from: window.location.pathname }} />
+              <Navigate to="/login" state={{ from: window.location.pathname }} replace />
             )
           }
         />
@@ -121,12 +137,12 @@ function App() {
                 onGoToRecords={() => navigate("/dashboard")}
               />
             ) : (
-              <Navigate to="/login" state={{ from: window.location.pathname }} />
+              <Navigate to="/login" state={{ from: window.location.pathname }} replace />
             )
           }
         />
 
-        <Route path="/violation-new" element={user ? <ViolationNew /> : <Navigate to="/login" state={{ from: window.location.pathname }} />} />
+        <Route path="/violation-new" element={user ? <ViolationNew /> : <Navigate to="/login" state={{ from: window.location.pathname }} replace />} />
 
         <Route
           path="/guards-rating"
@@ -143,7 +159,7 @@ function App() {
                 }}
               />
             ) : (
-              <Navigate to="/login" state={{ from: window.location.pathname }} />
+              <Navigate to="/login" state={{ from: window.location.pathname }} replace />
             )
           }
         />
@@ -162,13 +178,13 @@ function App() {
                 }}
               />
             ) : (
-              <Navigate to="/login" state={{ from: window.location.pathname }} />
+              <Navigate to="/login" state={{ from: window.location.pathname }} replace />
             )
           }
         />
 
-        {/* أي صفحة غير معروفة تذهب مباشرة للـ login */}
-        <Route path="*" element={<Navigate to="/login" />} />
+        {/* أي صفحة غير معروفة تذهب للـ dashboard بشكل آمن */}
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </>
   );
