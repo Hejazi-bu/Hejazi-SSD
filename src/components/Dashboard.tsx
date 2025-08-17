@@ -237,14 +237,7 @@ const Dashboard: React.FC<Props> = ({
           </div>
         </div>
       )}
-  <div className="p-4">
-    <button
-      onClick={onLogout}
-      className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
-    >
-      {language === "ar" ? "تسجيل الخروج مؤقت" : "Temporary Log Out"}
-    </button>
-  </div>
+
       {/* شاشة تغيير كلمة المرور */}
       {showChangePassword && (
         <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4" dir={isRTL ? "rtl" : "ltr"}>
@@ -291,9 +284,22 @@ const Dashboard: React.FC<Props> = ({
 
       {/* خدمات المستخدم */}
       <div className="p-4">
-        <div className="flex justify-between items-center mb-4">
-          <input type="text" placeholder={language === "ar" ? "بحث..." : "Search..."} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="border p-2 rounded-lg w-full max-w-xs" />
-        </div>
+<div className="flex justify-between items-center mb-4">
+  <input
+    type="text"
+    placeholder={language === "ar" ? "بحث..." : "Search..."}
+    value={searchTerm}
+    onChange={(e) => setSearchTerm(e.target.value)}
+    className="border p-2 rounded-lg w-full max-w-xs"
+  />
+  <button
+    onClick={onLogout}
+    className="ml-4 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+  >
+    {language === "ar" ? "تسجيل الخروج" : "Log Out"}
+  </button>
+</div>
+
 
         <div className="flex space-x-4 space-x-reverse">
           {(["admin", "safety", "support"] as const).map((tab) => (
