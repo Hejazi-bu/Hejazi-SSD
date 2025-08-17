@@ -5,13 +5,14 @@
   import { CalendarIcon, UsersIcon, ExclamationTriangleIcon } from "@heroicons/react/24/solid";
   import { motion, AnimatePresence, Variants, useAnimation } from "framer-motion";
   import { useUser, User } from "../contexts/UserContext";
-  
+  import { useData } from "../contexts/DataContext";
+  import { useNavigate } from "react-router-dom";
   import {
     Menu,
     Globe,
     HomeIcon,
   } from "lucide-react";
-
+  
   type GuardsRatingPageProps = {
     language: "ar" | "en";
     onLanguageChange: (lang: "ar" | "en") => void;
@@ -32,7 +33,7 @@
     textEn: string;
     ratingValue: number;
     note: string;
-    invalid?: boolean; // <-- مضاف
+    invalid?: boolean;
   };
 
   type MonthOption = {
@@ -118,6 +119,33 @@
     onLanguageChange,
     onNavigateTo,
   }: GuardsRatingPageProps) {
+    const { data } = useData();
+    const navigate = useNavigate();
+
+    useEffect(() => {
+      const requiredTables = [
+        "companies",
+        "security_questions",
+        "security_evaluations",
+        "security_evaluation_details",
+        "violations",
+        "violation_types",
+        "violation_sends"
+      ];
+
+      const missing = requiredTables.some(table => {
+        const value = data[table];
+        // بعض الجداول عبارة عن أرقام (companyGuardCount, companyViolationsCount)
+        if (typeof value === "number") return value === 0;
+        return !value || value.length === 0;
+      });
+
+      if (missing) {
+        const tablesQuery = requiredTables.join(",");
+        navigate(`/data-loader?tables=${tablesQuery}&target=/dashboard`);
+      }
+    }, [data, navigate]);
+
     const isRTL = language === "ar";
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const userMenuRef = useRef<HTMLUListElement>(null);
@@ -408,120 +436,118 @@
         )
       : 0;
 
+      const { user, setUser } = useUser();
 
-const { user, setUser } = useUser();
+      const handleSubmit = async () => {
+        if (!selectedCompany || !selectedMonth || questions.length === 0) return;
 
-const handleSubmit = async () => {
-  if (!selectedCompany || !selectedMonth || questions.length === 0) return;
+        if (!user) {
+          alert(language === "ar" ? "يجب تسجيل الدخول أولاً" : "You must log in first.");
+          return;
+        }
 
-  if (!user) {
-    alert(language === "ar" ? "يجب تسجيل الدخول أولاً" : "You must log in first.");
-    return;
-  }
+        // تحقق من وجود أسئلة غير مقيمة
+        const unratedIndex = questions.findIndex((q) => q.ratingValue === 0);
+        if (unratedIndex !== -1) {
+          setQuestions((prev) =>
+            prev.map((q) => ({
+              ...q,
+              invalid: q.ratingValue === 0,
+            }))
+          );
 
-  // تحقق من وجود أسئلة غير مقيمة
-  const unratedIndex = questions.findIndex((q) => q.ratingValue === 0);
-  if (unratedIndex !== -1) {
-    setQuestions((prev) =>
-      prev.map((q) => ({
-        ...q,
-        invalid: q.ratingValue === 0,
-      }))
-    );
+          const element = document.getElementById(`question-${questions[unratedIndex].id}`);
+          if (element) {
+            element.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+          alert(language === "ar" ? "يرجى تقييم جميع الأسئلة قبل الحفظ." : "Please rate all questions before saving.");
+          return;
+        }
 
-    const element = document.getElementById(`question-${questions[unratedIndex].id}`);
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-    alert(language === "ar" ? "يرجى تقييم جميع الأسئلة قبل الحفظ." : "Please rate all questions before saving.");
-    return;
-  }
+        const [yearStr, monthStr] = selectedMonth.split("-");
+        const year = Number(yearStr);
+        const month = Number(monthStr);
 
-  const [yearStr, monthStr] = selectedMonth.split("-");
-  const year = Number(yearStr);
-  const month = Number(monthStr);
+        const totalRating = questions.reduce((sum, q) => sum + q.ratingValue, 0);
+        const overallScore = parseFloat((totalRating / questions.length).toFixed(2));
 
-  const totalRating = questions.reduce((sum, q) => sum + q.ratingValue, 0);
-  const overallScore = parseFloat((totalRating / questions.length).toFixed(2));
+        setIsLoadingEvaluation(true);
 
-  setIsLoadingEvaluation(true);
+        const cleanedGeneralNotes = cleanText(notes);
+        const cleanedQuestions = questions.map(q => ({
+          ...q,
+          note: q.note ? cleanText(q.note) : null,
+        }));
 
-  const cleanedGeneralNotes = cleanText(notes);
-  const cleanedQuestions = questions.map(q => ({
-    ...q,
-    note: q.note ? cleanText(q.note) : null,
-  }));
+        try {
+          // حفظ التقييم العام
+          const { data: insertEvalData, error: insertEvalError } = await supabase
+            .from("security_evaluations")
+            .insert({
+              operator_id: selectedCompany,
+              guard_count: companyGuardCount,
+              violations_count: companyViolationsCount,
+              contract_no: companyContractNo,
+              notes: cleanedGeneralNotes,
+              overall_score: overallScore,
+              year,
+              month,
+              evaluation_date: new Date().toISOString(),
+              evaluator_name: user.id,    // استخدام user.id
+              evaluator_job: user.job_id, // استخدام job_id
+              client_name: "Abu Dhabi Municipality",
+              location: "ADM",
+            })
+            .select("id")
+            .single();
 
-  try {
-    // حفظ التقييم العام
-    const { data: insertEvalData, error: insertEvalError } = await supabase
-      .from("security_evaluations")
-      .insert({
-        operator_id: selectedCompany,
-        guard_count: companyGuardCount,
-        violations_count: companyViolationsCount,
-        contract_no: companyContractNo,
-        notes: cleanedGeneralNotes,
-        overall_score: overallScore,
-        year,
-        month,
-        evaluation_date: new Date().toISOString(),
-        evaluator_name: user.id,    // استخدام user.id
-        evaluator_job: user.job_id, // استخدام job_id
-        client_name: "Abu Dhabi Municipality",
-        location: "ADM",
-      })
-      .select("id")
-      .single();
+          if (insertEvalError || !insertEvalData) {
+            alert(language === "ar" ? "فشل حفظ التقييم العام." : "Failed to save evaluation.");
+            console.error(insertEvalError);
+            setIsLoadingEvaluation(false);
+            return;
+          }
 
-    if (insertEvalError || !insertEvalData) {
-      alert(language === "ar" ? "فشل حفظ التقييم العام." : "Failed to save evaluation.");
-      console.error(insertEvalError);
-      setIsLoadingEvaluation(false);
-      return;
-    }
+          const evaluation_id = insertEvalData.id;
 
-    const evaluation_id = insertEvalData.id;
+          // حفظ تفاصيل التقييم
+          const details = cleanedQuestions.map((q) => ({
+            evaluation_id,
+            question_id: q.id,
+            selected_rating: q.ratingValue,
+            note: q.note,
+          }));
 
-    // حفظ تفاصيل التقييم
-    const details = cleanedQuestions.map((q) => ({
-      evaluation_id,
-      question_id: q.id,
-      selected_rating: q.ratingValue,
-      note: q.note,
-    }));
+          const { error: detailsError } = await supabase
+            .from("security_evaluation_details")
+            .insert(details);
 
-    const { error: detailsError } = await supabase
-      .from("security_evaluation_details")
-      .insert(details);
+          if (detailsError) {
+            alert(language === "ar" ? "تم الحفظ جزئياً. (الأسئلة لم تُحفظ)." : "Partially saved. (Details failed)");
+            console.error(detailsError);
+            setIsLoadingEvaluation(false);
+            return;
+          }
 
-    if (detailsError) {
-      alert(language === "ar" ? "تم الحفظ جزئياً. (الأسئلة لم تُحفظ)." : "Partially saved. (Details failed)");
-      console.error(detailsError);
-      setIsLoadingEvaluation(false);
-      return;
-    }
+          // تحديث تقييم الشركة
+          const { error: companyUpdateError } = await supabase.rpc('update_company_overall_score', {
+            company_id: selectedCompany
+          });
 
-    // تحديث تقييم الشركة
-    const { error: companyUpdateError } = await supabase.rpc('update_company_overall_score', {
-      company_id: selectedCompany
-    });
+          if (companyUpdateError) {
+            console.warn("فشل تحديث تقييم الشركة التراكمي:", companyUpdateError);
+          }
 
-    if (companyUpdateError) {
-      console.warn("فشل تحديث تقييم الشركة التراكمي:", companyUpdateError);
-    }
+          alert(language === "ar" ? "تم حفظ التقييم بنجاح." : "Evaluation saved successfully.");
+          window.location.reload();
 
-    alert(language === "ar" ? "تم حفظ التقييم بنجاح." : "Evaluation saved successfully.");
-    window.location.reload();
-
-  } catch (error) {
-    console.error(error);
-    alert(language === "ar" ? "حدث خطأ غير متوقع." : "An unexpected error occurred.");
-  } finally {
-    setIsLoadingEvaluation(false);
-  }
-};
-
+        } catch (error) {
+          console.error(error);
+          alert(language === "ar" ? "حدث خطأ غير متوقع." : "An unexpected error occurred.");
+        } finally {
+          setIsLoadingEvaluation(false);
+        }
+      };
 
     function Sidebar({
       isOpen,

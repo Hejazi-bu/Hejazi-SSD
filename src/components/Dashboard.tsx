@@ -35,6 +35,8 @@ import {
 } from "lucide-react";
 import ar from "../locales/ar";
 import en from "../locales/en";
+import { useData } from "./contexts/DataContext";
+import { useNavigate } from "react-router-dom";
 
 type Props = {
   language: "ar" | "en";
@@ -55,9 +57,22 @@ const Dashboard: React.FC<Props> = ({
   onLogout,
   onNavigateTo,
 }) => {
+  const { data } = useData();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const requiredTables = ["users", "jobs"]; // الجداول المطلوبة للداشبورد
+    const missing = requiredTables.some(table => !data[table] || data[table].length === 0);
+
+    if (missing) {
+      const tablesQuery = requiredTables.join(",");
+      navigate(`/data-loader?tables=${tablesQuery}&target=/dashboard`);
+    }
+  }, [data]);
+  
   const t = language === "ar" ? ar : en;
   const isRTL = language === "ar";
-
+  
   const { user, setUser } = useUser();
 
   // ✅ إذا لم يكن هناك مستخدم، نعرض شاشة تحميل
