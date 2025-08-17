@@ -22,7 +22,7 @@ export function LoginForm({ language, onLanguageChange, onForgotPassword, onLogi
   const from = (location.state as any)?.from || "/dashboard"; // ✅ الصفحة للعودة إليها بعد تسجيل الدخول
 
   const [identifier, setIdentifier] = useState(""); 
-  const [password, setPassword] = useState("");
+  const [password, setPassword] = useState(""); 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");

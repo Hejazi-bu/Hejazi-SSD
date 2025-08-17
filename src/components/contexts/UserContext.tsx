@@ -5,17 +5,17 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 export interface User {
   id: string;
-  email?: string;
+  email?: string | null;
   uuid?: string;
   created_at?: string;
 
-  name_ar: string;
-  name_en: string;
-  job_id: number;
-  job_number: string;
-  role: string;
-  phone?: string;
-  status?: string;
+  name_ar?: string | null;
+  name_en?: string | null;
+  job_id?: number | null;
+  job_number?: string | null;
+  role?: string | null;
+  phone?: string | null;
+  status?: string | null;
   avatar_url?: string | null;
   last_login?: string;
 
@@ -35,7 +35,6 @@ const UserContext = createContext<UserContextProps>({
 export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null | undefined>(undefined);
 
-  // 🔹 جلب بيانات المستخدم الكاملة من Supabase
   const fetchFullUserData = async (supabaseUser: SupabaseUser): Promise<User> => {
     try {
       const { data, error } = await supabase
@@ -51,17 +50,17 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
       return {
         id: supabaseUser.id,
-        email: supabaseUser.email ?? undefined,
+        email: data.email ?? supabaseUser.email ?? null,
         uuid: supabaseUser.id,
         created_at: supabaseUser.created_at,
-        name_ar: data.name_ar,
-        name_en: data.name_en,
-        job_id: data.job_id,
-        job_number: data.job_number,
-        role: data.role,
-        phone: data.phone,
-        status: data.status,
-        avatar_url: data.avatar_url,
+        name_ar: data.name_ar ?? null,
+        name_en: data.name_en ?? null,
+        job_id: data.job_id ?? null,
+        job_number: data.job_number ?? null,
+        role: data.role ?? "user",
+        phone: data.phone ?? null,
+        status: data.status ?? "active",
+        avatar_url: data.avatar_url ?? null,
         last_login: new Date().toISOString(),
         isFallback: false, // ✅ بيانات كاملة
       };
@@ -108,15 +107,15 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 function mapSupabaseUserToLocalUser(supabaseUser: SupabaseUser): User {
   return {
     id: supabaseUser.id,
-    email: supabaseUser.email ?? undefined,
+    email: supabaseUser.email ?? null,
     uuid: supabaseUser.id,
     created_at: supabaseUser.created_at,
-    name_ar: "",
-    name_en: "",
-    job_id: 0,
-    job_number: "",
-    role: "",
-    phone: "",
+    name_ar: null,
+    name_en: null,
+    job_id: null,
+    job_number: null,
+    role: "user",
+    phone: null,
     status: "active",
     avatar_url: null,
     last_login: undefined,
