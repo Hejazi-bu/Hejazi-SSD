@@ -1,16 +1,17 @@
+// src/main.tsx
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
 import { UserProvider } from "./components/contexts/UserContext";
-import { HashRouter } from "react-router-dom";
+import { BrowserRouter } from "react-router-dom"; // ✅ BrowserRouter للحصول على روابط نظيفة
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <UserProvider>
-      <HashRouter>
+      <BrowserRouter>
         <App />
-      </HashRouter>
+      </BrowserRouter>
     </UserProvider>
   </React.StrictMode>
 );
