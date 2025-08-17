@@ -121,6 +121,7 @@
   }: GuardsRatingPageProps) {
     const { data } = useData();
     const navigate = useNavigate();
+    const [checkingData, setCheckingData] = useState(true);
 
     useEffect(() => {
       const requiredTables = [
@@ -133,7 +134,7 @@
         "violation_sends"
       ];
 
-      const missing = requiredTables.some(table => {
+      const missing = requiredTables.some((table) => {
         const value = data[table];
         // بعض الجداول عبارة عن أرقام (companyGuardCount, companyViolationsCount)
         if (typeof value === "number") return value === 0;
@@ -143,8 +144,21 @@
       if (missing) {
         const tablesQuery = requiredTables.join(",");
         navigate(`/data-loader?tables=${tablesQuery}&target=/dashboard`);
+      } else {
+        setCheckingData(false); // ✅ البيانات سليمة
       }
     }, [data, navigate]);
+
+    // ✅ شاشة انتظار أثناء التحقق من البيانات
+    if (checkingData) {
+      return (
+        <div className="w-full h-full flex items-center justify-center">
+          <span className="text-gray-500">
+            {language === "ar" ? "جارٍ التحقق من البيانات..." : "Checking data..."}
+          </span>
+        </div>
+      );
+    }
 
     const isRTL = language === "ar";
     const [userMenuOpen, setUserMenuOpen] = useState(false);

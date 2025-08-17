@@ -59,27 +59,45 @@ const Dashboard: React.FC<Props> = ({
 }) => {
   const { data } = useData();
   const navigate = useNavigate();
+  const [checkingData, setCheckingData] = useState(true);
 
   useEffect(() => {
     const requiredTables = ["users", "jobs"]; // الجداول المطلوبة للداشبورد
-    const missing = requiredTables.some(table => !data[table] || data[table].length === 0);
+    const missing = requiredTables.some(
+      (table) => !data[table] || data[table].length === 0
+    );
 
     if (missing) {
       const tablesQuery = requiredTables.join(",");
       navigate(`/data-loader?tables=${tablesQuery}&target=/dashboard`);
+    } else {
+      setCheckingData(false); // البيانات سليمة
     }
-  }, [data]);
-  
+  }, [data, navigate]);
+
+  // ✅ إذا ما زلنا نتحقق من البيانات، نعرض شاشة انتظار
+  if (checkingData) {
+    return (
+      <div className="w-full h-full flex items-center justify-center">
+        <span className="text-gray-500">
+          {language === "ar" ? "جارٍ التحقق من البيانات..." : "Checking data..."}
+        </span>
+      </div>
+    );
+  }
+
   const t = language === "ar" ? ar : en;
   const isRTL = language === "ar";
-  
+
   const { user, setUser } = useUser();
 
   // ✅ إذا لم يكن هناك مستخدم، نعرض شاشة تحميل
   if (!user) {
     return (
       <div className="w-full h-full flex items-center justify-center">
-        <span className="text-gray-500">{language === "ar" ? "جارٍ التحميل..." : "Loading..."}</span>
+        <span className="text-gray-500">
+          {language === "ar" ? "جارٍ التحميل..." : "Loading..."}
+        </span>
       </div>
     );
   }
