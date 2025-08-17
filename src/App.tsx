@@ -1,4 +1,3 @@
-// src/App.tsx
 import React from "react";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { supabase } from "./lib/supabaseClient";
@@ -22,13 +21,13 @@ function App() {
 
   const handleLogin = (userData: User) => {
     setUser(userData);
-    navigate("/dashboard"); // ✅ إصلاح المسار
+    navigate("/dashboard"); // روابط نظيفة
   };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setUser(null);
-    navigate("/login"); // ✅ إصلاح المسار
+    navigate("/login"); // روابط نظيفة
   };
 
   const handleLanguageChange = (lang: "ar" | "en") => setLanguage(lang);
@@ -46,7 +45,6 @@ function App() {
     <>
       <Toaster position="bottom-center" />
       <Routes>
-        {/* ✅ إعادة توجيه الصفحة الرئيسية */}
         <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Navigate to="/login" />} />
 
         <Route
@@ -156,7 +154,7 @@ function App() {
           }
         />
 
-        {/* ✅ أي صفحة غير معروفة تروح للـ login */}
+        {/* أي صفحة غير معروفة تذهب مباشرة للـ login */}
         <Route path="*" element={<Navigate to="/login" />} />
       </Routes>
     </>
