@@ -122,16 +122,20 @@
     const { data } = useData();
     const navigate = useNavigate();
     const [checkingData, setCheckingData] = useState(true);
+    const [alreadyNavigated, setAlreadyNavigated] = useState(false); // لمنع إعادة التوجيه
 
     useEffect(() => {
+      if (alreadyNavigated) return; // ✅ إذا تم التوجيه سابقًا، لا نفعل أي شيء
+
       const requiredTables = [
+        "users",
         "companies",
         "security_questions",
         "security_evaluations",
         "security_evaluation_details",
         "violations",
         "violation_types",
-        "violation_sends"
+        "violation_sends",
       ];
 
       const missing = requiredTables.some((table) => {
@@ -143,11 +147,12 @@
 
       if (missing) {
         const tablesQuery = requiredTables.join(",");
+        setAlreadyNavigated(true); // ✅ منع إعادة التوجيه
         navigate(`/data-loader?tables=${tablesQuery}&target=/dashboard`);
       } else {
         setCheckingData(false); // ✅ البيانات سليمة
       }
-    }, [data, navigate]);
+    }, [data, navigate, alreadyNavigated]);
 
     // ✅ شاشة انتظار أثناء التحقق من البيانات
     if (checkingData) {

@@ -60,8 +60,14 @@ const Dashboard: React.FC<Props> = ({
   const { data } = useData();
   const navigate = useNavigate();
   const [checkingData, setCheckingData] = useState(true);
+  const [alreadyNavigated, setAlreadyNavigated] = useState(false); // لمنع إعادة التوجيه
+
+  const { user } = useUser();
 
   useEffect(() => {
+    // ✅ التحقق من البيانات فقط إذا لم يتم التوجيه بعد
+    if (alreadyNavigated) return;
+
     const requiredTables = ["users", "jobs"]; // الجداول المطلوبة للداشبورد
     const missing = requiredTables.some(
       (table) => !data[table] || data[table].length === 0
@@ -69,13 +75,14 @@ const Dashboard: React.FC<Props> = ({
 
     if (missing) {
       const tablesQuery = requiredTables.join(",");
+      setAlreadyNavigated(true); // منع إعادة التوجيه
       navigate(`/data-loader?tables=${tablesQuery}&target=/dashboard`);
     } else {
       setCheckingData(false); // البيانات سليمة
     }
-  }, [data, navigate]);
+  }, [data, navigate, alreadyNavigated]);
 
-  // ✅ إذا ما زلنا نتحقق من البيانات، نعرض شاشة انتظار
+  // ✅ شاشة انتظار أثناء التحقق من البيانات
   if (checkingData) {
     return (
       <div className="w-full h-full flex items-center justify-center">
@@ -86,12 +93,7 @@ const Dashboard: React.FC<Props> = ({
     );
   }
 
-  const t = language === "ar" ? ar : en;
-  const isRTL = language === "ar";
-
-  const { user, setUser } = useUser();
-
-  // ✅ إذا لم يكن هناك مستخدم، نعرض شاشة تحميل
+  // ✅ شاشة تحميل إذا لم يكن هناك مستخدم
   if (!user) {
     return (
       <div className="w-full h-full flex items-center justify-center">
@@ -101,6 +103,10 @@ const Dashboard: React.FC<Props> = ({
       </div>
     );
   }
+
+  const t = language === "ar" ? ar : en;
+  const isRTL = language === "ar";
+
 
   const avatarOptionsRef = useRef<HTMLDivElement>(null);
 
