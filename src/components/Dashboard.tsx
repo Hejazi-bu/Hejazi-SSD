@@ -35,8 +35,6 @@ import {
 } from "lucide-react";
 import ar from "../locales/ar";
 import en from "../locales/en";
-import { useData } from "./contexts/DataContext";
-import { useNavigate } from "react-router-dom";
 
 type Props = {
   language: "ar" | "en";
