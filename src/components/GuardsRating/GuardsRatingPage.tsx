@@ -5,6 +5,7 @@
   import { CalendarIcon, UsersIcon, ExclamationTriangleIcon } from "@heroicons/react/24/solid";
   import { motion, AnimatePresence, Variants, useAnimation } from "framer-motion";
   import { useUser, User } from "../contexts/UserContext";
+
   import {
     Menu,
     Globe,
@@ -712,6 +713,7 @@
 
       return (
         <header
+          id="app-header"
           className={`fixed top-0 left-0 w-full bg-white shadow flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 z-50 ${
             isRTL ? "flex-row-reverse" : "flex-row"
           }`}
@@ -843,11 +845,27 @@
         .then(() => setShowEvaluation(true));
     }, [language]);
 
+    const [headerHeight, setHeaderHeight] = React.useState<number>(80); // قيمة افتراضية
+
+    React.useLayoutEffect(() => {
+      const measure = () => {
+        const el = document.getElementById("app-header");
+        setHeaderHeight(el?.getBoundingClientRect().height ?? 80);
+      };
+
+      measure();                       // قياس أولي
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }, [language]); // لو اللغة تتغير ويزيد/ينقص ارتفاع الهيدر
+
     return (
       <div
-        className="min-h-screen bg-gray-700 p-6"
+        className="bg-gray-800 px-2 pb-4" // الخلفية العامة داكنة قليلاً، الهامش السفلي أكبر قليلًا
+        style={{
+          minHeight: "100vh",
+          textAlign: isRTL ? "right" : "left",
+        }}
         dir={isRTL ? "rtl" : "ltr"}
-        style={{ textAlign: isRTL ? "right" : "left" }}
       >
         <Header
           language={language}
@@ -857,7 +875,11 @@
         />
 
         <motion.div
-          className="mx-4 mt-20 mb-6 p-6 bg-white rounded shadow space-y-6 w-auto max-w-full"
+          className="bg-gray-100 rounded-xl shadow-2xl space-y-6" // الحاوية الرئيسية أفتح، ظل واضح وكبير
+          style={{
+            marginTop: headerHeight + 12,
+            padding: "20px", // padding داخلي أكبر قليلًا
+          }}
           variants={containerVariants}
           initial="hidden"
           animate={controls}
@@ -866,9 +888,9 @@
           {companies.length > 0 ? (
             <motion.div variants={getItemVariants(isRTL)}>
               <div className="flex flex-col gap-1">
-                <label className="font-semibold">{labels[language].company}</label>
+                <label className="font-semibold text-gray-700">{labels[language].company}</label>
                 <select
-                  className="w-full border rounded p-2"
+                  className="w-full border border-gray-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
                   value={selectedCompany}
                   onChange={(e) => handleCompanySelection(e.target.value)}
                 >
@@ -882,7 +904,7 @@
             </motion.div>
           ) : (
             <motion.div variants={getItemVariants(isRTL)}>
-              <div className="flex flex-col items-center justify-center border border-gray-300 bg-yellow-50 text-yellow-800 rounded-lg p-6 mt-4">
+              <div className="flex flex-col items-center justify-center border border-yellow-400 bg-yellow-50 text-yellow-900 rounded-lg p-6 mt-4 shadow-lg">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   className="h-6 w-6 mb-3"
@@ -911,7 +933,7 @@
             <motion.div variants={getItemVariants(isRTL)}>
               <div className="flex flex-wrap gap-6 mt-4 justify-start">
                 {/* الشهر */}
-                <div className="flex items-center gap-3 bg-gray-100 rounded-lg p-4 shadow-sm min-w-[220px]">
+                <div className="flex items-center gap-3 bg-white rounded-lg p-4 shadow-md min-w-[220px]">
                   <CalendarIcon className="w-6 h-6 text-blue-600" />
                   <div>
                     <div className="text-gray-600 font-semibold">{labels[language].month}</div>
@@ -922,7 +944,7 @@
                 </div>
 
                 {/* عدد الحراس */}
-                <div className="flex items-center gap-3 bg-blue-50 rounded-lg p-4 shadow-sm min-w-[220px] relative">
+                <div className="flex items-center gap-3 bg-white rounded-lg p-4 shadow-md min-w-[220px] relative">
                   <UsersIcon className="w-6 h-6 text-blue-700" />
                   <div className="flex flex-col">
                     <span className="text-blue-700 font-semibold">{labels[language].guardCount}</span>
@@ -939,7 +961,7 @@
                 </div>
 
                 {/* عدد المخالفات */}
-                <div className="flex items-center gap-3 bg-red-50 rounded-lg p-4 shadow-sm min-w-[220px] relative">
+                <div className="flex items-center gap-3 bg-white rounded-lg p-4 shadow-md min-w-[220px] relative">
                   <ExclamationTriangleIcon className="w-6 h-6 text-red-700" />
                   <div className="flex flex-col">
                     <span className="text-red-700 font-semibold">{labels[language].violationsCount}</span>
@@ -962,9 +984,9 @@
           {selectedCompany && selectedMonth && !evaluationDone && (
             <motion.div
               className="space-y-6"
-              variants={containerVariants}             // استخدام نفس container للأنيميشن المتسلسل
-              initial={selectedCompany && selectedMonth ? "visible" : "hidden"} // عرض مباشر عند تحميل الصفحة
-              animate={controls}                       // التحكم بالأنيميشن عند تغيير اللغة أو الشركة
+              variants={containerVariants}
+              initial={selectedCompany && selectedMonth ? "visible" : "hidden"}
+              animate={controls}
             >
               {questions.map((q) => (
                 <motion.div
@@ -1002,12 +1024,12 @@
 
               {/* الملاحظات العامة */}
               <motion.div variants={getItemVariants(isRTL)}>
-                <label className="block mb-1 font-semibold">{labels[language].notes}</label>
+                <label className="block mb-1 font-semibold text-gray-700">{labels[language].notes}</label>
                 <textarea
                   placeholder={language === "ar" ? "ملاحظات عامة..." : "General notes..."}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="w-full border rounded p-2 resize-y"
+                  className="w-full border border-gray-300 rounded p-2 resize-y focus:outline-none focus:ring-2 focus:ring-blue-400"
                   rows={3}
                 />
               </motion.div>
@@ -1015,7 +1037,7 @@
               {/* التقييم النهائي */}
               {questions.length > 0 && (
                 <motion.div variants={getItemVariants(isRTL)}>
-                  <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-6 mt-4 shadow-md">
+                  <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-6 mt-4 shadow-lg">
                     <h2 className="text-lg font-bold text-yellow-800 mb-4 text-center">
                       {language === "ar" ? "التقييم النهائي" : "Final Evaluation"}
                     </h2>
