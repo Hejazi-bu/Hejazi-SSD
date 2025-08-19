@@ -29,6 +29,12 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import ar from "../locales/ar";
 import en from "../locales/en";
+import * as Icons from "lucide-react";
+
+// =================== تعديل دالة الأيقونات ===================
+const getIconComponent = (iconName: string): React.FC<React.SVGProps<SVGSVGElement>> => {
+  return (Icons[iconName as keyof typeof Icons] as React.FC<React.SVGProps<SVGSVGElement>>) || Star;
+};
 
 type Props = {
   language: "ar" | "en";
@@ -40,8 +46,47 @@ type Props = {
 type Service = {
   id: string;
   label: string;
-  icon?: React.ReactNode;
+  icon?: string; // حفظ اسم الأيقونة كسلسلة
   group: string;
+  page?: string;
+};
+
+// ========== FavoriteStar Component ==========
+type FavoriteStarProps = {
+  isFavorite: boolean;
+  onClick: () => void;
+  size?: number;
+};
+
+// ========== FavoriteStar Component (تعديل) ==========
+const FavoriteStar: React.FC<FavoriteStarProps> = ({ isFavorite, onClick, size = 20 }) => {
+  return (
+    <motion.div
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      className={`cursor-pointer p-1 rounded-full ${isFavorite ? 'bg-yellow-100' : 'bg-gray-100'}`}
+      whileHover={{ scale: 1.2 }}
+      whileTap={{ scale: 0.9 }}
+      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+    >
+      {isFavorite ? (
+        <Star
+          className="text-yellow-400"
+          fill="currentColor"
+          stroke="none"
+          width={size}
+          height={size}
+        />
+      ) : (
+        <StarOff
+          className="text-gray-400"
+          fill="currentColor"
+          stroke="none"
+          width={size}
+          height={size}
+        />
+      )}
+    </motion.div>
+  );
 };
 
 const Dashboard: React.FC<Props> = ({
@@ -86,42 +131,87 @@ const Dashboard: React.FC<Props> = ({
   });
 
   // --------------------------
-  // تعريف الخدمات مع المجموعات
+  // حالات الخدمات والمفضلات من القاعدة
   // --------------------------
-  const services: Service[] = [
-    // 1️⃣ خدمات إدارية
-    { id: "meetings", label: t.meetingSystem, icon: <CalendarDays className="w-5 h-5" />, group: language === "ar" ? "خدمات إدارية" : "Administrative" },
-    { id: "parking", label: t.parkingManagement, icon: <Car className="w-5 h-5" />, group: language === "ar" ? "خدمات إدارية" : "Administrative" },
-    { id: "materials", label: t.materialControl, icon: <Boxes className="w-5 h-5" />, group: language === "ar" ? "خدمات إدارية" : "Administrative" },
-    { id: "visitors", label: t.visitorControl, icon: <Users className="w-5 h-5" />, group: language === "ar" ? "خدمات إدارية" : "Administrative" },
+  const [services, setServices] = useState<Service[]>([]);
+  const [loadingServices, setLoadingServices] = useState(true);
 
-    // 2️⃣ الشركات
-    { id: "guards-rating", label: t.guardsCompanyRating, icon: <Star className="w-5 h-5" />, group: language === "ar" ? "الشركات" : "Companies" },
-    { id: "company-violations", label: language === "ar" ? "مخالفات الشركات" : "Company Violations", icon: <AlertTriangle className="w-5 h-5" />, group: language === "ar" ? "الشركات" : "Companies" },
+  useEffect(() => {
+    const fetchServices = async () => {
+      if (!user) {
+        setServices([]);
+        setFavorites([]);
+        setLoadingServices(false);
+        return;
+      }
+      setLoadingServices(true);
 
-    // 3️⃣ مخالفات الحراس
-    { id: "guards-management", label: t.guardsManagement, icon: <ShieldUser className="w-5 h-5" />, group: language === "ar" ? "مخالفات الحراس" : "Guards Violations" },
-    { id: "violations-management", label: t.violationsManagement, icon: <AlertTriangle className="w-5 h-5" />, group: language === "ar" ? "مخالفات الحراس" : "Guards Violations" },
+      // جلب الخدمات
+      const { data, error } = await supabase
+        .from("services")
+        .select(`
+          id,
+          label_ar,
+          label_en,
+          icon,
+          page,
+          group_id,
+          service_groups(name_ar, name_en)
+        `)
+        .eq("status", "active")
+        .order("order", { ascending: true });
 
-    // 4️⃣ السلامة
-    { id: "inspection", label: t.inspectionSystemTitle, icon: <ShieldCheck className="w-5 h-5" />, group: language === "ar" ? "السلامة" : "Safety" },
-    { id: "risk", label: t.riskSystem, icon: <AlertTriangle className="w-5 h-5" />, group: language === "ar" ? "السلامة" : "Safety" },
-    { id: "reports", label: t.reportsSystem, icon: <Bell className="w-5 h-5" />, group: language === "ar" ? "السلامة" : "Safety" },
-    { id: "firstaid", label: t.firstAidSystem, icon: <LifeBuoy className="w-5 h-5" />, group: language === "ar" ? "السلامة" : "Safety" },
-    { id: "fireext", label: t.fireExtSystem, icon: <Flame className="w-5 h-5" />, group: language === "ar" ? "السلامة" : "Safety" },
+      if (error) {
+        console.error("Error fetching services:", error);
+      } else if (data) {
+        const formattedServices: Service[] = data.map((s: any) => ({
+          id: s.id.toString(),
+          label: language === "ar" ? s.label_ar : s.label_en,
+          icon: s.icon,
+          group: language === "ar" ? s.service_groups.name_ar : s.service_groups.name_en,
+          page: s.page,
+        }));
+        setServices(formattedServices);
+      }
 
-    // 5️⃣ الدعم
-    { id: "complaints", label: t.complaintSystem, icon: <AlertTriangle className="w-5 h-5" />, group: language === "ar" ? "الدعم" : "Support" },
-    { id: "support", label: t.supportSystem, icon: <Headset className="w-5 h-5" />, group: language === "ar" ? "الدعم" : "Support" },
-  ];
+      // جلب المفضلات للمستخدم الحالي
+      const { data: favs } = await supabase
+        .from("favorites")
+        .select("service_id")
+        .eq("user_id", user.id);
+
+      if (favs) {
+        setFavorites(favs.map((f: any) => f.service_id.toString()));
+      } else {
+        setFavorites([]); // إعادة تعيين إذا لا يوجد مفضلات
+      }
+
+      setLoadingServices(false);
+    };
+
+    fetchServices();
+  }, [user, language]); // ← مهم: إضافة `user` و `language` كـ dependencies
 
   // --------------------------
   // دوال المفضلة والبحث
   // --------------------------
-  const toggleFavorite = (id: string) => {
-    setFavorites((prev) =>
-      prev.includes(id) ? prev.filter((fav) => fav !== id) : [...prev, id]
-    );
+  const toggleFavorite = async (serviceId: string) => {
+    if (!user) return;
+
+    if (favorites.includes(serviceId)) {
+      await supabase
+        .from("favorites")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("service_id", serviceId);
+      setFavorites((prev) => prev.filter((f) => f !== serviceId));
+    } else {
+      await supabase.from("favorites").insert({
+        user_id: user.id,
+        service_id: serviceId,
+      });
+      setFavorites((prev) => [...prev, serviceId]);
+    }
   };
 
   const filteredServices = services.filter((s) =>
@@ -170,66 +260,64 @@ const Dashboard: React.FC<Props> = ({
   // --------------------------
   return (
     <div className="w-full h-full relative" dir={isRTL ? "rtl" : "ltr"}>
-      
-      {/* ----------------- الهيدر ----------------- */}
-{/* ----------------- الهيدر ----------------- */}
-<motion.header
-  className="flex items-center justify-between p-4 bg-gray-50/95 rounded-b-2xl shadow-xl backdrop-blur-sm border-b border-gray-200"
-  initial={{ y: -30, opacity: 0, scale: 0.98 }}
-  animate={{ y: 0, opacity: 1, scale: 1 }}
-  transition={{ type: "spring", stiffness: 280, damping: 28 }}
->
-  <div className="flex items-center space-x-3 space-x-reverse">
-    <button onClick={() => setShowServices((prev) => !prev)}>
-      <Menu className="w-6 h-6" />
-    </button>
-    <div className="flex flex-col">
-      <span className="font-semibold">{user.name_ar || user.name_en}</span>
-      <span className="text-sm text-gray-500">{language === "ar" ? `رقم الوظيفة: ${user.job_id}` : `Job ID: ${user.job_id}`}</span>
-    </div>
-  </div>
-
-  <div className="flex items-center space-x-3 space-x-reverse relative">
-    <button onClick={() => onLanguageChange(language === "ar" ? "en" : "ar")} className="px-3 py-1 border rounded-lg">
-      {language === "ar" ? "EN" : "ع"}
-    </button>
-    <img
-      src={user.avatar || "/default/avatar.png"}
-      alt="avatar"
-      className="w-10 h-10 rounded-full cursor-pointer"
-      onClick={() => setUserMenuOpen((prev) => !prev)}
-    />
-    {userMenuOpen && (
-      <motion.ul
-        ref={userMenuRef}
-        className="absolute top-14 right-0 bg-white border shadow-md rounded-lg py-2 w-40 space-y-1 z-50"
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -10 }}
-        transition={{ duration: 0.3 }}
+      {/* ================== الهيدر ================== */}
+      <motion.header
+        className="flex items-center justify-between p-4 bg-gray-50/95 rounded-b-2xl shadow-xl backdrop-blur-sm border-b border-gray-200"
+        initial={{ y: -30, opacity: 0, scale: 0.98 }}
+        animate={{ y: 0, opacity: 1, scale: 1 }}
+        transition={{ type: "spring", stiffness: 280, damping: 28 }}
       >
-        <li>
-          <button
-            className="w-full text-left px-4 py-2 hover:bg-gray-100"
-            onClick={() => setShowProfile(true)}
-          >
-            {language === "ar" ? "الملف الشخصي" : "Profile"}
+        <div className="flex items-center space-x-3 space-x-reverse">
+          <button onClick={() => setShowServices((prev) => !prev)}>
+            <Menu className="w-6 h-6" />
           </button>
-        </li>
-        <li>
-          <button
-            className="w-full text-left px-4 py-2 hover:bg-gray-100"
-            onClick={onLogout}
-          >
-            {language === "ar" ? "تسجيل الخروج" : "Log Out"}
-          </button>
-        </li>
-      </motion.ul>
-    )}
-  </div>
-</motion.header>
+          <div className="flex flex-col">
+            <span className="font-semibold">{user.name_ar || user.name_en}</span>
+            <span className="text-sm text-gray-500">{language === "ar" ? `رقم الوظيفة: ${user.job_id}` : `Job ID: ${user.job_id}`}</span>
+          </div>
+        </div>
 
-      {/* ----------------- البحث + الخدمات ----------------- */}
+        <div className="flex items-center space-x-3 space-x-reverse relative">
+          <button onClick={() => onLanguageChange(language === "ar" ? "en" : "ar")} className="px-3 py-1 border rounded-lg">
+            {language === "ar" ? "EN" : "ع"}
+          </button>
+          <img
+            src={user.avatar || "/default/avatar.png"}
+            alt="avatar"
+            className="w-10 h-10 rounded-full cursor-pointer"
+            onClick={() => setUserMenuOpen((prev) => !prev)}
+          />
+          {userMenuOpen && (
+            <motion.ul
+              ref={userMenuRef}
+              className="absolute top-14 right-0 bg-white border shadow-md rounded-lg py-2 w-40 space-y-1 z-50"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3 }}
+            >
+              <li>
+                <button
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100"
+                  onClick={() => setShowProfile(true)}
+                >
+                  {language === "ar" ? "الملف الشخصي" : "Profile"}
+                </button>
+              </li>
+              <li>
+                <button
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100"
+                  onClick={onLogout}
+                >
+                  {language === "ar" ? "تسجيل الخروج" : "Log Out"}
+                </button>
+              </li>
+            </motion.ul>
+          )}
+        </div>
+      </motion.header>
+
+      {/* ================== البحث + الخدمات ================== */}
       <AnimatePresence>
         {showServices && (
           <>
@@ -300,6 +388,59 @@ const Dashboard: React.FC<Props> = ({
                   </div>
                 </motion.div>
 
+                {/* ---------- مجموعة المفضلات ---------- */}
+                {favorites.length > 0 && filteredServices.filter((s) => favorites.includes(s.id)).length > 0 && (
+                  <motion.div
+                    className="bg-yellow-50 rounded-2xl shadow-lg p-6 border border-yellow-200"
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.5, ease: "easeOut" }}
+                  >
+                    <h3 className="text-lg font-semibold mb-4 text-yellow-600">
+                      {language === "ar" ? "المفضلات" : "Favorites"}
+                    </h3>
+                    <motion.div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+                      <AnimatePresence>
+                        {filteredServices
+                          .filter((s) => favorites.includes(s.id))
+                          .map((service) => {
+                            const Icon = getIconComponent(service.icon || "");
+                            return (
+                              <motion.div
+                                key={service.id}
+                                layout
+                                initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: -20, scale: 0.9 }}
+                                whileHover={{ 
+                                  scale: 1.03, 
+                                  boxShadow: "0px 12px 25px rgba(0,0,0,0.25)", 
+                                  backgroundColor: "#fef9c3" 
+                                }}
+                                transition={{ type: "spring", stiffness: 300, damping: 25, mass: 0.5 }}
+                                className="flex items-center justify-between p-4 rounded-xl cursor-pointer bg-white border border-gray-100 shadow-md transition-colors duration-300"
+                                onClick={() => onServiceClick(service.id, service.label)}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2 bg-blue-600 rounded-full text-white shadow">
+                                    <Icon className="w-5 h-5" />
+                                  </div>
+                                  <span className="font-medium text-gray-900">{service.label}</span>
+                                </div>
+                                <FavoriteStar
+                                  isFavorite={favorites.includes(service.id)}
+                                  onClick={() => toggleFavorite(service.id)}
+                                  size={24}
+                                />
+                              </motion.div>
+                            );
+                          })}
+                      </AnimatePresence>
+                    </motion.div>
+                  </motion.div>
+                )}
+                  
                 {/* عرض الخدمات بالمجموعات */}
                 {Object.entries(groupedServices).map(([group, items], index) => (
                   <motion.div
@@ -319,43 +460,46 @@ const Dashboard: React.FC<Props> = ({
                       variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.1 } } }}
                     >
                       <AnimatePresence>
-                        {items.map((service) => (
-                          <motion.div
-                            key={service.id}
-                            layout
-                            initial={{ opacity: 0, y: 20, scale: 0.9 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: -20, scale: 0.9 }}
-                            whileHover={{
-                              scale: 1.03,
-                              boxShadow: "0px 12px 25px rgba(0,0,0,0.25)",
-                              backgroundColor: "#e2e8f0",
-                            }}
-                            transition={{ type: "spring", stiffness: 300, damping: 25, mass: 0.5 }}
-                            className="flex items-center justify-between p-4 rounded-xl cursor-pointer 
-                                      bg-gray-50 border border-gray-50 shadow-md transition-colors duration-300"
-                            onClick={() => onServiceClick(service.id, service.label)}
-                          >
-                            <div className="flex items-center space-x-3 space-x-reverse">
-                              <div className="p-2 bg-blue-600 rounded-full text-white shadow">
-                                {service.icon}
-                              </div>
-                              <span className="font-medium text-gray-900">{service.label}</span>
-                            </div>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleFavorite(service.id);
+                        {items.map((service) => {
+                          const Icon = getIconComponent(service.icon || "");
+                          return (
+                            <motion.div
+                              key={service.id}
+                              layout
+                              initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, y: -20, scale: 0.9 }}
+                              whileHover={{
+                                scale: 1.03,
+                                boxShadow: "0px 12px 25px rgba(0,0,0,0.25)",
+                                backgroundColor: "#e2e8f0",
                               }}
+                              transition={{ type: "spring", stiffness: 300, damping: 25, mass: 0.5 }}
+                              className="flex items-center justify-between p-4 rounded-xl cursor-pointer 
+                                        bg-gray-50 border border-gray-50 shadow-md transition-colors duration-300"
+                              onClick={() => onServiceClick(service.id, service.label)}
                             >
-                              {favorites.includes(service.id) ? (
-                                <Star className="text-yellow-400 w-5 h-5" />
-                              ) : (
-                                <StarOff className="w-5 h-5 text-gray-500" />
-                              )}
-                            </button>
-                          </motion.div>
-                        ))}
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 bg-blue-600 rounded-full text-white shadow">
+                                  <Icon className="w-5 h-5" />
+                                </div>
+                                <span className="font-medium text-gray-900">{service.label}</span>
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleFavorite(service.id);
+                                }}
+                              >
+                                <FavoriteStar
+                                  isFavorite={favorites.includes(service.id)}
+                                  onClick={() => toggleFavorite(service.id)}
+                                  size={24}
+                                />
+                              </button>
+                            </motion.div>
+                          );
+                        })}
                       </AnimatePresence>
                     </motion.div>
                   </motion.div>
@@ -366,7 +510,7 @@ const Dashboard: React.FC<Props> = ({
         )}
       </AnimatePresence>
 
-      {/* ----------------- صفحة الملف الشخصي ----------------- */}
+      {/* ---------- الملف الشخصي ---------- */}
       {showProfile && (
         <div className="p-6 bg-gray-50 absolute inset-0 overflow-auto">
           <div className="text-gray-700 text-sm space-y-6">
@@ -410,43 +554,23 @@ const Dashboard: React.FC<Props> = ({
         </div>
       )}
 
-      {/* ----------------- شاشة تغيير كلمة المرور ----------------- */}
+      {/* ---------- تغيير كلمة المرور ---------- */}
       {showChangePassword && (
         <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
           <div className="bg-white p-6 rounded-lg w-full max-w-md space-y-4 relative">
             <button onClick={() => setShowChangePassword(false)} className="absolute top-3 right-3 text-gray-500 hover:text-gray-800"><X /></button>
-
             <h2 className="text-lg font-semibold">{language === "ar" ? "تغيير كلمة المرور" : "Change Password"}</h2>
-
             <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium">{language === "ar" ? "كلمة المرور القديمة" : "Old Password"}</label>
-                <div className="relative">
-                  <input type={showPassword ? "text" : "password"} value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} className="mt-1 block w-full border rounded-lg p-2" />
-                  <button type="button" onClick={() => setShowPassword((prev) => !prev)} className="absolute top-1/2 right-2 transform -translate-y-1/2 text-gray-500">
-                    {showPassword ? <EyeOff /> : <Eye />}
-                  </button>
-                </div>
-                {errors.oldPassword && <p className="text-red-500 text-sm">{errors.oldPassword}</p>}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium">{language === "ar" ? "كلمة المرور الجديدة" : "New Password"}</label>
-                <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="mt-1 block w-full border rounded-lg p-2" />
-                {errors.newPassword && <p className="text-red-500 text-sm">{errors.newPassword}</p>}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium">{language === "ar" ? "تأكيد كلمة المرور" : "Confirm Password"}</label>
-                <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="mt-1 block w-full border rounded-lg p-2" />
-                {errors.confirmPassword && <p className="text-red-500 text-sm">{errors.confirmPassword}</p>}
+              <input type={showPassword ? "text" : "password"} value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} placeholder={language === "ar" ? "كلمة المرور القديمة" : "Old Password"} className="w-full p-3 border rounded-lg" />
+              <input type={showPassword ? "text" : "password"} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder={language === "ar" ? "كلمة المرور الجديدة" : "New Password"} className="w-full p-3 border rounded-lg" />
+              <input type={showPassword ? "text" : "password"} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder={language === "ar" ? "تأكيد كلمة المرور" : "Confirm Password"} className="w-full p-3 border rounded-lg" />
+              <div className="flex items-center space-x-2 space-x-reverse">
+                <input type="checkbox" checked={showPassword} onChange={() => setShowPassword((prev) => !prev)} id="showPass" />
+                <label htmlFor="showPass" className="text-sm">{language === "ar" ? "إظهار كلمة المرور" : "Show Password"}</label>
               </div>
             </div>
-
-            {passwordChangeError && <p className="text-red-600 text-sm">{passwordChangeError}</p>}
-
             <div className="text-right">
-              <button disabled={passwordChangeLoading} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">{language === "ar" ? "حفظ" : "Save"}</button>
+              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg">{language === "ar" ? "حفظ" : "Save"}</button>
             </div>
           </div>
         </div>
