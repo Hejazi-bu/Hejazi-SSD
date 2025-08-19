@@ -52,38 +52,52 @@ type Service = {
 };
 
 // ========== FavoriteStar Component ==========
-type FavoriteStarProps = {
+type StarButtonProps = {
   isFavorite: boolean;
   onClick: () => void;
   size?: number;
 };
 
-// ========== FavoriteStar Component (تعديل) ==========
-const FavoriteStar: React.FC<FavoriteStarProps> = ({ isFavorite, onClick, size = 20 }) => {
+const StarButton: React.FC<StarButtonProps> = ({ isFavorite, onClick, size = 24 }) => {
   return (
     <motion.div
       onClick={(e) => { e.stopPropagation(); onClick(); }}
-      className={`cursor-pointer p-1 rounded-full ${isFavorite ? 'bg-yellow-100' : 'bg-gray-100'}`}
-      whileHover={{ scale: 1.2 }}
-      whileTap={{ scale: 0.9 }}
-      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+      className="cursor-pointer rounded-full p-1 flex items-center justify-center"
+      whileHover={{ scale: 1.2, rotate: 5 }}
+      whileTap={{ scale: 0.9, rotate: -5 }}
+      animate={{ scale: isFavorite ? 1.3 : 1, rotate: 0 }}
+      transition={{ type: "spring", stiffness: 500, damping: 25 }}
     >
       {isFavorite ? (
-        <Star
-          className="text-yellow-400"
-          fill="currentColor"
-          stroke="none"
-          width={size}
-          height={size}
-        />
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          exit={{ scale: 0, opacity: 0 }}
+          transition={{ type: "spring", stiffness: 500, damping: 20 }}
+        >
+          <Star
+            className="text-yellow-400 drop-shadow-lg"
+            fill="currentColor"
+            stroke="none"
+            width={size}
+            height={size}
+          />
+        </motion.div>
       ) : (
-        <StarOff
-          className="text-gray-400"
-          fill="currentColor"
-          stroke="none"
-          width={size}
-          height={size}
-        />
+        <motion.div
+          initial={{ opacity: 0.6 }}
+          animate={{ opacity: 0.8 }}
+          whileHover={{ opacity: 1 }}
+          exit={{ opacity: 0, scale: 0.8 }}
+        >
+          <StarOff
+            className="text-gray-400"
+            fill="none"
+            strokeWidth={2}
+            width={size}
+            height={size}
+          />
+        </motion.div>
       )}
     </motion.div>
   );
@@ -428,10 +442,10 @@ const Dashboard: React.FC<Props> = ({
                                   </div>
                                   <span className="font-medium text-gray-900">{service.label}</span>
                                 </div>
-                                <FavoriteStar
+                                <StarButton
                                   isFavorite={favorites.includes(service.id)}
                                   onClick={() => toggleFavorite(service.id)}
-                                  size={24}
+                                  size={28}
                                 />
                               </motion.div>
                             );
@@ -491,10 +505,10 @@ const Dashboard: React.FC<Props> = ({
                                   toggleFavorite(service.id);
                                 }}
                               >
-                                <FavoriteStar
+                                <StarButton
                                   isFavorite={favorites.includes(service.id)}
                                   onClick={() => toggleFavorite(service.id)}
-                                  size={24}
+                                  size={28}
                                 />
                               </button>
                             </motion.div>
