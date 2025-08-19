@@ -172,34 +172,62 @@ const Dashboard: React.FC<Props> = ({
     <div className="w-full h-full relative" dir={isRTL ? "rtl" : "ltr"}>
       
       {/* ----------------- الهيدر ----------------- */}
-      <header className="flex items-center justify-between p-4 bg-white shadow">
-        <div className="flex items-center space-x-3 space-x-reverse">
-          <button onClick={() => setShowServices((prev) => !prev)}>
-            <Menu className="w-6 h-6" />
+{/* ----------------- الهيدر ----------------- */}
+<motion.header
+  className="flex items-center justify-between p-4 bg-gray-50/95 rounded-b-2xl shadow-xl backdrop-blur-sm border-b border-gray-200"
+  initial={{ y: -30, opacity: 0, scale: 0.98 }}
+  animate={{ y: 0, opacity: 1, scale: 1 }}
+  transition={{ type: "spring", stiffness: 280, damping: 28 }}
+>
+  <div className="flex items-center space-x-3 space-x-reverse">
+    <button onClick={() => setShowServices((prev) => !prev)}>
+      <Menu className="w-6 h-6" />
+    </button>
+    <div className="flex flex-col">
+      <span className="font-semibold">{user.name_ar || user.name_en}</span>
+      <span className="text-sm text-gray-500">{language === "ar" ? `رقم الوظيفة: ${user.job_id}` : `Job ID: ${user.job_id}`}</span>
+    </div>
+  </div>
+
+  <div className="flex items-center space-x-3 space-x-reverse relative">
+    <button onClick={() => onLanguageChange(language === "ar" ? "en" : "ar")} className="px-3 py-1 border rounded-lg">
+      {language === "ar" ? "EN" : "ع"}
+    </button>
+    <img
+      src={user.avatar || "/default/avatar.png"}
+      alt="avatar"
+      className="w-10 h-10 rounded-full cursor-pointer"
+      onClick={() => setUserMenuOpen((prev) => !prev)}
+    />
+    {userMenuOpen && (
+      <motion.ul
+        ref={userMenuRef}
+        className="absolute top-14 right-0 bg-white border shadow-md rounded-lg py-2 w-40 space-y-1 z-50"
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -10 }}
+        transition={{ duration: 0.3 }}
+      >
+        <li>
+          <button
+            className="w-full text-left px-4 py-2 hover:bg-gray-100"
+            onClick={() => setShowProfile(true)}
+          >
+            {language === "ar" ? "الملف الشخصي" : "Profile"}
           </button>
-          <div className="flex flex-col">
-            <span className="font-semibold">{user.name_ar || user.name_en}</span>
-            <span className="text-sm text-gray-500">{language === "ar" ? `رقم الوظيفة: ${user.job_id}` : `Job ID: ${user.job_id}`}</span>
-          </div>
-        </div>
-        <div className="flex items-center space-x-3 space-x-reverse">
-          <button onClick={() => onLanguageChange(language === "ar" ? "en" : "ar")} className="px-3 py-1 border rounded-lg">
-            {language === "ar" ? "EN" : "ع"}
+        </li>
+        <li>
+          <button
+            className="w-full text-left px-4 py-2 hover:bg-gray-100"
+            onClick={onLogout}
+          >
+            {language === "ar" ? "تسجيل الخروج" : "Log Out"}
           </button>
-          <img
-            src={user.avatar || "/default/avatar.png"}
-            alt="avatar"
-            className="w-10 h-10 rounded-full cursor-pointer"
-            onClick={() => setUserMenuOpen((prev) => !prev)}
-          />
-          {userMenuOpen && (
-            <ul ref={userMenuRef} className="absolute top-16 right-4 bg-white border shadow-md rounded-lg py-2 w-40 space-y-1 z-50">
-              <li><button className="w-full text-left px-4 py-2 hover:bg-gray-100" onClick={() => setShowProfile(true)}>{language === "ar" ? "الملف الشخصي" : "Profile"}</button></li>
-              <li><button className="w-full text-left px-4 py-2 hover:bg-gray-100" onClick={onLogout}>{language === "ar" ? "تسجيل الخروج" : "Log Out"}</button></li>
-            </ul>
-          )}
-        </div>
-      </header>
+        </li>
+      </motion.ul>
+    )}
+  </div>
+</motion.header>
 
       {/* ----------------- البحث + الخدمات ----------------- */}
       <AnimatePresence>
