@@ -204,75 +204,137 @@ const Dashboard: React.FC<Props> = ({
       {/* ----------------- البحث + الخدمات ----------------- */}
       <AnimatePresence>
         {showServices && (
-          <motion.div
-            initial={{ x: isRTL ? "100%" : "-100%", opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: isRTL ? "100%" : "-100%", opacity: 0 }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed inset-0 bg-gray-50 z-40 flex flex-col"
-          >
-            {/* زر الإغلاق */}
-            <div className="flex justify-between items-center p-4 border-b shadow bg-white">
-              <h2 className="text-xl font-bold">
-                {language === "ar" ? "الخدمات" : "Services"}
-              </h2>
-              <button
-                onClick={() => setShowServices(false)}
-                className="p-2 rounded-full hover:bg-gray-200 transition"
+          <>
+            {/* الخلفية مع Blur */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.6 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.4, ease: "easeInOut" }}
+              className="fixed inset-0 bg-black backdrop-blur-sm z-30 pointer-events-none"
+            />
+
+            {/* قائمة الخدمات */}
+            <motion.div
+              initial={{ x: isRTL ? "100%" : "-100%", scale: 0.95, opacity: 0 }}
+              animate={{ x: 0, scale: 1, opacity: 1 }}
+              exit={{ x: isRTL ? "100%" : "-100%", scale: 0.95, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 250, damping: 25, mass: 0.7 }}
+              className="fixed inset-0 z-40 flex flex-col bg-gray-50 overflow-hidden"
+            >
+              {/* الهيدر الاحترافي */}
+              <motion.div
+                className="flex justify-between items-center p-4 rounded-b-2xl shadow-xl bg-gray-50/95 backdrop-blur-sm overflow-hidden border-b border-gray-200"
+                initial={{ y: -30, opacity: 0, scale: 0.98 }}
+                animate={{ y: 0, opacity: 1, scale: 1 }}
+                exit={{ y: -30, opacity: 0, scale: 0.98 }}
+                transition={{ type: "spring", stiffness: 280, damping: 28 }}
               >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
+                <h2 className="text-xl font-bold text-gray-900">
+                  {language === "ar" ? "الخدمات" : "Services"}
+                </h2>
+                <button
+                  onClick={() => setShowServices(false)}
+                  className="p-2 rounded-full hover:bg-gray-200 transition text-gray-700"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </motion.div>
 
-            <div className="p-6 overflow-y-auto flex-1 space-y-6">
-              {/* مربع البحث */}
-              <div className="flex justify-center mb-6">
-                <input
-                  type="text"
-                  placeholder={language === "ar" ? "بحث..." : "Search..."}
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="border p-3 rounded-lg w-full max-w-md shadow-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
-                />
-              </div>
-
-              {/* عرض الخدمات بالمجموعات */}
-              {Object.entries(groupedServices).map(([group, items]) => (
-                <div key={group} className="bg-white shadow-lg rounded-2xl p-6">
-                  <h3 className="text-lg font-semibold mb-4 text-blue-600">{group}</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-                    {items.map((service) => (
-                      <motion.div
-                        key={service.id}
-                        whileHover={{ scale: 1.03, y: -2 }}
-                        className="flex items-center justify-between p-4 rounded-xl cursor-pointer shadow-md bg-gradient-to-br from-gray-50 to-gray-100 hover:from-white hover:to-gray-50 transition"
-                        onClick={() => onServiceClick(service.id, service.label)}
-                      >
-                        <div className="flex items-center space-x-3 space-x-reverse">
-                          <div className="p-2 bg-blue-50 rounded-full text-blue-500">
-                            {service.icon}
-                          </div>
-                          <span className="font-medium">{service.label}</span>
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleFavorite(service.id);
-                          }}
-                        >
-                          {favorites.includes(service.id) ? (
-                            <Star className="text-yellow-400 w-5 h-5" />
-                          ) : (
-                            <StarOff className="w-5 h-5 text-gray-400" />
-                          )}
-                        </button>
-                      </motion.div>
-                    ))}
+              {/* المحتوى */}
+              <motion.div
+                className="p-6 overflow-y-auto flex-1 space-y-6"
+                initial="hidden"
+                animate="visible"
+                exit="hidden"
+                variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.15 } } }}
+              >
+                {/* مربع البحث الاحترافي */}
+                <motion.div
+                  className="flex justify-center mb-6"
+                  initial={{ opacity: 0, scale: 0.9, y: -20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, y: -20 }}
+                  transition={{ type: "spring", stiffness: 250, damping: 20 }}
+                >
+                  <div className="relative w-full max-w-md">
+                    <motion.input
+                      type="text"
+                      placeholder={language === "ar" ? "بحث..." : "Search..."}
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full p-4 pl-12 rounded-3xl 
+                                bg-white text-gray-900 placeholder-gray-500 
+                                shadow-xl focus:outline-none focus:ring-4 focus:ring-blue-400 
+                                focus:shadow-lg transition-all duration-300"
+                    />
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-6 h-6 text-gray-500 animate-pulse" />
                   </div>
-                </div>
-              ))}
-            </div>
-          </motion.div>
+                </motion.div>
+
+                {/* عرض الخدمات بالمجموعات */}
+                {Object.entries(groupedServices).map(([group, items], index) => (
+                  <motion.div
+                    key={group}
+                    className="bg-gray-100 rounded-2xl shadow-lg p-6 overflow-hidden border border-gray-200"
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.5, delay: index * 0.2, ease: "easeOut" }}
+                  >
+                    <h3 className="text-lg font-semibold mb-4 text-blue-600">{group}</h3>
+                    <motion.div
+                      className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5"
+                      initial="hidden"
+                      animate="visible"
+                      exit="hidden"
+                      variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.1 } } }}
+                    >
+                      <AnimatePresence>
+                        {items.map((service) => (
+                          <motion.div
+                            key={service.id}
+                            layout
+                            initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -20, scale: 0.9 }}
+                            whileHover={{
+                              scale: 1.03,
+                              boxShadow: "0px 12px 25px rgba(0,0,0,0.25)",
+                              backgroundColor: "#e2e8f0",
+                            }}
+                            transition={{ type: "spring", stiffness: 300, damping: 25, mass: 0.5 }}
+                            className="flex items-center justify-between p-4 rounded-xl cursor-pointer 
+                                      bg-gray-50 border border-gray-50 shadow-md transition-colors duration-300"
+                            onClick={() => onServiceClick(service.id, service.label)}
+                          >
+                            <div className="flex items-center space-x-3 space-x-reverse">
+                              <div className="p-2 bg-blue-600 rounded-full text-white shadow">
+                                {service.icon}
+                              </div>
+                              <span className="font-medium text-gray-900">{service.label}</span>
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleFavorite(service.id);
+                              }}
+                            >
+                              {favorites.includes(service.id) ? (
+                                <Star className="text-yellow-400 w-5 h-5" />
+                              ) : (
+                                <StarOff className="w-5 h-5 text-gray-500" />
+                              )}
+                            </button>
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
+                    </motion.div>
+                  </motion.div>
+                ))}
+              </motion.div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
 
