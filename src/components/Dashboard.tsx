@@ -269,50 +269,126 @@ const Dashboard: React.FC<Props> = ({
   return (
     <div className="w-full h-full relative" dir={isRTL ? "rtl" : "ltr"}>
       {/* ---------- شاشة التحميل المحسّنة ---------- */}
-        <AnimatePresence>
-          {!pageReady && (
+      <AnimatePresence>
+        {!pageReady && (
+          <motion.div
+            className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-indigo-900 via-purple-900 to-blue-800 text-white overflow-hidden perspective-1500"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.8 }}
+          >
+            {/* ---------- خلفية ديناميكية سينمائية ---------- */}
             <motion.div
-              className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-blue-900 via-gray-900 to-blue-800 text-white"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.8 }}
+              className="absolute inset-0 bg-gradient-radial from-white/5 via-transparent to-black/50"
+              animate={{ rotate: 360 }}
+              transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
+            />
+
+            {/* ---------- الكرة الزجاجية ثلاثية الأبعاد مع إضاءة ---------- */}
+            <motion.div
+              className="relative z-10 flex items-center justify-center w-52 h-52 rounded-full shadow-2xl"
+              initial={{ scale: 0.6, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 260, damping: 20 }}
             >
-              {/* ---------- الشعار المركزي ---------- */}
-              <div className="text-center">
-                <div className="text-6xl font-extrabold tracking-wide">Hejazi</div>
-                <div className="text-2xl font-semibold mt-2 opacity-90">SSD</div>
+              {/* الكرة الكريستالية */}
+              <motion.div
+                className="absolute inset-0 rounded-full bg-gradient-to-tr from-indigo-700/25 via-purple-700/25 to-blue-700/25 border border-white/20 shadow-xl backdrop-blur-lg"
+                animate={{ rotateY: 360, rotateX: 15 }}
+                transition={{ repeat: Infinity, duration: 14, ease: "linear" }}
+              />
+
+              {/* انعكاسات ضوء متغيرة */}
+              <motion.div
+                className="absolute inset-0 rounded-full blur-3xl"
+                animate={{
+                  background: [
+                    'radial-gradient(circle, rgba(255,255,255,0.3), rgba(0,0,0,0))',
+                    'radial-gradient(circle, rgba(255,220,180,0.35), rgba(0,0,0,0))',
+                    'radial-gradient(circle, rgba(0,200,255,0.35), rgba(0,0,0,0))',
+                    'radial-gradient(circle, rgba(255,255,255,0.3), rgba(0,0,0,0))'
+                  ]
+                }}
+                transition={{ repeat: Infinity, duration: 6, ease: "easeInOut" }}
+              />
+
+              {/* شرارات وذرات ديناميكية */}
+              {[...Array(50)].map((_, i) => (
+                <motion.div
+                  key={i}
+                  className="absolute w-2 h-2 rounded-full bg-white/70 shadow-md"
+                  initial={{ x: 0, y: 0, opacity: 0.6 }}
+                  animate={{
+                    x: [0, Math.random() * 180 - 90, 0],
+                    y: [0, Math.random() * 180 - 90, 0],
+                    opacity: [0.6, 1, 0.6],
+                    scale: [0.3, 1, 0.3]
+                  }}
+                  transition={{
+                    repeat: Infinity,
+                    duration: 3 + Math.random() * 2,
+                    ease: "easeInOut",
+                    delay: Math.random() * 2
+                  }}
+                />
+              ))}
+
+              {/* نص اللوقو محفور على الكرة */}
+              <div className="relative z-20 text-center">
+                <div className="text-6xl font-extrabold tracking-wider text-white drop-shadow-[0_0_24px_rgba(255,255,255,0.7)]">
+                  Hejazi
+                  <motion.div
+                    className="absolute inset-0 text-white/20 blur-md mix-blend-overlay"
+                    animate={{ y: [0, -8, 0], opacity: [0.2, 0.6, 0.2] }}
+                    transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                  >
+                    Hejazi
+                  </motion.div>
+                </div>
+                <div className="text-3xl font-semibold mt-1 opacity-90 drop-shadow-md">
+                  SSD
+                  <motion.div
+                    className="absolute inset-0 text-white/20 blur-sm mix-blend-overlay"
+                    animate={{ y: [0, -5, 0], opacity: [0.2, 0.6, 0.2] }}
+                    transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                  >
+                    SSD
+                  </motion.div>
+                </div>
               </div>
 
-              {/* ---------- نقاط التحميل (رسمية + بسيطة) ---------- */}
-              <div className="flex space-x-3 mt-10">
-                {[0, 0.2, 0.4].map((delay, i) => (
+              {/* حلقات تحميل شفافة ديناميكية */}
+              <div className="absolute inset-0">
+                {[0, 1, 2].map((i) => (
                   <motion.div
                     key={i}
-                    className="w-4 h-4 rounded-full bg-white"
-                    animate={{ y: [0, -12, 0], opacity: [0.6, 1, 0.6] }}
+                    className="absolute inset-0 border-4 border-white/25 rounded-full border-t-transparent border-b-transparent"
+                    initial={{ scale: 0.75, rotate: 0 }}
+                    animate={{ rotate: 360, scale: 1 }}
                     transition={{
-                      duration: 0.8,
                       repeat: Infinity,
-                      ease: "easeInOut",
-                      delay,
+                      duration: 2.5 + i * 0.5,
+                      ease: "linear",
+                      delay: i * 0.3,
                     }}
+                    style={{ opacity: 0.6 - i * 0.15 }}
                   />
                 ))}
               </div>
-
-              {/* ---------- النص السفلي ---------- */}
-              <motion.div
-                className="text-lg font-medium mt-6 tracking-wide"
-                animate={{ opacity: [0.7, 1, 0.7] }}
-                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-              >
-                {language === "ar" ? "جاري تجهيز لوحة التحكم..." : "Preparing Dashboard..."}
-
-              </motion.div>
             </motion.div>
-          )}
-        </AnimatePresence>
+
+            {/* نص التحميل السفلي */}
+            <motion.div
+              className="text-xl font-medium mt-10 tracking-wide z-10 text-center drop-shadow-md"
+              animate={{ opacity: [0.7, 1, 0.7], y: [0, -6, 0] }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+            >
+              {language === "ar" ? "جاري تجهيز لوحة التحكم..." : "Preparing Dashboard..."}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ================== الهيدر ================== */}
       <motion.header
