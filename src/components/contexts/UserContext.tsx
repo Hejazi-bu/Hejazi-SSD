@@ -3,9 +3,9 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { supabase } from "../../lib/supabaseClient";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
+// src/types/user.ts
 export interface User {
   id: string;
-  email?: string | null;
   uuid?: string;
   created_at?: string;
 
@@ -14,10 +14,15 @@ export interface User {
   job_id?: number | null;
   job_number?: string | null;
   role?: string | null;
+  email?: string | null;
   phone?: string | null;
   status?: string | null;
   avatar_url?: string | null;
   last_login?: string;
+
+  preferred_language?: "ar" | "en";
+
+  isFallback?: boolean;
 }
 
 interface UserContextProps {
@@ -60,6 +65,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         status: data.status ?? "active",
         avatar_url: data.avatar_url ?? null,
         last_login: new Date().toISOString(),
+        preferred_language: data.preferred_language ?? "ar", // ← أضف هذا
       };
     } catch (err) {
       console.error("خطأ في fetchFullUserData:", err);
@@ -116,6 +122,7 @@ function mapSupabaseUserToLocalUser(supabaseUser: SupabaseUser): User {
     status: "active",
     avatar_url: null,
     last_login: undefined,
+    preferred_language: "ar",
   };
 }
 

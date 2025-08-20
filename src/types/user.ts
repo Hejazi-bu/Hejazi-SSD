@@ -1,3 +1,4 @@
+// src/types/user.ts
 export interface User {
   id: string;
   uuid?: string;
@@ -14,5 +15,7 @@ export interface User {
   avatar_url?: string | null;
   last_login?: string;
 
+  preferred_language?: "ar" | "en";
+  
   isFallback?: boolean;
 }

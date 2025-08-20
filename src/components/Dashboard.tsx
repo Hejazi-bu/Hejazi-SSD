@@ -111,16 +111,8 @@ const Dashboard: React.FC<Props> = ({
 }) => {
   const t = language === "ar" ? ar : en;
   const isRTL = language === "ar";
-  
-  const { user } = useUser();
 
-  if (!user) {
-    return (
-      <div className="w-full h-full flex items-center justify-center">
-        <span className="text-gray-500">{language === "ar" ? "جارٍ التحميل..." : "Loading..."}</span>
-      </div>
-    );
-  }
+  const { user } = useUser();
 
   const avatarOptionsRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLUListElement>(null);
@@ -138,15 +130,14 @@ const Dashboard: React.FC<Props> = ({
   const [passwordChangeError, setPasswordChangeError] = useState<string | null>(null);
   const [passwordChangeLoading, setPasswordChangeLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // ← إضافة هذا السطر بعد تعريف باقي useState
   const [errors, setErrors] = useState({
     oldPassword: "",
     newPassword: "",
     confirmPassword: "",
   });
 
-  // --------------------------
   // حالات الخدمات والمفضلات من القاعدة
-  // --------------------------
   const [services, setServices] = useState<Service[]>([]);
   const [loadingServices, setLoadingServices] = useState(true);
 
@@ -156,11 +147,12 @@ const Dashboard: React.FC<Props> = ({
         setServices([]);
         setFavorites([]);
         setLoadingServices(false);
+        setIsLoading(false); // ← هذا السطر مهم جداً
         return;
       }
+
       setLoadingServices(true);
 
-      // جلب الخدمات
       const { data, error } = await supabase
         .from("services")
         .select(`
@@ -175,40 +167,36 @@ const Dashboard: React.FC<Props> = ({
         .eq("status", "active")
         .order("order", { ascending: true });
 
-      if (error) {
-        console.error("Error fetching services:", error);
-      } else if (data) {
+      if (error) console.error("Error fetching services:", error);
+      else if (data) {
         const formattedServices: Service[] = data.map((s: any) => ({
           id: s.id.toString(),
           label: language === "ar" ? s.label_ar : s.label_en,
-          icon: s.icon,
           group: language === "ar" ? s.service_groups.name_ar : s.service_groups.name_en,
+          icon: s.icon,
           page: s.page,
         }));
         setServices(formattedServices);
       }
 
-      // جلب المفضلات للمستخدم الحالي
+      // جلب المفضلات
       const { data: favs } = await supabase
         .from("favorites")
         .select("service_id")
         .eq("user_id", user.id);
 
-      if (favs) {
-        setFavorites(favs.map((f: any) => f.service_id.toString()));
-      } else {
-        setFavorites([]); // إعادة تعيين إذا لا يوجد مفضلات
-      }
+      setFavorites(favs ? favs.map((f: any) => f.service_id.toString()) : []);
 
       setLoadingServices(false);
+
+      // أهم سطر: بعد انتهاء التحميل
+      setTimeout(() => setIsLoading(false), 1200); // ← تأكد من إزالة أي وقت أطول أو صفر
     };
 
     fetchServices();
-  }, [user, language]); // ← مهم: إضافة `user` و `language` كـ dependencies
+  }, [user, language]);
 
-  // --------------------------
   // دوال المفضلة والبحث
-  // --------------------------
   const toggleFavorite = async (serviceId: string) => {
     if (!user) return;
 
@@ -253,9 +241,7 @@ const Dashboard: React.FC<Props> = ({
     }
   };
 
-  // --------------------------
   // إغلاق القوائم عند النقر خارجها
-  // --------------------------
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (avatarOptionsVisible && avatarOptionsRef.current && !avatarOptionsRef.current.contains(event.target as Node)) {
@@ -269,25 +255,75 @@ const Dashboard: React.FC<Props> = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [avatarOptionsVisible, userMenuOpen]);
 
-  // --------------------------
   // JSX الكامل للواجهة
-  // --------------------------
   return (
     <div className="w-full h-full relative" dir={isRTL ? "rtl" : "ltr"}>
+      {/* ---------- شاشة التحميل المحسّنة ---------- */}
+      <AnimatePresence>
+        {isLoading && (
+          <motion.div
+            className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500"
+            initial={{ opacity: 1 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.8 }}
+          >
+            {/* شعار ثابت مع Glow خفيف */}
+            <motion.div
+              className="w-32 h-32 rounded-full flex items-center justify-center mb-6 shadow-[0_0_40px_rgba(255,255,255,0.6)]"
+              initial={{ scale: 0.9 }}
+              animate={{ scale: [0.95, 1.05, 1] }}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            >
+              <div className="text-4xl font-extrabold text-white drop-shadow-lg">
+                Hejazi SSD
+              </div>
+            </motion.div>
+
+            {/* Dots Loader فقط */}
+            <motion.div className="flex space-x-3 mb-4">
+              {[0, 1, 2].map((i) => (
+                <motion.div
+                  key={i}
+                  className="w-4 h-4 rounded-full bg-white"
+                  animate={{ y: [0, -15, 0], scale: [1, 1.3, 1] }}
+                  transition={{
+                    duration: 0.6,
+                    repeat: Infinity,
+                    delay: i * 0.2,
+                    ease: "easeInOut",
+                  }}
+                />
+              ))}
+            </motion.div>
+
+            {/* كلمة التحميل */}
+            <motion.div
+              className="text-white text-lg tracking-wide animate-pulse"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: [0, 0.6, 1] }}
+              transition={{ duration: 1.5, repeat: Infinity, repeatType: "reverse" }}
+            >
+              {language === "ar" ? "جارٍ التحميل..." : "Loading..."}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ================== الهيدر ================== */}
       <motion.header
         className="flex items-center justify-between p-4 bg-gray-50/95 rounded-b-2xl shadow-xl backdrop-blur-sm border-b border-gray-200"
         initial={{ y: -30, opacity: 0, scale: 0.98 }}
-        animate={{ y: 0, opacity: 1, scale: 1 }}
-        transition={{ type: "spring", stiffness: 280, damping: 28 }}
+        animate={isLoading ? {} : { y: 0, opacity: 1, scale: 1 }}
+        transition={{ type: "spring", stiffness: 280, damping: 28, delay: 0.2 }}
       >
         <div className="flex items-center space-x-3 space-x-reverse">
           <button onClick={() => setShowServices((prev) => !prev)}>
             <Menu className="w-6 h-6" />
           </button>
           <div className="flex flex-col">
-            <span className="font-semibold">{user.name_ar || user.name_en}</span>
-            <span className="text-sm text-gray-500">{language === "ar" ? `رقم الوظيفة: ${user.job_id}` : `Job ID: ${user.job_id}`}</span>
+            <span className="font-semibold">{t === ar ? user?.name_ar : user?.name_en}</span>
+            <span className="text-sm text-gray-500">{t === ar ? `رقم الوظيفة: ${user?.job_id}` : `Job ID: ${user?.job_id}`}</span>
           </div>
         </div>
 
@@ -296,7 +332,7 @@ const Dashboard: React.FC<Props> = ({
             {language === "ar" ? "EN" : "ع"}
           </button>
           <img
-            src={user.avatar || "/default/avatar.png"}
+            src={user?.avatar || "/default/avatar.png"}
             alt="avatar"
             className="w-10 h-10 rounded-full cursor-pointer"
             onClick={() => setUserMenuOpen((prev) => !prev)}
@@ -356,7 +392,7 @@ const Dashboard: React.FC<Props> = ({
               <motion.div
                 className="flex justify-between items-center p-4 rounded-b-2xl shadow-xl bg-gray-50/95 backdrop-blur-sm overflow-hidden border-b border-gray-200"
                 initial={{ y: -30, opacity: 0, scale: 0.98 }}
-                animate={{ y: 0, opacity: 1, scale: 1 }}
+                animate={isLoading ? {} : { y: 0, opacity: 1, scale: 1 }}
                 exit={{ y: -30, opacity: 0, scale: 0.98 }}
                 transition={{ type: "spring", stiffness: 280, damping: 28 }}
               >
@@ -531,30 +567,30 @@ const Dashboard: React.FC<Props> = ({
             <div className="border border-gray-300 rounded-lg p-4 shadow-sm bg-white space-y-1">
               {language === "ar" ? (
                 <>
-                  <div><strong>الاسم (عربي):</strong> {user.name_ar}</div>
-                  <div><strong>الاسم (إنجليزي):</strong> {user.name_en}</div>
+                  <div><strong>الاسم (عربي):</strong> {user?.name_ar}</div>
+                  <div><strong>الاسم (إنجليزي):</strong> {user?.name_en}</div>
                 </>
               ) : (
                 <>
-                  <div><strong>Name (En):</strong> {user.name_en}</div>
-                  <div><strong>Name (Ar):</strong> {user.name_ar}</div>
+                  <div><strong>Name (En):</strong> {user?.name_en}</div>
+                  <div><strong>Name (Ar):</strong> {user?.name_ar}</div>
                 </>
               )}
             </div>
 
             <div className="border border-gray-300 rounded-lg p-4 shadow-sm bg-white space-y-1">
               {language === "ar" ? (
-                <div><strong>المسمى الوظيفي:</strong> {user.job_id ? `رقم الوظيفة: ${user.job_id}` : "-"}</div>
+                <div><strong>المسمى الوظيفي:</strong> {user?.job_id ? `رقم الوظيفة: ${user?.job_id}` : "-"}</div>
               ) : (
-                <div><strong>Job Title:</strong> {user.job_id ? `Job ID: ${user.job_id}` : "-"}</div>
+                <div><strong>Job Title:</strong> {user?.job_id ? `Job ID: ${user?.job_id}` : "-"}</div>
               )}
             </div>
 
             <div className="space-y-3">
-              <div><strong>{language === "ar" ? "رقم الهاتف" : "Phone"}:</strong> {user.phone}</div>
-              <div><strong>{language === "ar" ? "البريد الإلكتروني" : "Email"}:</strong> {user.email}</div>
-              <div><strong>{language === "ar" ? "الرقم الوظيفي" : "Job Number"}:</strong> {user.job_number}</div>
-              <div><strong>{language === "ar" ? "الحالة" : "Status"}:</strong> {user.status}</div>
+              <div><strong>{language === "ar" ? "رقم الهاتف" : "Phone"}:</strong> {user?.phone}</div>
+              <div><strong>{language === "ar" ? "البريد الإلكتروني" : "Email"}:</strong> {user?.email}</div>
+              <div><strong>{language === "ar" ? "الرقم الوظيفي" : "Job Number"}:</strong> {user?.job_number}</div>
+              <div><strong>{language === "ar" ? "الحالة" : "Status"}:</strong> {user?.status}</div>
             </div>
           </div>
 
