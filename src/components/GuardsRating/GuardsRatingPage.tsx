@@ -135,6 +135,18 @@
         onNavigateTo(pageId);
       }
     };
+    const toggleLanguage = () => {
+      const newLang = language === "ar" ? "en" : "ar";
+      localStorage.setItem("lang", newLang);  // حفظ اللغة في المتصفح
+      onLanguageChange(newLang);             // إخطار الصفحة الأب
+    };
+    useEffect(() => {
+      // تحقق من اللغة المخزنة في localStorage
+      const savedLang = localStorage.getItem("lang") as "ar" | "en" | null;
+      if (savedLang && savedLang !== language) {
+        onLanguageChange(savedLang);
+      }
+    }, []);
 
     useEffect(() => {
       function handleClickOutside(event: MouseEvent) {
@@ -756,12 +768,10 @@
                   <div className="h-6 border-l border-gray-300 mx-2"></div>
 
                   <button
-                    onClick={() => handleLanguageClick("en")}
+                    onClick={() => onLanguageChange("en")}
                     disabled={isLangAnimating}
-                    className={`${baseButtonClass} flex-col gap-1 items-center lg:flex-row-reverse lg:gap-2 ${
-                      isLangAnimating ? "opacity-60 cursor-not-allowed" : ""
-                    }`}
-                    title={isLangAnimating ? "جاري التبديل..." : "English"}
+                    className={`${baseButtonClass} ... ${isLangAnimating ? "opacity-60 cursor-not-allowed" : ""}`}
+                    title={isLangAnimating ? "Switching..." : "English"}
                   >
                     <Globe className="w-5 h-5" />
                     <span>English</span>
@@ -781,11 +791,9 @@
                   <div className="h-6 border-l border-gray-300 mx-2"></div>
 
                   <button
-                    onClick={() => handleLanguageClick("ar")}
+                    onClick={() => onLanguageChange("ar")}
                     disabled={isLangAnimating}
-                    className={`${baseButtonClass} flex-col gap-1 items-center lg:flex-row lg:gap-2 ${
-                      isLangAnimating ? "opacity-60 cursor-not-allowed" : ""
-                    }`}
+                    className={`${baseButtonClass} ... ${isLangAnimating ? "opacity-60 cursor-not-allowed" : ""}`}
                     title={isLangAnimating ? "جاري التبديل..." : "العربية"}
                   >
                     <span>العربية</span>
@@ -839,10 +847,7 @@
     }, [selectedCompany]);
 
     React.useEffect(() => {
-      controls
-        .start("hidden")
-        .then(() => controls.start("visible"))
-        .then(() => setShowEvaluation(true));
+      controls.start("hidden").then(() => controls.start("visible"));
     }, [language]);
 
     const [headerHeight, setHeaderHeight] = React.useState<number>(80); // قيمة افتراضية

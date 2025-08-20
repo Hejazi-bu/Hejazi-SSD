@@ -20,8 +20,6 @@ export interface User {
   avatar_url?: string | null;
   last_login?: string;
 
-  preferred_language?: "ar" | "en";
-
   isFallback?: boolean;
 }
 
@@ -65,7 +63,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         status: data.status ?? "active",
         avatar_url: data.avatar_url ?? null,
         last_login: new Date().toISOString(),
-        preferred_language: data.preferred_language ?? "ar", // ← أضف هذا
       };
     } catch (err) {
       console.error("خطأ في fetchFullUserData:", err);
@@ -122,7 +119,6 @@ function mapSupabaseUserToLocalUser(supabaseUser: SupabaseUser): User {
     status: "active",
     avatar_url: null,
     last_login: undefined,
-    preferred_language: "ar",
   };
 }
 

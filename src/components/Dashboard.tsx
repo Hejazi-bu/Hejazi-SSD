@@ -1,7 +1,7 @@
 // src/components/Dashboard.tsx
 import React, { useState, useRef, useEffect } from "react";
 import { useUser } from "./contexts/UserContext";
-import type { PageType } from "../types/pages"; 
+import type { PageType } from "../types/pages";
 import { supabase } from "../lib/supabaseClient";
 import {
   LogOut,
@@ -36,9 +36,11 @@ const getIconComponent = (iconName: string): React.FC<React.SVGProps<SVGSVGEleme
   return (Icons[iconName as keyof typeof Icons] as React.FC<React.SVGProps<SVGSVGElement>>) || Star;
 };
 
+type OnLanguageChange = (lang: "ar" | "en") => void;
+
 type Props = {
   language: "ar" | "en";
-  onLanguageChange: (lang: "ar" | "en") => void;
+  onLanguageChange: OnLanguageChange; // ⬅️ هنا التعديل
   onLogout: () => void;
   onNavigateTo: (page: PageType) => void;
 };
@@ -130,16 +132,21 @@ const Dashboard: React.FC<Props> = ({
   const [passwordChangeError, setPasswordChangeError] = useState<string | null>(null);
   const [passwordChangeLoading, setPasswordChangeLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(true); // ← إضافة هذا السطر بعد تعريف باقي useState
   const [errors, setErrors] = useState({
     oldPassword: "",
     newPassword: "",
     confirmPassword: "",
   });
 
+  // ✅ حالة مؤقتة لإظهار جارِ الحفظ عند تبديل اللغة (اختياري لكن مفيد)
+  const [isChangingLang, setIsChangingLang] = useState(false);
+
   // حالات الخدمات والمفضلات من القاعدة
   const [services, setServices] = useState<Service[]>([]);
   const [loadingServices, setLoadingServices] = useState(true);
+  const isLoading = loadingServices || !user;
+
+  const [pageReady, setPageReady] = useState(false); // ⬅️ صفحة جاهزة أم لا
 
   useEffect(() => {
     const fetchServices = async () => {
@@ -147,28 +154,21 @@ const Dashboard: React.FC<Props> = ({
         setServices([]);
         setFavorites([]);
         setLoadingServices(false);
-        setIsLoading(false); // ← هذا السطر مهم جداً
+        setPageReady(true); // ⬅️ الصفحة جاهزة حتى لو لا يوجد مستخدم
         return;
       }
 
       setLoadingServices(true);
 
-      const { data, error } = await supabase
-        .from("services")
-        .select(`
-          id,
-          label_ar,
-          label_en,
-          icon,
-          page,
-          group_id,
-          service_groups(name_ar, name_en)
-        `)
-        .eq("status", "active")
-        .order("order", { ascending: true });
+      try {
+        const { data, error } = await supabase
+          .from("services")
+          .select(`id, label_ar, label_en, icon, page, group_id, service_groups(name_ar, name_en)`)
+          .eq("status", "active")
+          .order("order", { ascending: true });
 
-      if (error) console.error("Error fetching services:", error);
-      else if (data) {
+        if (error) throw error;
+
         const formattedServices: Service[] = data.map((s: any) => ({
           id: s.id.toString(),
           label: language === "ar" ? s.label_ar : s.label_en,
@@ -176,21 +176,21 @@ const Dashboard: React.FC<Props> = ({
           icon: s.icon,
           page: s.page,
         }));
+
         setServices(formattedServices);
+
+        const { data: favs } = await supabase
+          .from("favorites")
+          .select("service_id")
+          .eq("user_id", user.id);
+
+        setFavorites(favs ? favs.map((f: any) => f.service_id.toString()) : []);
+      } catch (err) {
+        console.error("Error fetching services:", err);
+      } finally {
+        setLoadingServices(false);
+        setPageReady(true); // ⬅️ الصفحة أصبحت جاهزة
       }
-
-      // جلب المفضلات
-      const { data: favs } = await supabase
-        .from("favorites")
-        .select("service_id")
-        .eq("user_id", user.id);
-
-      setFavorites(favs ? favs.map((f: any) => f.service_id.toString()) : []);
-
-      setLoadingServices(false);
-
-      // أهم سطر: بعد انتهاء التحميل
-      setTimeout(() => setIsLoading(false), 1200); // ← تأكد من إزالة أي وقت أطول أو صفر
     };
 
     fetchServices();
@@ -255,60 +255,64 @@ const Dashboard: React.FC<Props> = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [avatarOptionsVisible, userMenuOpen]);
 
+  const handleToggleLanguage = () => {
+    setIsChangingLang(true);
+    const next = language === "ar" ? "en" : "ar";
+    
+    // حفظ اللغة في localStorage فقط
+    localStorage.setItem("lang", next);
+    onLanguageChange(next); // يُحدث واجهة المستخدم فورًا
+    setIsChangingLang(false);
+};
+
   // JSX الكامل للواجهة
   return (
     <div className="w-full h-full relative" dir={isRTL ? "rtl" : "ltr"}>
       {/* ---------- شاشة التحميل المحسّنة ---------- */}
-      <AnimatePresence>
-        {isLoading && (
-          <motion.div
-            className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500"
-            initial={{ opacity: 1 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.8 }}
-          >
-            {/* شعار ثابت مع Glow خفيف */}
+        <AnimatePresence>
+          {!pageReady && (
             <motion.div
-              className="w-32 h-32 rounded-full flex items-center justify-center mb-6 shadow-[0_0_40px_rgba(255,255,255,0.6)]"
-              initial={{ scale: 0.9 }}
-              animate={{ scale: [0.95, 1.05, 1] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-            >
-              <div className="text-4xl font-extrabold text-white drop-shadow-lg">
-                Hejazi SSD
-              </div>
-            </motion.div>
-
-            {/* Dots Loader فقط */}
-            <motion.div className="flex space-x-3 mb-4">
-              {[0, 1, 2].map((i) => (
-                <motion.div
-                  key={i}
-                  className="w-4 h-4 rounded-full bg-white"
-                  animate={{ y: [0, -15, 0], scale: [1, 1.3, 1] }}
-                  transition={{
-                    duration: 0.6,
-                    repeat: Infinity,
-                    delay: i * 0.2,
-                    ease: "easeInOut",
-                  }}
-                />
-              ))}
-            </motion.div>
-
-            {/* كلمة التحميل */}
-            <motion.div
-              className="text-white text-lg tracking-wide animate-pulse"
+              className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-blue-900 via-gray-900 to-blue-800 text-white"
               initial={{ opacity: 0 }}
-              animate={{ opacity: [0, 0.6, 1] }}
-              transition={{ duration: 1.5, repeat: Infinity, repeatType: "reverse" }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.8 }}
             >
-              {language === "ar" ? "جارٍ التحميل..." : "Loading..."}
+              {/* ---------- الشعار المركزي ---------- */}
+              <div className="text-center">
+                <div className="text-6xl font-extrabold tracking-wide">Hejazi</div>
+                <div className="text-2xl font-semibold mt-2 opacity-90">SSD</div>
+              </div>
+
+              {/* ---------- نقاط التحميل (رسمية + بسيطة) ---------- */}
+              <div className="flex space-x-3 mt-10">
+                {[0, 0.2, 0.4].map((delay, i) => (
+                  <motion.div
+                    key={i}
+                    className="w-4 h-4 rounded-full bg-white"
+                    animate={{ y: [0, -12, 0], opacity: [0.6, 1, 0.6] }}
+                    transition={{
+                      duration: 0.8,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                      delay,
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* ---------- النص السفلي ---------- */}
+              <motion.div
+                className="text-lg font-medium mt-6 tracking-wide"
+                animate={{ opacity: [0.7, 1, 0.7] }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+              >
+                {language === "ar" ? "جاري تجهيز لوحة التحكم..." : "Preparing Dashboard..."}
+
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
 
       {/* ================== الهيدر ================== */}
       <motion.header
@@ -328,9 +332,16 @@ const Dashboard: React.FC<Props> = ({
         </div>
 
         <div className="flex items-center space-x-3 space-x-reverse relative">
-          <button onClick={() => onLanguageChange(language === "ar" ? "en" : "ar")} className="px-3 py-1 border rounded-lg">
+          {/* ✅ الزر يستدعي onLanguageChange عبر دالة موحّدة */}
+          <button
+            onClick={handleToggleLanguage}
+            disabled={isChangingLang}
+            className="px-3 py-1 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            title={isChangingLang ? (language === "ar" ? "جارِ الحفظ..." : "Saving...") : ""}
+          >
             {language === "ar" ? "EN" : "ع"}
           </button>
+
           <img
             src={user?.avatar || "/default/avatar.png"}
             alt="avatar"
@@ -371,7 +382,6 @@ const Dashboard: React.FC<Props> = ({
       <AnimatePresence>
         {showServices && (
           <>
-            {/* الخلفية مع Blur */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 0.6 }}
@@ -380,7 +390,6 @@ const Dashboard: React.FC<Props> = ({
               className="fixed inset-0 bg-black backdrop-blur-sm z-30 pointer-events-none"
             />
 
-            {/* قائمة الخدمات */}
             <motion.div
               initial={{ x: isRTL ? "100%" : "-100%", scale: 0.95, opacity: 0 }}
               animate={{ x: 0, scale: 1, opacity: 1 }}
@@ -388,7 +397,6 @@ const Dashboard: React.FC<Props> = ({
               transition={{ type: "spring", stiffness: 250, damping: 25, mass: 0.7 }}
               className="fixed inset-0 z-40 flex flex-col bg-gray-50 overflow-hidden"
             >
-              {/* الهيدر الاحترافي */}
               <motion.div
                 className="flex justify-between items-center p-4 rounded-b-2xl shadow-xl bg-gray-50/95 backdrop-blur-sm overflow-hidden border-b border-gray-200"
                 initial={{ y: -30, opacity: 0, scale: 0.98 }}
@@ -407,7 +415,6 @@ const Dashboard: React.FC<Props> = ({
                 </button>
               </motion.div>
 
-              {/* المحتوى */}
               <motion.div
                 className="p-6 overflow-y-auto flex-1 space-y-6"
                 initial="hidden"
@@ -415,7 +422,6 @@ const Dashboard: React.FC<Props> = ({
                 exit="hidden"
                 variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.15 } } }}
               >
-                {/* مربع البحث الاحترافي */}
                 <motion.div
                   className="flex justify-center mb-6"
                   initial={{ opacity: 0, scale: 0.9, y: -20 }}

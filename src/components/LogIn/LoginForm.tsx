@@ -124,16 +124,10 @@ export function LoginForm({ language, onLanguageChange, onForgotPassword, onLogi
         role: userRecord.role || "user",
         last_login: new Date().toISOString(),
         job_id: userRecord.job_id,
-        preferred_language: userRecord.preferred_language || "ar", // إضافة هذا الحقل
       };
 
       setLoading(false);
       toast.success(language === "ar" ? "تم تسجيل الدخول بنجاح" : "Signed in successfully");
-
-      // تحديث اللغة فورًا بناءً على اللغة المفضلة للمستخدم
-      if (user.preferred_language && user.preferred_language !== language) {
-        onLanguageChange(user.preferred_language);
-      }
 
       onLogin(user, from); // إعادة التوجيه بعد تسجيل الدخول
 

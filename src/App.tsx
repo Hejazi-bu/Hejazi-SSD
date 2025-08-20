@@ -18,10 +18,7 @@ function App() {
   const { user, setUser } = useUser();
   const location = useLocation();
   const navigate = useNavigate();
-  const initialLang =
-    user?.preferred_language ||
-    (localStorage.getItem("lang") as "ar" | "en") ||
-    "ar";
+  const initialLang = (localStorage.getItem("lang") as "ar" | "en") || "ar";
   const [language, setLanguage] = React.useState<"ar" | "en">(initialLang);
 
   const [currentServiceId, setCurrentServiceId] = React.useState<string>("new-evaluation");
@@ -38,25 +35,9 @@ function App() {
     navigate("/login");
   };
 
-  React.useEffect(() => {
-    if (user?.preferred_language) {
-      setLanguage(user.preferred_language);
-    }
-  }, [user]);
-
-  const handleLanguageChange = async (lang: "ar" | "en") => {
+  const handleLanguageChange = (lang: "ar" | "en") => {
     setLanguage(lang);
     localStorage.setItem("lang", lang);
-
-    if (user) {
-      await supabase
-        .from("users")
-        .update({ preferred_language: lang })
-        .eq("id", user.id);
-
-      // تحديث سياق المستخدم فورًا
-      setUser({ ...user, preferred_language: lang });
-    }
   };
 
   const handleNavigateTo = (page: string) => navigate(page);
@@ -176,7 +157,7 @@ function App() {
             user ? (
               <GuardsRatingPage
                 language={language}
-                onLanguageChange={setLanguage}
+                onLanguageChange={handleLanguageChange}
                 currentServiceId={currentServiceId}
                 onNavigateTo={(serviceId) => {
                   setCurrentServiceId(serviceId);
