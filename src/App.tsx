@@ -13,6 +13,7 @@ import EvaluationRecordsPage from "./components/GuardsRating/EvaluationRecordsPa
 import ViolationNew from "./components/Violation/ViolationNew";
 import { Toaster } from "sonner";
 import { useUser, User } from "./components/contexts/UserContext";
+import PermissionsPage from "./components/Permissions/PermissionsPage";
 
 function App() {
   const { user, setUser } = useUser();
@@ -121,6 +122,22 @@ function App() {
           element={
             user ? (
               <Dashboard
+                language={language}
+                onLanguageChange={handleLanguageChange}
+                onLogout={handleLogout}
+                onNavigateTo={handleNavigateTo}
+              />
+            ) : (
+              <Navigate to="/login" state={{ from: window.location.pathname }} replace />
+            )
+          }
+        />
+
+        <Route
+          path="/permissions"
+          element={
+            user ? (
+              <PermissionsPage
                 language={language}
                 onLanguageChange={handleLanguageChange}
                 onLogout={handleLogout}

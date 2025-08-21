@@ -30,6 +30,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import ar from "../locales/ar";
 import en from "../locales/en";
 import * as Icons from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 // =================== تعديل دالة الأيقونات ===================
 const getIconComponent = (iconName: string): React.FC<React.SVGProps<SVGSVGElement>> => {
@@ -137,7 +138,8 @@ const Dashboard: React.FC<Props> = ({
     newPassword: "",
     confirmPassword: "",
   });
-
+  
+  const navigate = useNavigate();
   // ✅ حالة مؤقتة لإظهار جارِ الحفظ عند تبديل اللغة (اختياري لكن مفيد)
   const [isChangingLang, setIsChangingLang] = useState(false);
 
@@ -145,6 +147,7 @@ const Dashboard: React.FC<Props> = ({
   const [services, setServices] = useState<Service[]>([]);
   const [loadingServices, setLoadingServices] = useState(true);
   const isLoading = loadingServices || !user;
+  const [userPermissions, setUserPermissions] = useState<string[]>([]); // ⬅️ هذا لتخزين IDs للخدمات المسموح بها
 
   const [pageReady, setPageReady] = useState(false); // ⬅️ صفحة جاهزة أم لا
 
@@ -178,6 +181,16 @@ const Dashboard: React.FC<Props> = ({
         }));
 
         setServices(formattedServices);
+
+// ⬅️ جلب صلاحيات المستخدم
+const { data: perms, error: permsError } = await supabase
+  .from("user_permissions")  // تأكد أن الجدول اسمه هذا أو عدله
+  .select("service_id")
+  .eq("user_id", user.id);
+
+if (permsError) console.error("Error fetching permissions:", permsError);
+
+setUserPermissions(perms ? perms.map((p: any) => p.service_id.toString()) : []);
 
         const { data: favs } = await supabase
           .from("favorites")
@@ -216,9 +229,10 @@ const Dashboard: React.FC<Props> = ({
     }
   };
 
-  const filteredServices = services.filter((s) =>
-    s.label.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+const filteredServices = services
+  .filter((s) => s.label.toLowerCase().includes(searchTerm.toLowerCase()))
+  .filter((s) => userPermissions.includes(s.id)); // ⬅️ هنا الإخفاء
+
 
   const groupedServices = filteredServices.reduce<Record<string, Service[]>>((acc, s) => {
     if (!acc[s.group]) acc[s.group] = [];
@@ -407,51 +421,63 @@ const Dashboard: React.FC<Props> = ({
           </div>
         </div>
 
-        <div className="flex items-center space-x-3 space-x-reverse relative">
-          {/* ✅ الزر يستدعي onLanguageChange عبر دالة موحّدة */}
-          <button
-            onClick={handleToggleLanguage}
-            disabled={isChangingLang}
-            className="px-3 py-1 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-            title={isChangingLang ? (language === "ar" ? "جارِ الحفظ..." : "Saving...") : ""}
-          >
-            {language === "ar" ? "EN" : "ع"}
-          </button>
+      <div className="flex items-center space-x-3 space-x-reverse relative">
+        {/* ✅ زر تغيير اللغة */}
+        <button
+          onClick={handleToggleLanguage}
+          disabled={isChangingLang}
+          className="px-3 py-1 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+          title={isChangingLang ? (language === "ar" ? "جارِ الحفظ..." : "Saving...") : ""}
+        >
+          {language === "ar" ? "EN" : "ع"}
+        </button>
 
-          <img
-            src={user?.avatar || "/default/avatar.png"}
-            alt="avatar"
-            className="w-10 h-10 rounded-full cursor-pointer"
-            onClick={() => setUserMenuOpen((prev) => !prev)}
-          />
-          {userMenuOpen && (
-            <motion.ul
-              ref={userMenuRef}
-              className="absolute top-14 right-0 bg-white border shadow-md rounded-lg py-2 w-40 space-y-1 z-50"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.3 }}
-            >
-              <li>
-                <button
-                  className="w-full text-left px-4 py-2 hover:bg-gray-100"
-                  onClick={() => setShowProfile(true)}
-                >
-                  {language === "ar" ? "الملف الشخصي" : "Profile"}
-                </button>
-              </li>
-              <li>
-                <button
-                  className="w-full text-left px-4 py-2 hover:bg-gray-100"
-                  onClick={onLogout}
-                >
-                  {language === "ar" ? "تسجيل الخروج" : "Log Out"}
-                </button>
-              </li>
-            </motion.ul>
-          )}
-        </div>
+        {/* ✅ زر إدارة الصلاحيات */}
+        <button
+          onClick={() => navigate("/permissions")}
+          className="px-3 py-1 border rounded-lg hover:bg-gray-100"
+          title={language === "ar" ? "إدارة الصلاحيات" : "Manage Permissions"}
+        >
+          {language === "ar" ? "صلاحيات" : "Permissions"}
+        </button>
+
+        {/* ✅ صورة المستخدم */}
+        <img
+          src={user?.avatar_url || "/default/avatar.png"}
+          alt="avatar"
+          className="w-10 h-10 rounded-full cursor-pointer"
+          onClick={() => setUserMenuOpen((prev) => !prev)}
+        />
+
+        {/* ✅ قائمة الملف الشخصي */}
+        {userMenuOpen && (
+          <motion.ul
+            ref={userMenuRef}
+            className="absolute top-14 right-0 bg-white border shadow-md rounded-lg py-2 w-40 space-y-1 z-50"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3 }}
+          >
+            <li>
+              <button
+                className="w-full text-left px-4 py-2 hover:bg-gray-100"
+                onClick={() => setShowProfile(true)}
+              >
+                {language === "ar" ? "الملف الشخصي" : "Profile"}
+              </button>
+            </li>
+            <li>
+              <button
+                className="w-full text-left px-4 py-2 hover:bg-gray-100"
+                onClick={onLogout}
+              >
+                {language === "ar" ? "تسجيل الخروج" : "Log Out"}
+              </button>
+            </li>
+          </motion.ul>
+        )}
+      </div>
       </motion.header>
 
       {/* ================== البحث + الخدمات ================== */}

@@ -9,4 +9,5 @@ export type PageType =
   | "otp"
   | "guards-rating"
   | "evaluation-records"
-  | "violation-new";
+  | "violation-new"
+  | "permissions"
