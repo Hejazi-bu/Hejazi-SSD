@@ -39,7 +39,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const fetchFullUserData = async (supabaseUser: SupabaseUser): Promise<User> => {
     try {
       const { data, error } = await supabase
-        .from("Users")
+        .from("users")
         .select("*")
         .eq("id", supabaseUser.id)
         .single();

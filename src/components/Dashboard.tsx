@@ -48,10 +48,15 @@ type Props = {
 
 type Service = {
   id: string;
-  label: string;
-  icon?: string; // حفظ اسم الأيقونة كسلسلة
-  group: string;
+  label_ar: string;
+  label_en: string;
+  label: string; // للعرض حسب اللغة
+  icon?: string;
+  group_ar: string;
+  group_en: string;
+  group: string; // للعرض حسب اللغة
   page?: string;
+  is_allowed: boolean;
 };
 
 // ========== FavoriteStar Component ==========
@@ -151,63 +156,51 @@ const Dashboard: React.FC<Props> = ({
 
   const [pageReady, setPageReady] = useState(false); // ⬅️ صفحة جاهزة أم لا
 
-  useEffect(() => {
-    const fetchServices = async () => {
-      if (!user) {
-        setServices([]);
-        setFavorites([]);
-        setLoadingServices(false);
-        setPageReady(true); // ⬅️ الصفحة جاهزة حتى لو لا يوجد مستخدم
-        return;
-      }
+useEffect(() => {
+  const fetchServices = async () => {
+    if (!user) {
+      setServices([]);
+      setFavorites([]);
+      setLoadingServices(false);
+      setPageReady(true); // ✅ تأكد من وضعه هنا
+      return;
+    }
 
-      setLoadingServices(true);
+    setLoadingServices(true);
 
-      try {
-        const { data, error } = await supabase
-          .from("services")
-          .select(`id, label_ar, label_en, icon, page, group_id, service_groups(name_ar, name_en)`)
-          .eq("status", "active")
-          .order("order", { ascending: true });
+    try {
+      const { data, error } = await supabase.rpc('get_user_permissions', { p_user_id: user.id });
+      if (error) throw error;
 
-        if (error) throw error;
-
-        const formattedServices: Service[] = data.map((s: any) => ({
-          id: s.id.toString(),
+      const allowedServices = (data as any[])
+        .filter((s: any) => s.is_allowed)
+        .map((s: any) => ({
+          id: s.id,
+          label_ar: s.label_ar,
+          label_en: s.label_en,
           label: language === "ar" ? s.label_ar : s.label_en,
-          group: language === "ar" ? s.service_groups.name_ar : s.service_groups.name_en,
           icon: s.icon,
+          group_ar: s.group_ar,
+          group_en: s.group_en,
+          group: language === "ar" ? s.group_ar : s.group_en,
           page: s.page,
+          is_allowed: s.is_allowed,
         }));
 
-        setServices(formattedServices);
+      setServices(allowedServices);
 
-// ⬅️ جلب صلاحيات المستخدم
-const { data: perms, error: permsError } = await supabase
-  .from("user_permissions")  // تأكد أن الجدول اسمه هذا أو عدله
-  .select("service_id")
-  .eq("user_id", user.id);
+      const { data: favs } = await supabase.from("favorites").select("service_id").eq("user_id", user.id);
+      setFavorites(favs ? favs.map((f: any) => f.service_id.toString()) : []);
+    } catch (err) {
+      console.error("Error fetching services:", err);
+    } finally {
+      setLoadingServices(false);
+      setPageReady(true); // ✅ تأكد من أنه هنا أيضاً
+    }
+  };
 
-if (permsError) console.error("Error fetching permissions:", permsError);
-
-setUserPermissions(perms ? perms.map((p: any) => p.service_id.toString()) : []);
-
-        const { data: favs } = await supabase
-          .from("favorites")
-          .select("service_id")
-          .eq("user_id", user.id);
-
-        setFavorites(favs ? favs.map((f: any) => f.service_id.toString()) : []);
-      } catch (err) {
-        console.error("Error fetching services:", err);
-      } finally {
-        setLoadingServices(false);
-        setPageReady(true); // ⬅️ الصفحة أصبحت جاهزة
-      }
-    };
-
-    fetchServices();
-  }, [user, language]);
+  fetchServices();
+}, [user, language]);
 
   // دوال المفضلة والبحث
   const toggleFavorite = async (serviceId: string) => {
@@ -229,55 +222,57 @@ setUserPermissions(perms ? perms.map((p: any) => p.service_id.toString()) : []);
     }
   };
 
-const filteredServices = services
-  .filter((s) => s.label.toLowerCase().includes(searchTerm.toLowerCase()))
-  .filter((s) => userPermissions.includes(s.id)); // ⬅️ هنا الإخفاء
-
+  const filteredServices = services.filter((s: any) =>
+    (language === "ar" ? s.label_ar : s.label_en)
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase())
+  );
 
   const groupedServices = filteredServices.reduce<Record<string, Service[]>>((acc, s) => {
-    if (!acc[s.group]) acc[s.group] = [];
-    acc[s.group].push(s);
+    const groupName = language === "ar" ? s.group_ar : s.group_en;
+    if (!acc[groupName]) acc[groupName] = [];
+    acc[groupName].push(s);
     return acc;
   }, {});
 
-  const onServiceClick = (id: string, label: string) => {
-    switch (id) {
-      case "guards-rating":
-        onNavigateTo("guards-rating");
-        break;
-      default:
-        alert(
-          language === "ar"
-            ? `الخدمة "${label}" قيد البرمجة 🚧`
-            : `"${label}" service is under construction 🚧`
-        );
-        break;
-    }
+    const onServiceClick = (id: string, label: string) => {
+      switch (id) {
+        case "guards-rating":
+          onNavigateTo("guards-rating");
+          break;
+        default:
+          alert(
+            language === "ar"
+              ? `الخدمة "${label}" قيد البرمجة 🚧`
+              : `"${label}" service is under construction 🚧`
+          );
+          break;
+      }
+    };
+
+    // إغلاق القوائم عند النقر خارجها
+    useEffect(() => {
+      function handleClickOutside(event: MouseEvent) {
+        if (avatarOptionsVisible && avatarOptionsRef.current && !avatarOptionsRef.current.contains(event.target as Node)) {
+          setAvatarOptionsVisible(false);
+        }
+        if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+          setUserMenuOpen(false);
+        }
+      }
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [avatarOptionsVisible, userMenuOpen]);
+
+    const handleToggleLanguage = () => {
+      setIsChangingLang(true);
+      const next = language === "ar" ? "en" : "ar";
+      
+      // حفظ اللغة في localStorage فقط
+      localStorage.setItem("lang", next);
+      onLanguageChange(next); // يُحدث واجهة المستخدم فورًا
+      setIsChangingLang(false);
   };
-
-  // إغلاق القوائم عند النقر خارجها
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (avatarOptionsVisible && avatarOptionsRef.current && !avatarOptionsRef.current.contains(event.target as Node)) {
-        setAvatarOptionsVisible(false);
-      }
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
-        setUserMenuOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [avatarOptionsVisible, userMenuOpen]);
-
-  const handleToggleLanguage = () => {
-    setIsChangingLang(true);
-    const next = language === "ar" ? "en" : "ar";
-    
-    // حفظ اللغة في localStorage فقط
-    localStorage.setItem("lang", next);
-    onLanguageChange(next); // يُحدث واجهة المستخدم فورًا
-    setIsChangingLang(false);
-};
 
   // JSX الكامل للواجهة
   return (
@@ -434,7 +429,7 @@ const filteredServices = services
 
         {/* ✅ زر إدارة الصلاحيات */}
         <button
-          onClick={() => navigate("/permissions")}
+          onClick={() => navigate("/Users/Data")}
           className="px-3 py-1 border rounded-lg hover:bg-gray-100"
           title={language === "ar" ? "إدارة الصلاحيات" : "Manage Permissions"}
         >

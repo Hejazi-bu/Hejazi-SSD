@@ -13,7 +13,7 @@ import EvaluationRecordsPage from "./components/GuardsRating/EvaluationRecordsPa
 import ViolationNew from "./components/Violation/ViolationNew";
 import { Toaster } from "sonner";
 import { useUser, User } from "./components/contexts/UserContext";
-import PermissionsPage from "./components/Permissions/PermissionsPage";
+import UserData from "./components/Users/UserData";
 
 function App() {
   const { user, setUser } = useUser();
@@ -134,10 +134,10 @@ function App() {
         />
 
         <Route
-          path="/permissions"
+          path="/users/data"
           element={
             user ? (
-              <PermissionsPage
+              <UserData
                 language={language}
                 onLanguageChange={handleLanguageChange}
                 onLogout={handleLogout}
