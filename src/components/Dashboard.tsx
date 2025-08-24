@@ -119,23 +119,44 @@ const Dashboard: React.FC<Props> = ({
         const { data, error } = await supabase.rpc('get_user_permissions', { p_user_id: user.id });
         if (error) throw error;
 
-        const allowedServices = (data as any[])
-          .filter((s: any) => s.is_allowed)
-          .map((s: any) => ({
-            id: s.id,
-            group_id: s.group_id, // ⬅️ هنا
-            label_ar: s.label_ar,
-            label_en: s.label_en,
-            label: language === "ar" ? s.label_ar : s.label_en,
-            icon: s.icon,
-            group_ar: s.group_ar,
-            group_en: s.group_en,
-            group: language === "ar" ? s.group_ar : s.group_en,
-            page: s.page,
-            is_allowed: s.is_allowed,
-          }));
+      const allowedServices = (data as any[]).map((s: any) => ({
+        id: s.id,
+        group_id: s.group_id,
+        label_ar: s.label_ar,
+        label_en: s.label_en,
+        label: language === "ar" ? s.label_ar : s.label_en,
+        icon: s.icon,
+        group_ar: s.group_ar,
+        group_en: s.group_en,
+        group: language === "ar" ? s.group_ar : s.group_en,
+        page: s.page,
+        is_allowed: s.is_allowed || false,
+      }));
 
-        setServices(allowedServices);
+      // جمع كل service_id التي لم تُسمح بعد
+      const toCheckIds = allowedServices
+        .filter(svc => !svc.is_allowed && svc.id)
+        .map(svc => svc.id);
+
+      let jobPerms: any[] = [];
+      if (toCheckIds.length) {
+        const { data: jpData, error: jpError } = await supabase
+          .from("job_permissions")
+          .select("*")
+          .eq("job_title", user.job_id)
+          .in("service_id", toCheckIds);
+
+        if (jpError) console.error("Error fetching job_permissions:", jpError);
+        else jobPerms = jpData || [];
+      }
+
+      // دمج الصلاحيات
+      const finalServices = allowedServices.map(svc => ({
+        ...svc,
+        is_allowed: svc.is_allowed || jobPerms.some(jp => jp.service_id === svc.id),
+      }));
+
+      setServices(finalServices);
 
       } catch (err) {
         console.error("Error fetching services:", err);
@@ -147,6 +168,57 @@ const Dashboard: React.FC<Props> = ({
 
     fetchServices();
   }, [user, language]);
+
+  // ------------------ Polling للتحديث اللحظي ------------------
+  useEffect(() => {
+    if (!user) return;
+
+    let isMounted = true; // لتجنب تحديث الحالة بعد unmount
+    const POLLING_INTERVAL = 5000; // كل 5 ثواني (يمكن تعديلها حسب الحاجة)
+
+    const pollPermissions = async () => {
+      try {
+        const { data, error } = await supabase.rpc('get_user_permissions', { p_user_id: user.id });
+        if (error) throw error;
+
+        if (!isMounted) return;
+
+        // فلترة الخدمات المسموح بها
+        const allowedServices = (data as any[])
+          .filter((s: any) => s.is_allowed)
+          .map((s: any) => ({
+            id: s.id,
+            group_id: s.group_id,
+            label_ar: s.label_ar,
+            label_en: s.label_en,
+            label: language === "ar" ? s.label_ar : s.label_en,
+            icon: s.icon,
+            group_ar: s.group_ar,
+            group_en: s.group_en,
+            group: language === "ar" ? s.group_ar : s.group_en,
+            page: s.page,
+            is_allowed: s.is_allowed,
+          }));
+
+        // تحقق من التغيير قبل تحديث الحالة لتجنب إعادة render غير ضرورية
+        const currentIds = services.map(s => s.id).sort().join(",");
+        const newIds = allowedServices.map(s => s.id).sort().join(",");
+        if (currentIds !== newIds) {
+          setServices(allowedServices);
+        }
+      } catch (err) {
+        console.error("Polling error fetching permissions:", err);
+      } finally {
+        if (isMounted) {
+          setTimeout(pollPermissions, POLLING_INTERVAL);
+        }
+      }
+    };
+
+    pollPermissions();
+
+    return () => { isMounted = false; };
+  }, [user, language, services]);
 
   const filteredServices = services.filter((s: any) =>
     (language === "ar" ? s.label_ar : s.label_en)
