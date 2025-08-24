@@ -110,13 +110,13 @@ const UserData: React.FC<Props> = ({ language, onLanguageChange, onNavigateTo })
                     sub_service_id: sub.id,
                     label_ar: sub.label_ar,
                     label_en: sub.label_en,
-                    is_allowed: permsDict[`${service.id}-${sub.id}-0`] ?? false,
+                    is_allowed: permsDict[`0-${sub.id}-0`] ?? false, // المفتاح يجب أن يتوافق مع قاعدة البيانات
                     sub_services: [],
                     sub_sub_services: (subSubServices || []).map((ss: any) => ({
                       sub_sub_service_id: ss.id,
                       label_ar: ss.label_ar,
                       label_en: ss.label_en,
-                      is_allowed: permsDict[`${service.id}-${sub.id}-${ss.id}`] ?? false,
+                      is_allowed: permsDict[`0-0-${ss.id}`] ?? false,
                       sub_services: [],
                       sub_sub_services: [],
                     })),
@@ -182,119 +182,141 @@ const UserData: React.FC<Props> = ({ language, onLanguageChange, onNavigateTo })
     if (!selectedUser) return;
     setLoading(true);
 
-    const { data: jobPermsData, error: jobError } = await supabase
-      .from("job_permissions")
-      .select("*")
-      .eq("job_id", selectedUser.job_id);
+    try {
+      // جلب صلاحيات الوظيفة
+      const { data: jobPermsData, error: jobError } = await supabase
+        .from("job_permissions")
+        .select("*")
+        .eq("job_id", selectedUser.job_id);
+      if (jobError) throw jobError;
 
-    if (jobError) {
-      console.error("خطأ في جلب صلاحيات الوظيفة:", jobError);
-      setLoading(false);
-      return;
-    }
+      // جلب صلاحيات المستخدم
+      const { data: userPermsData, error: userError } = await supabase
+        .from("user_permissions")
+        .select("*")
+        .eq("user_id", selectedUser.id);
+      if (userError) throw userError;
 
-    const { data: userPermsData, error: userError } = await supabase
-      .from("user_permissions")
-      .select("*")
-      .eq("user_id", selectedUser.id);
+      // تحويل البيانات إلى خرائط للوصول السريع
+      const jobMap = new Map<string, boolean>();
+      jobPermsData?.forEach((jp: any) => {
+        const key = `${jp.service_id ?? 0}-${jp.sub_service_id ?? 0}-${jp.sub_sub_service_id ?? 0}`;
+        jobMap.set(key, true);
+      });
 
-    if (userError) {
-      console.error("خطأ في جلب صلاحيات المستخدم:", userError);
-      setLoading(false);
-      return;
-    }
+      const userMap = new Map<string, any>();
+      userPermsData?.forEach((up: any) => {
+        const key = `${up.service_id ?? 0}-${up.sub_service_id ?? 0}-${up.sub_sub_service_id ?? 0}`;
+        userMap.set(key, up);
+      });
 
-    const jobMap = new Map<string, boolean>();
-    jobPermsData?.forEach((jp: any) => {
-      const key = `${jp.service_id ?? 0}-${jp.sub_service_id ?? 0}-${jp.sub_sub_service_id ?? 0}`;
-      jobMap.set(key, true);
-    });
+      const flatPerms = flattenPermissions(permissions);
 
-    const userMap = new Map<string, any>();
-    userPermsData?.forEach((up: any) => {
-      const key = `${up.service_id ?? 0}-${up.sub_service_id ?? 0}-${up.sub_sub_service_id ?? 0}`;
-      userMap.set(key, up);
-    });
+      const inserts: any[] = [];
+      const updates: any[] = [];
+      const deletes: any[] = [];
 
-    const flatPerms = flattenPermissions(permissions);
+      for (const { key, node } of flatPerms) {
+        const inJob = jobMap.has(key);
+        const inUser = userMap.has(key);
 
-    const inserts: any[] = [];
-    const updates: any[] = [];
-    const deletes: any[] = [];
-
-    for (const { key, node } of flatPerms) {
-      const inJob = jobMap.has(key);
-      const inUser = userMap.has(key);
-
-      if (node.is_allowed) {
-        if (inJob && inUser) {
-          deletes.push({
-            service_id: node.service_id,
-            sub_service_id: node.sub_service_id,
-            sub_sub_service_id: node.sub_sub_service_id,
-          });
-        } else {
-          if (inUser) {
-            updates.push({
-              user_id: selectedUser.id,
-              service_id: node.service_id,
-              sub_service_id: node.sub_service_id,
-              sub_sub_service_id: node.sub_sub_service_id,
-              is_allowed: true,
-            });
+        if (node.is_allowed) {
+          if (inJob) {
+            // true + موجود في job
+            if (inUser) deletes.push({ service_id: node.service_id, sub_service_id: node.sub_service_id, sub_sub_service_id: node.sub_sub_service_id });
+            // اذا غير موجود في user → تجاهل
           } else {
-            inserts.push({
-              user_id: selectedUser.id,
-              service_id: node.service_id,
-              sub_service_id: node.sub_service_id,
-              sub_sub_service_id: node.sub_sub_service_id,
-              is_allowed: true,
-            });
+            // true + غير موجود في job
+            if (inUser) {
+              updates.push({
+                user_id: selectedUser.id,
+                service_id: node.service_id,
+                sub_service_id: node.sub_service_id,
+                sub_sub_service_id: node.sub_sub_service_id,
+                is_allowed: true,
+              });
+            } else {
+              inserts.push({
+                user_id: selectedUser.id,
+                service_id: node.service_id,
+                sub_service_id: node.sub_service_id,
+                sub_sub_service_id: node.sub_sub_service_id,
+                is_allowed: true,
+              });
+            }
+          }
+        } else {
+          if (inJob) {
+            // false + موجودة في job → تحديث أو إضافة
+            if (inUser) {
+              updates.push({
+                user_id: selectedUser.id,
+                service_id: node.service_id,
+                sub_service_id: node.sub_service_id,
+                sub_sub_service_id: node.sub_sub_service_id,
+                is_allowed: false,
+              });
+            } else {
+              inserts.push({
+                user_id: selectedUser.id,
+                service_id: node.service_id,
+                sub_service_id: node.sub_service_id,
+                sub_sub_service_id: node.sub_sub_service_id,
+                is_allowed: false,
+              });
+            }
+          } else {
+            // false + غير موجودة في job
+            if (inUser) {
+              deletes.push({ service_id: node.service_id, sub_service_id: node.sub_service_id, sub_sub_service_id: node.sub_sub_service_id });
+            }
+            // اذا غير موجودة في user → تجاهل
           }
         }
-      } else {
-        if (inJob && inUser) {
-          updates.push({
-            user_id: selectedUser.id,
-            service_id: node.service_id,
-            sub_service_id: node.sub_service_id,
-            sub_sub_service_id: node.sub_sub_service_id,
-            is_allowed: false,
-          });
-        } else if (!inJob && inUser) {
-          deletes.push({
-            service_id: node.service_id,
-            sub_service_id: node.sub_service_id,
-            sub_sub_service_id: node.sub_sub_service_id,
-          });
-        }
       }
+
+      // تنفيذ الحذف
+      for (const d of deletes) {
+        let query = supabase.from("user_permissions").delete().eq("user_id", selectedUser.id);
+
+        if (d.service_id != null) query = query.eq("service_id", d.service_id);
+        else query = query.is("service_id", null);
+
+        if (d.sub_service_id != null) query = query.eq("sub_service_id", d.sub_service_id);
+        else query = query.is("sub_service_id", null);
+
+        if (d.sub_sub_service_id != null) query = query.eq("sub_sub_service_id", d.sub_sub_service_id);
+        else query = query.is("sub_sub_service_id", null);
+
+        await query;
+      }
+
+      // تنفيذ الإضافة
+      if (inserts.length > 0) await supabase.from("user_permissions").insert(inserts);
+
+      // تنفيذ التحديث
+      for (const u of updates) {
+        let query = supabase.from("user_permissions").update({ is_allowed: u.is_allowed }).eq("user_id", u.user_id);
+
+        if (u.service_id != null) query = query.eq("service_id", u.service_id);
+        else query = query.is("service_id", null);
+
+        if (u.sub_service_id != null) query = query.eq("sub_service_id", u.sub_service_id);
+        else query = query.is("sub_service_id", null);
+
+        if (u.sub_sub_service_id != null) query = query.eq("sub_sub_service_id", u.sub_sub_service_id);
+        else query = query.is("sub_sub_service_id", null);
+
+        await query;
+      }
+
+      alert(language === "ar" ? "تم حفظ الصلاحيات بنجاح" : "Permissions saved successfully");
+    } catch (err) {
+      console.error("خطأ أثناء حفظ الصلاحيات:", err);
+      alert(language === "ar" ? "حدث خطأ أثناء الحفظ" : "Error saving permissions");
+    } finally {
+      setLoading(false);
     }
-
-    if (inserts.length > 0) await supabase.from("user_permissions").insert(inserts);
-
-    for (const u of updates) {
-      await supabase
-        .from("user_permissions")
-        .update({ is_allowed: u.is_allowed })
-        .eq("user_id", u.user_id)
-        .eq("service_id", u.service_id ?? null)
-        .eq("sub_service_id", u.sub_service_id ?? null)
-        .eq("sub_sub_service_id", u.sub_sub_service_id ?? null);
-    }
-
-    for (const d of deletes) {
-      await supabase
-        .from("user_permissions")
-        .delete()
-        .eq("user_id", selectedUser.id)
-        .eq("service_id", d.service_id ?? null)
-        .eq("sub_service_id", d.sub_service_id ?? null)
-        .eq("sub_sub_service_id", d.sub_sub_service_id ?? null);
-    }
-
-    setLoading(false);
-    alert(language === "ar" ? "تم حفظ الصلاحيات بنجاح" : "Permissions saved successfully");
   };
 
   const renderServiceCard = (node: PermissionNode, level: number = 0, parentKey: string = "") => {

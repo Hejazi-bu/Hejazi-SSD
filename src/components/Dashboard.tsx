@@ -59,58 +59,6 @@ type Service = {
   is_allowed: boolean;
 };
 
-// ========== FavoriteStar Component ==========
-type StarButtonProps = {
-  isFavorite: boolean;
-  onClick: () => void;
-  size?: number;
-};
-
-const StarButton: React.FC<StarButtonProps> = ({ isFavorite, onClick, size = 24 }) => {
-  return (
-    <motion.div
-      onClick={(e) => { e.stopPropagation(); onClick(); }}
-      className="cursor-pointer rounded-full p-1 flex items-center justify-center"
-      whileHover={{ scale: 1.2, rotate: 5 }}
-      whileTap={{ scale: 0.9, rotate: -5 }}
-      animate={{ scale: isFavorite ? 1.3 : 1, rotate: 0 }}
-      transition={{ type: "spring", stiffness: 500, damping: 25 }}
-    >
-      {isFavorite ? (
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          exit={{ scale: 0, opacity: 0 }}
-          transition={{ type: "spring", stiffness: 500, damping: 20 }}
-        >
-          <Star
-            className="text-yellow-400 drop-shadow-lg"
-            fill="currentColor"
-            stroke="none"
-            width={size}
-            height={size}
-          />
-        </motion.div>
-      ) : (
-        <motion.div
-          initial={{ opacity: 0.6 }}
-          animate={{ opacity: 0.8 }}
-          whileHover={{ opacity: 1 }}
-          exit={{ opacity: 0, scale: 0.8 }}
-        >
-          <StarOff
-            className="text-gray-400"
-            fill="none"
-            strokeWidth={2}
-            width={size}
-            height={size}
-          />
-        </motion.div>
-      )}
-    </motion.div>
-  );
-};
-
 const Dashboard: React.FC<Props> = ({
   language,
   onLanguageChange,
@@ -127,7 +75,6 @@ const Dashboard: React.FC<Props> = ({
 
   const [showServices, setShowServices] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [favorites, setFavorites] = useState<string[]>([]);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [avatarOptionsVisible, setAvatarOptionsVisible] = useState(false);
@@ -156,71 +103,48 @@ const Dashboard: React.FC<Props> = ({
 
   const [pageReady, setPageReady] = useState(false); // ⬅️ صفحة جاهزة أم لا
 
-useEffect(() => {
-  const fetchServices = async () => {
-    if (!user) {
-      setServices([]);
-      setFavorites([]);
-      setLoadingServices(false);
-      setPageReady(true); // ✅ تأكد من وضعه هنا
-      return;
-    }
+  useEffect(() => {
+    const fetchServices = async () => {
+      if (!user) {
+        setServices([]);
+        setLoadingServices(false);
+        setPageReady(true); // ✅ تأكد من وضعه هنا
+        return;
+      }
 
-    setLoadingServices(true);
+      setLoadingServices(true);
 
-    try {
-      const { data, error } = await supabase.rpc('get_user_permissions', { p_user_id: user.id });
-      if (error) throw error;
+      try {
+        const { data, error } = await supabase.rpc('get_user_permissions', { p_user_id: user.id });
+        if (error) throw error;
 
-      const allowedServices = (data as any[])
-        .filter((s: any) => s.is_allowed)
-        .map((s: any) => ({
-          id: s.id,
-          label_ar: s.label_ar,
-          label_en: s.label_en,
-          label: language === "ar" ? s.label_ar : s.label_en,
-          icon: s.icon,
-          group_ar: s.group_ar,
-          group_en: s.group_en,
-          group: language === "ar" ? s.group_ar : s.group_en,
-          page: s.page,
-          is_allowed: s.is_allowed,
-        }));
+        const allowedServices = (data as any[])
+          .filter((s: any) => s.is_allowed)
+          .map((s: any) => ({
+            id: s.id,
+            label_ar: s.label_ar,
+            label_en: s.label_en,
+            label: language === "ar" ? s.label_ar : s.label_en,
+            icon: s.icon,
+            group_ar: s.group_ar,
+            group_en: s.group_en,
+            group: language === "ar" ? s.group_ar : s.group_en,
+            page: s.page,
+            is_allowed: s.is_allowed,
+          }));
 
-      setServices(allowedServices);
+        setServices(allowedServices);
 
-      const { data: favs } = await supabase.from("favorites").select("service_id").eq("user_id", user.id);
-      setFavorites(favs ? favs.map((f: any) => f.service_id.toString()) : []);
-    } catch (err) {
-      console.error("Error fetching services:", err);
-    } finally {
-      setLoadingServices(false);
-      setPageReady(true); // ✅ تأكد من أنه هنا أيضاً
-    }
-  };
+      } catch (err) {
+        console.error("Error fetching services:", err);
+      } finally {
+        setLoadingServices(false);
+        setPageReady(true); // ✅ تأكد من أنه هنا أيضاً
+      }
+    };
 
-  fetchServices();
-}, [user, language]);
-
-  // دوال المفضلة والبحث
-  const toggleFavorite = async (serviceId: string) => {
-    if (!user) return;
-
-    if (favorites.includes(serviceId)) {
-      await supabase
-        .from("favorites")
-        .delete()
-        .eq("user_id", user.id)
-        .eq("service_id", serviceId);
-      setFavorites((prev) => prev.filter((f) => f !== serviceId));
-    } else {
-      await supabase.from("favorites").insert({
-        user_id: user.id,
-        service_id: serviceId,
-      });
-      setFavorites((prev) => [...prev, serviceId]);
-    }
-  };
+    fetchServices();
+  }, [user, language]);
 
   const filteredServices = services.filter((s: any) =>
     (language === "ar" ? s.label_ar : s.label_en)
@@ -411,8 +335,10 @@ useEffect(() => {
             <Menu className="w-6 h-6" />
           </button>
           <div className="flex flex-col">
-            <span className="font-semibold">{t === ar ? user?.name_ar : user?.name_en}</span>
-            <span className="text-sm text-gray-500">{t === ar ? `رقم الوظيفة: ${user?.job_id}` : `Job ID: ${user?.job_id}`}</span>
+            <span className="font-semibold">{t === ar ? user!.name_ar : user!.name_en}</span>
+            <span className="text-sm text-gray-500">
+              {t === ar ? `رقم الوظيفة: ${user!.job_id}` : `Job ID: ${user!.job_id}`}
+            </span>
           </div>
         </div>
 
@@ -438,7 +364,7 @@ useEffect(() => {
 
         {/* ✅ صورة المستخدم */}
         <img
-          src={user?.avatar_url || "/default/avatar.png"}
+          src={user!.avatar_url || "/default/avatar.png"}
           alt="avatar"
           className="w-10 h-10 rounded-full cursor-pointer"
           onClick={() => setUserMenuOpen((prev) => !prev)}
@@ -540,60 +466,7 @@ useEffect(() => {
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-6 h-6 text-gray-500 animate-pulse" />
                   </div>
                 </motion.div>
-
-                {/* ---------- مجموعة المفضلات ---------- */}
-                {favorites.length > 0 && filteredServices.filter((s) => favorites.includes(s.id)).length > 0 && (
-                  <motion.div
-                    className="bg-yellow-50 rounded-2xl shadow-lg p-6 border border-yellow-200"
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    transition={{ duration: 0.5, ease: "easeOut" }}
-                  >
-                    <h3 className="text-lg font-semibold mb-4 text-yellow-600">
-                      {language === "ar" ? "المفضلات" : "Favorites"}
-                    </h3>
-                    <motion.div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-                      <AnimatePresence>
-                        {filteredServices
-                          .filter((s) => favorites.includes(s.id))
-                          .map((service) => {
-                            const Icon = getIconComponent(service.icon || "");
-                            return (
-                              <motion.div
-                                key={service.id}
-                                layout
-                                initial={{ opacity: 0, y: 20, scale: 0.9 }}
-                                animate={{ opacity: 1, y: 0, scale: 1 }}
-                                exit={{ opacity: 0, y: -20, scale: 0.9 }}
-                                whileHover={{ 
-                                  scale: 1.03, 
-                                  boxShadow: "0px 12px 25px rgba(0,0,0,0.25)", 
-                                  backgroundColor: "#fef9c3" 
-                                }}
-                                transition={{ type: "spring", stiffness: 300, damping: 25, mass: 0.5 }}
-                                className="flex items-center justify-between p-4 rounded-xl cursor-pointer bg-white border border-gray-100 shadow-md transition-colors duration-300"
-                                onClick={() => onServiceClick(service.id, service.label)}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <div className="p-2 bg-blue-600 rounded-full text-white shadow">
-                                    <Icon className="w-5 h-5" />
-                                  </div>
-                                  <span className="font-medium text-gray-900">{service.label}</span>
-                                </div>
-                                <StarButton
-                                  isFavorite={favorites.includes(service.id)}
-                                  onClick={() => toggleFavorite(service.id)}
-                                  size={28}
-                                />
-                              </motion.div>
-                            );
-                          })}
-                      </AnimatePresence>
-                    </motion.div>
-                  </motion.div>
-                )}
-                  
+           
                 {/* عرض الخدمات بالمجموعات */}
                 {Object.entries(groupedServices).map(([group, items], index) => (
                   <motion.div
@@ -638,18 +511,6 @@ useEffect(() => {
                                 </div>
                                 <span className="font-medium text-gray-900">{service.label}</span>
                               </div>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleFavorite(service.id);
-                                }}
-                              >
-                                <StarButton
-                                  isFavorite={favorites.includes(service.id)}
-                                  onClick={() => toggleFavorite(service.id)}
-                                  size={28}
-                                />
-                              </button>
                             </motion.div>
                           );
                         })}
@@ -670,13 +531,13 @@ useEffect(() => {
             <div className="border border-gray-300 rounded-lg p-4 shadow-sm bg-white space-y-1">
               {language === "ar" ? (
                 <>
-                  <div><strong>الاسم (عربي):</strong> {user?.name_ar}</div>
-                  <div><strong>الاسم (إنجليزي):</strong> {user?.name_en}</div>
+                  <div><strong>الاسم (عربي):</strong> {user!.name_ar}</div>
+                  <div><strong>الاسم (إنجليزي):</strong> {user!.name_en}</div>
                 </>
               ) : (
                 <>
-                  <div><strong>Name (En):</strong> {user?.name_en}</div>
-                  <div><strong>Name (Ar):</strong> {user?.name_ar}</div>
+                  <div><strong>Name (En):</strong> {user!.name_en}</div>
+                  <div><strong>Name (Ar):</strong> {user!.name_ar}</div>
                 </>
               )}
             </div>
