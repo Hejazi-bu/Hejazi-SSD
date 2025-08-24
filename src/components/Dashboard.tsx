@@ -47,6 +47,7 @@ type Props = {
 };
 
 type Service = {
+  group_id: string;
   id: string;
   label_ar: string;
   label_en: string;
@@ -122,6 +123,7 @@ const Dashboard: React.FC<Props> = ({
           .filter((s: any) => s.is_allowed)
           .map((s: any) => ({
             id: s.id,
+            group_id: s.group_id, // ⬅️ هنا
             label_ar: s.label_ar,
             label_en: s.label_en,
             label: language === "ar" ? s.label_ar : s.label_en,
@@ -468,16 +470,16 @@ const Dashboard: React.FC<Props> = ({
                 </motion.div>
            
                 {/* عرض الخدمات بالمجموعات */}
-                {Object.entries(groupedServices).map(([group, items], index) => (
+                {Object.entries(groupedServices).map(([groupName, items], groupIndex) => (
                   <motion.div
-                    key={group}
+                    key={`${items[0]?.group_id || groupName}-${groupIndex}`} // استخدام index للمفتاح الفريد عند الحاجة
                     className="bg-gray-100 rounded-2xl shadow-lg p-6 overflow-hidden border border-gray-200"
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
-                    transition={{ duration: 0.5, delay: index * 0.2, ease: "easeOut" }}
+                    transition={{ duration: 0.5, ease: "easeOut" }}
                   >
-                    <h3 className="text-lg font-semibold mb-4 text-blue-600">{group}</h3>
+                    <h3 className="text-lg font-semibold mb-4 text-blue-600">{groupName}</h3>
                     <motion.div
                       className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5"
                       initial="hidden"
@@ -486,11 +488,11 @@ const Dashboard: React.FC<Props> = ({
                       variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.1 } } }}
                     >
                       <AnimatePresence>
-                        {items.map((service) => {
+                        {items.map((service, serviceIndex) => {
                           const Icon = getIconComponent(service.icon || "");
                           return (
                             <motion.div
-                              key={service.id}
+                              key={service.id || `${groupName}-service-${serviceIndex}`} // الآن index معرف
                               layout
                               initial={{ opacity: 0, y: 20, scale: 0.9 }}
                               animate={{ opacity: 1, y: 0, scale: 1 }}
