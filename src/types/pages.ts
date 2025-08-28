@@ -11,3 +11,4 @@ export type PageType =
   | "evaluation-records"
   | "violation-new"
   | "permissions"
+  | "users/data"

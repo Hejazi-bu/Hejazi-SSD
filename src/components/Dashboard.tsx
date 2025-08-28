@@ -1,27 +1,13 @@
-// src/components/Dashboard.tsx
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useUser } from "./contexts/UserContext";
 import type { PageType } from "../types/pages";
 import { supabase } from "../lib/supabaseClient";
+import { RealtimeChannel } from "@supabase/supabase-js";
 import {
   LogOut,
   X,
   Search,
   Star,
-  StarOff,
-  Settings,
-  User as UserIcon,
-  CalendarDays,
-  Car,
-  Boxes,
-  Users,
-  ShieldCheck,
-  AlertTriangle,
-  LifeBuoy,
-  Flame,
-  Bell,
-  Headset,
-  ShieldUser,
   Menu,
   Eye,
   EyeOff,
@@ -32,7 +18,6 @@ import en from "../locales/en";
 import * as Icons from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-// =================== تعديل دالة الأيقونات ===================
 const getIconComponent = (iconName: string): React.FC<React.SVGProps<SVGSVGElement>> => {
   return (Icons[iconName as keyof typeof Icons] as React.FC<React.SVGProps<SVGSVGElement>>) || Star;
 };
@@ -41,7 +26,7 @@ type OnLanguageChange = (lang: "ar" | "en") => void;
 
 type Props = {
   language: "ar" | "en";
-  onLanguageChange: OnLanguageChange; // ⬅️ هنا التعديل
+  onLanguageChange: OnLanguageChange;
   onLogout: () => void;
   onNavigateTo: (page: PageType) => void;
 };
@@ -51,11 +36,11 @@ type Service = {
   id: string;
   label_ar: string;
   label_en: string;
-  label: string; // للعرض حسب اللغة
+  label: string;
   icon?: string;
   group_ar: string;
   group_en: string;
-  group: string; // للعرض حسب اللغة
+  group: string;
   page?: string;
   is_allowed: boolean;
 };
@@ -68,9 +53,7 @@ const Dashboard: React.FC<Props> = ({
 }) => {
   const t = language === "ar" ? ar : en;
   const isRTL = language === "ar";
-
   const { user } = useUser();
-
   const avatarOptionsRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLUListElement>(null);
 
@@ -93,132 +76,100 @@ const Dashboard: React.FC<Props> = ({
   });
   
   const navigate = useNavigate();
-  // ✅ حالة مؤقتة لإظهار جارِ الحفظ عند تبديل اللغة (اختياري لكن مفيد)
   const [isChangingLang, setIsChangingLang] = useState(false);
-
-  // حالات الخدمات والمفضلات من القاعدة
   const [services, setServices] = useState<Service[]>([]);
   const [loadingServices, setLoadingServices] = useState(true);
   const isLoading = loadingServices || !user;
-  const [userPermissions, setUserPermissions] = useState<string[]>([]); // ⬅️ هذا لتخزين IDs للخدمات المسموح بها
+  const [pageReady, setPageReady] = useState(false);
 
-  const [pageReady, setPageReady] = useState(false); // ⬅️ صفحة جاهزة أم لا
+  const fetchServices = useCallback(async () => {
+    if (!user) {
+      setServices([]);
+      setLoadingServices(false);
+      setPageReady(true);
+      return;
+    }
 
-  useEffect(() => {
-    const fetchServices = async () => {
-      if (!user) {
-        setServices([]);
-        setLoadingServices(false);
-        setPageReady(true); // ✅ تأكد من وضعه هنا
-        return;
-      }
+    setLoadingServices(true);
+    try {
+      const { data, error } = await supabase.rpc('get_user_permissions_optimized', { p_user_id: user.id });
+      if (error) throw error;
 
-      setLoadingServices(true);
+      const servicesData = data || [];
+      const newServices: Service[] = [];
 
-      try {
-        const { data, error } = await supabase.rpc('get_user_permissions', { p_user_id: user.id });
-        if (error) throw error;
-
-      const allowedServices = (data as any[]).map((s: any) => ({
-        id: s.id,
-        group_id: s.group_id,
-        label_ar: s.label_ar,
-        label_en: s.label_en,
-        label: language === "ar" ? s.label_ar : s.label_en,
-        icon: s.icon,
-        group_ar: s.group_ar,
-        group_en: s.group_en,
-        group: language === "ar" ? s.group_ar : s.group_en,
-        page: s.page,
-        is_allowed: s.is_allowed || false,
-      }));
-
-      // جمع كل service_id التي لم تُسمح بعد
-      const toCheckIds = allowedServices
-        .filter(svc => !svc.is_allowed && svc.id)
-        .map(svc => svc.id);
-
-      let jobPerms: any[] = [];
-      if (toCheckIds.length) {
-        const { data: jpData, error: jpError } = await supabase
-          .from("job_permissions")
-          .select("*")
-          .eq("job_title", user.job_id)
-          .in("service_id", toCheckIds);
-
-        if (jpError) console.error("Error fetching job_permissions:", jpError);
-        else jobPerms = jpData || [];
-      }
-
-      // دمج الصلاحيات
-      const finalServices = allowedServices.map(svc => ({
-        ...svc,
-        is_allowed: svc.is_allowed || jobPerms.some(jp => jp.service_id === svc.id),
-      }));
-
-      setServices(finalServices);
-
-      } catch (err) {
-        console.error("Error fetching services:", err);
-      } finally {
-        setLoadingServices(false);
-        setPageReady(true); // ✅ تأكد من أنه هنا أيضاً
-      }
-    };
-
-    fetchServices();
+      // Loop only through the main services and add them to the array
+      servicesData.forEach((service: any) => {
+        // Check if the main service itself is allowed
+        if (service.is_allowed) {
+          newServices.push({
+            id: service.id,
+            group_id: service.group_id,
+            label_ar: service.label_ar,
+            label_en: service.label_en,
+            label: language === "ar" ? service.label_ar : service.label_en,
+            icon: service.icon,
+            group_ar: service.group_ar,
+            group_en: service.group_en,
+            group: language === "ar" ? service.group_ar : service.group_en,
+            page: service.page,
+            is_allowed: service.is_allowed,
+          });
+        }
+      });
+      setServices(newServices);
+    } catch (err) {
+      console.error("Error fetching services:", err);
+    } finally {
+      setLoadingServices(false);
+      setPageReady(true);
+    }
   }, [user, language]);
 
-  // ------------------ Polling للتحديث اللحظي ------------------
   useEffect(() => {
-    if (!user) return;
+    fetchServices();
 
-    let isMounted = true; // لتجنب تحديث الحالة بعد unmount
-    const POLLING_INTERVAL = 5000; // كل 5 ثواني (يمكن تعديلها حسب الحاجة)
+    if (!user) {
+        return;
+    }
 
-    const pollPermissions = async () => {
-      try {
-        const { data, error } = await supabase.rpc('get_user_permissions', { p_user_id: user.id });
-        if (error) throw error;
+    const jobPermissionsChannel: RealtimeChannel = supabase
+        .channel('job_permissions_changes')
+        .on(
+            'postgres_changes',
+            {  
+              event: '*',  
+              schema: 'public',  
+              table: 'job_permissions',
+              filter: `job_id=eq.${user.job_id}`
+            },
+            (payload) => {
+                fetchServices();
+            }
+        )
+        .subscribe();
 
-        if (!isMounted) return;
+    const userPermissionsChannel: RealtimeChannel = supabase
+        .channel('user_permissions_changes')
+        .on(
+            'postgres_changes',
+            {  
+              event: '*',  
+              schema: 'public',  
+              table: 'user_permissions',
+              filter: `user_id=eq.${user.id}`
+            },
+            (payload) => {
+                fetchServices();
+            }
+        )
+        .subscribe();
 
-        // فلترة الخدمات المسموح بها
-        const allowedServices = (data as any[])
-          .filter((s: any) => s.is_allowed)
-          .map((s: any) => ({
-            id: s.id,
-            group_id: s.group_id,
-            label_ar: s.label_ar,
-            label_en: s.label_en,
-            label: language === "ar" ? s.label_ar : s.label_en,
-            icon: s.icon,
-            group_ar: s.group_ar,
-            group_en: s.group_en,
-            group: language === "ar" ? s.group_ar : s.group_en,
-            page: s.page,
-            is_allowed: s.is_allowed,
-          }));
-
-        // تحقق من التغيير قبل تحديث الحالة لتجنب إعادة render غير ضرورية
-        const currentIds = services.map(s => s.id).sort().join(",");
-        const newIds = allowedServices.map(s => s.id).sort().join(",");
-        if (currentIds !== newIds) {
-          setServices(allowedServices);
-        }
-      } catch (err) {
-        console.error("Polling error fetching permissions:", err);
-      } finally {
-        if (isMounted) {
-          setTimeout(pollPermissions, POLLING_INTERVAL);
-        }
-      }
+    return () => {
+        supabase.removeChannel(jobPermissionsChannel);
+        supabase.removeChannel(userPermissionsChannel);
     };
-
-    pollPermissions();
-
-    return () => { isMounted = false; };
-  }, [user, language, services]);
+  }, [user, fetchServices]);
 
   const filteredServices = services.filter((s: any) =>
     (language === "ar" ? s.label_ar : s.label_en)
@@ -232,50 +183,48 @@ const Dashboard: React.FC<Props> = ({
     acc[groupName].push(s);
     return acc;
   }, {});
-
-    const onServiceClick = (id: string, label: string) => {
-      switch (id) {
-        case "guards-rating":
-          onNavigateTo("guards-rating");
-          break;
-        default:
-          alert(
-            language === "ar"
-              ? `الخدمة "${label}" قيد البرمجة 🚧`
-              : `"${label}" service is under construction 🚧`
-          );
-          break;
-      }
-    };
-
-    // إغلاق القوائم عند النقر خارجها
-    useEffect(() => {
-      function handleClickOutside(event: MouseEvent) {
-        if (avatarOptionsVisible && avatarOptionsRef.current && !avatarOptionsRef.current.contains(event.target as Node)) {
-          setAvatarOptionsVisible(false);
-        }
-        if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
-          setUserMenuOpen(false);
-        }
-      }
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, [avatarOptionsVisible, userMenuOpen]);
-
-    const handleToggleLanguage = () => {
-      setIsChangingLang(true);
-      const next = language === "ar" ? "en" : "ar";
-      
-      // حفظ اللغة في localStorage فقط
-      localStorage.setItem("lang", next);
-      onLanguageChange(next); // يُحدث واجهة المستخدم فورًا
-      setIsChangingLang(false);
+  
+  const onServiceClick = (id: string, label: string) => {
+    switch (id) {
+      case "guards-rating":
+        onNavigateTo("guards-rating");
+        break;
+      case "users-data":
+        onNavigateTo("users/data");
+        break;
+      default:
+        alert(
+          language === "ar"
+            ? `الخدمة "${label}" قيد البرمجة 🚧`
+            : `"${label}" service is under construction 🚧`
+        );
+        break;
+    }
   };
 
-  // JSX الكامل للواجهة
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (avatarOptionsVisible && avatarOptionsRef.current && !avatarOptionsRef.current.contains(event.target as Node)) {
+        setAvatarOptionsVisible(false);
+      }
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [avatarOptionsVisible, userMenuOpen]);
+
+  const handleToggleLanguage = () => {
+    setIsChangingLang(true);
+    const next = language === "ar" ? "en" : "ar";
+    localStorage.setItem("lang", next);
+    onLanguageChange(next);
+    setIsChangingLang(false);
+  };
+
   return (
     <div className="w-full h-full relative" dir={isRTL ? "rtl" : "ltr"}>
-      {/* ---------- شاشة التحميل المحسّنة ---------- */}
       <AnimatePresence>
         {!pageReady && (
           <motion.div
@@ -285,28 +234,22 @@ const Dashboard: React.FC<Props> = ({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.8 }}
           >
-            {/* ---------- خلفية ديناميكية سينمائية ---------- */}
             <motion.div
               className="absolute inset-0 bg-gradient-radial from-white/5 via-transparent to-black/50"
               animate={{ rotate: 360 }}
               transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
             />
-
-            {/* ---------- الكرة الزجاجية ثلاثية الأبعاد مع إضاءة ---------- */}
             <motion.div
               className="relative z-10 flex items-center justify-center w-52 h-52 rounded-full shadow-2xl"
               initial={{ scale: 0.6, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: "spring", stiffness: 260, damping: 20 }}
             >
-              {/* الكرة الكريستالية */}
               <motion.div
                 className="absolute inset-0 rounded-full bg-gradient-to-tr from-indigo-700/25 via-purple-700/25 to-blue-700/25 border border-white/20 shadow-xl backdrop-blur-lg"
                 animate={{ rotateY: 360, rotateX: 15 }}
                 transition={{ repeat: Infinity, duration: 14, ease: "linear" }}
               />
-
-              {/* انعكاسات ضوء متغيرة */}
               <motion.div
                 className="absolute inset-0 rounded-full blur-3xl"
                 animate={{
@@ -319,8 +262,6 @@ const Dashboard: React.FC<Props> = ({
                 }}
                 transition={{ repeat: Infinity, duration: 6, ease: "easeInOut" }}
               />
-
-              {/* شرارات وذرات ديناميكية */}
               {[...Array(50)].map((_, i) => (
                 <motion.div
                   key={i}
@@ -340,8 +281,6 @@ const Dashboard: React.FC<Props> = ({
                   }}
                 />
               ))}
-
-              {/* نص اللوقو محفور على الكرة */}
               <div className="relative z-20 text-center">
                 <div className="text-6xl font-extrabold tracking-wider text-white drop-shadow-[0_0_24px_rgba(255,255,255,0.7)]">
                   Hejazi
@@ -364,8 +303,6 @@ const Dashboard: React.FC<Props> = ({
                   </motion.div>
                 </div>
               </div>
-
-              {/* حلقات تحميل شفافة ديناميكية */}
               <div className="absolute inset-0">
                 {[0, 1, 2].map((i) => (
                   <motion.div
@@ -384,8 +321,6 @@ const Dashboard: React.FC<Props> = ({
                 ))}
               </div>
             </motion.div>
-
-            {/* نص التحميل السفلي */}
             <motion.div
               className="text-xl font-medium mt-10 tracking-wide z-10 text-center drop-shadow-md"
               animate={{ opacity: [0.7, 1, 0.7], y: [0, -6, 0] }}
@@ -397,7 +332,6 @@ const Dashboard: React.FC<Props> = ({
         )}
       </AnimatePresence>
 
-      {/* ================== الهيدر ================== */}
       <motion.header
         className="flex items-center justify-between p-4 bg-gray-50/95 rounded-b-2xl shadow-xl backdrop-blur-sm border-b border-gray-200"
         initial={{ y: -30, opacity: 0, scale: 0.98 }}
@@ -417,7 +351,6 @@ const Dashboard: React.FC<Props> = ({
         </div>
 
       <div className="flex items-center space-x-3 space-x-reverse relative">
-        {/* ✅ زر تغيير اللغة */}
         <button
           onClick={handleToggleLanguage}
           disabled={isChangingLang}
@@ -426,8 +359,6 @@ const Dashboard: React.FC<Props> = ({
         >
           {language === "ar" ? "EN" : "ع"}
         </button>
-
-        {/* ✅ زر إدارة الصلاحيات */}
         <button
           onClick={() => navigate("/Users/Data")}
           className="px-3 py-1 border rounded-lg hover:bg-gray-100"
@@ -435,16 +366,12 @@ const Dashboard: React.FC<Props> = ({
         >
           {language === "ar" ? "صلاحيات" : "Permissions"}
         </button>
-
-        {/* ✅ صورة المستخدم */}
         <img
           src={user!.avatar_url || "/default/avatar.png"}
           alt="avatar"
           className="w-10 h-10 rounded-full cursor-pointer"
           onClick={() => setUserMenuOpen((prev) => !prev)}
         />
-
-        {/* ✅ قائمة الملف الشخصي */}
         {userMenuOpen && (
           <motion.ul
             ref={userMenuRef}
@@ -475,7 +402,6 @@ const Dashboard: React.FC<Props> = ({
       </div>
       </motion.header>
 
-      {/* ================== البحث + الخدمات ================== */}
       <AnimatePresence>
         {showServices && (
           <>
@@ -486,7 +412,6 @@ const Dashboard: React.FC<Props> = ({
               transition={{ duration: 0.4, ease: "easeInOut" }}
               className="fixed inset-0 bg-black backdrop-blur-sm z-30 pointer-events-none"
             />
-
             <motion.div
               initial={{ x: isRTL ? "100%" : "-100%", scale: 0.95, opacity: 0 }}
               animate={{ x: 0, scale: 1, opacity: 1 }}
@@ -511,7 +436,6 @@ const Dashboard: React.FC<Props> = ({
                   <X className="w-6 h-6" />
                 </button>
               </motion.div>
-
               <motion.div
                 className="p-6 overflow-y-auto flex-1 space-y-6"
                 initial="hidden"
@@ -532,19 +456,17 @@ const Dashboard: React.FC<Props> = ({
                       placeholder={language === "ar" ? "بحث..." : "Search..."}
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full p-4 pl-12 rounded-3xl 
-                                bg-white text-gray-900 placeholder-gray-500 
-                                shadow-xl focus:outline-none focus:ring-4 focus:ring-blue-400 
-                                focus:shadow-lg transition-all duration-300"
+                      className="w-full p-4 pl-12 rounded-3xl  
+                                 bg-white text-gray-900 placeholder-gray-500  
+                                 shadow-xl focus:outline-none focus:ring-4 focus:ring-blue-400  
+                                 focus:shadow-lg transition-all duration-300"
                     />
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-6 h-6 text-gray-500 animate-pulse" />
                   </div>
                 </motion.div>
-           
-                {/* عرض الخدمات بالمجموعات */}
                 {Object.entries(groupedServices).map(([groupName, items], groupIndex) => (
                   <motion.div
-                    key={`${items[0]?.group_id || groupName}-${groupIndex}`} // استخدام index للمفتاح الفريد عند الحاجة
+                    key={`${items[0]?.group_id || groupName}-${groupIndex}`}
                     className="bg-gray-100 rounded-2xl shadow-lg p-6 overflow-hidden border border-gray-200"
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -564,7 +486,7 @@ const Dashboard: React.FC<Props> = ({
                           const Icon = getIconComponent(service.icon || "");
                           return (
                             <motion.div
-                              key={service.id || `${groupName}-service-${serviceIndex}`} // الآن index معرف
+                              key={service.id || `${groupName}-service-${serviceIndex}`}
                               layout
                               initial={{ opacity: 0, y: 20, scale: 0.9 }}
                               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -575,8 +497,8 @@ const Dashboard: React.FC<Props> = ({
                                 backgroundColor: "#e2e8f0",
                               }}
                               transition={{ type: "spring", stiffness: 300, damping: 25, mass: 0.5 }}
-                              className="flex items-center justify-between p-4 rounded-xl cursor-pointer 
-                                        bg-gray-50 border border-gray-50 shadow-md transition-colors duration-300"
+                              className="flex items-center justify-between p-4 rounded-xl cursor-pointer  
+                                         bg-gray-50 border border-gray-50 shadow-md transition-colors duration-300"
                               onClick={() => onServiceClick(service.id, service.label)}
                             >
                               <div className="flex items-center gap-3">
@@ -598,7 +520,6 @@ const Dashboard: React.FC<Props> = ({
         )}
       </AnimatePresence>
 
-      {/* ---------- الملف الشخصي ---------- */}
       {showProfile && (
         <div className="p-6 bg-gray-50 absolute inset-0 overflow-auto">
           <div className="text-gray-700 text-sm space-y-6">
@@ -615,7 +536,6 @@ const Dashboard: React.FC<Props> = ({
                 </>
               )}
             </div>
-
             <div className="border border-gray-300 rounded-lg p-4 shadow-sm bg-white space-y-1">
               {language === "ar" ? (
                 <div><strong>المسمى الوظيفي:</strong> {user?.job_id ? `رقم الوظيفة: ${user?.job_id}` : "-"}</div>
@@ -623,7 +543,6 @@ const Dashboard: React.FC<Props> = ({
                 <div><strong>Job Title:</strong> {user?.job_id ? `Job ID: ${user?.job_id}` : "-"}</div>
               )}
             </div>
-
             <div className="space-y-3">
               <div><strong>{language === "ar" ? "رقم الهاتف" : "Phone"}:</strong> {user?.phone}</div>
               <div><strong>{language === "ar" ? "البريد الإلكتروني" : "Email"}:</strong> {user?.email}</div>
@@ -631,9 +550,7 @@ const Dashboard: React.FC<Props> = ({
               <div><strong>{language === "ar" ? "الحالة" : "Status"}:</strong> {user?.status}</div>
             </div>
           </div>
-
           <hr className="my-6" />
-
           <div className="text-center">
             <button onClick={() => setShowChangePassword(true)} className="text-blue-600 hover:underline font-medium">
               {language === "ar" ? "تغيير كلمة المرور" : "Change Password"}
@@ -642,7 +559,6 @@ const Dashboard: React.FC<Props> = ({
         </div>
       )}
 
-      {/* ---------- تغيير كلمة المرور ---------- */}
       {showChangePassword && (
         <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
           <div className="bg-white p-6 rounded-lg w-full max-w-md space-y-4 relative">

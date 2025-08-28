@@ -1,4 +1,3 @@
-// src/components/Permissions/UserData.tsx
 import React, { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { motion, AnimatePresence } from "framer-motion";
@@ -12,6 +11,7 @@ type Props = {
   onLogout?: () => Promise<void>;
 };
 
+// تعريف أنواع البيانات للعقدة في شجرة الصلاحيات
 type PermissionNode = {
   service_id?: number;
   sub_service_id?: number;
@@ -33,11 +33,16 @@ const UserData: React.FC<Props> = ({ language, onLanguageChange, onNavigateTo })
   const [showPermissions, setShowPermissions] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedServices, setExpandedServices] = useState<Record<number, boolean>>({});
+  
+  // حالة لتخزين صلاحيات الوظيفة الأصلية للمستخدم المحدد
+  const [jobPermissions, setJobPermissions] = useState<Map<string, boolean>>(new Map());
 
+  // تعيين اتجاه الصفحة بناءً على اللغة
   useEffect(() => {
     document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
   }, [language]);
 
+  // جلب جميع المستخدمين عند تحميل المكون
   useEffect(() => {
     const fetchUsers = async () => {
       const { data, error } = await supabase.from("users").select("*");
@@ -49,6 +54,7 @@ const UserData: React.FC<Props> = ({ language, onLanguageChange, onNavigateTo })
     fetchUsers();
   }, []);
 
+  // فلترة المستخدمين بناءً على حقل البحث
   useEffect(() => {
     const q = searchQuery.toLowerCase();
     setFilteredUsers(
@@ -64,82 +70,53 @@ const UserData: React.FC<Props> = ({ language, onLanguageChange, onNavigateTo })
     );
   }, [searchQuery, users, language]);
 
+  // جلب الصلاحيات عند تحديد مستخدم
   useEffect(() => {
     if (!selectedUser) return;
 
     const fetchPermissionsAndServices = async () => {
       setLoading(true);
       try {
-        const { data: servicesData, error: servicesError } = await supabase
-          .from("services")
-          .select("*")
-          .order("id", { ascending: true });
-        if (servicesError) throw servicesError;
+        // استدعاء دالة RPC لجلب شجرة الصلاحيات الكاملة للمستخدم
+        const { data, error } = await supabase.rpc("get_user_permissions_optimized", { p_user_id: selectedUser.id });
 
-        const { data: userPermsData } = await supabase
-          .from("user_permissions")
-          .select("*")
-          .eq("user_id", selectedUser.id);
-
-        const permsDict: Record<string, boolean> = {};
-        if (userPermsData) {
-          userPermsData.forEach((p: any) => {
-            const key = `${p.service_id ?? 0}-${p.sub_service_id ?? 0}-${p.sub_sub_service_id ?? 0}`;
-            permsDict[key] = p.is_allowed;
-          });
+        if (error) {
+          console.error("Error fetching permissions from RPC:", error);
+          throw error;
         }
 
-        const buildTree = async () => {
-          return Promise.all(
-            servicesData.map(async (service: any) => {
-              const { data: subServices } = await supabase
-                .from("sub_services")
-                .select("*")
-                .eq("service_id", service.id)
-                .order("id", { ascending: true });
-
-              const sub_services_with_sub_subs = await Promise.all(
-                (subServices || []).map(async (sub: any) => {
-                  const { data: subSubServices } = await supabase
-                    .from("sub_sub_services")
-                    .select("*")
-                    .eq("sub_service_id", sub.id)
-                    .order("id", { ascending: true });
-
-                  return {
-                    sub_service_id: sub.id,
-                    label_ar: sub.label_ar,
-                    label_en: sub.label_en,
-                    is_allowed: permsDict[`0-${sub.id}-0`] ?? false, // المفتاح يجب أن يتوافق مع قاعدة البيانات
-                    sub_services: [],
-                    sub_sub_services: (subSubServices || []).map((ss: any) => ({
-                      sub_sub_service_id: ss.id,
-                      label_ar: ss.label_ar,
-                      label_en: ss.label_en,
-                      is_allowed: permsDict[`0-0-${ss.id}`] ?? false,
-                      sub_services: [],
-                      sub_sub_services: [],
-                    })),
-                  };
-                })
-              );
-
-              return {
-                service_id: service.id,
-                label_ar: service.label_ar,
-                label_en: service.label_en,
-                is_allowed: permsDict[`${service.id}-0-0`] ?? false,
-                sub_services: sub_services_with_sub_subs,
-                sub_sub_services: [],
-              };
-            })
-          );
+        // تحويل البيانات المسترجعة إلى شجرة الصلاحيات
+        const buildTree = (nodes: any[]): PermissionNode[] => {
+          return nodes.map((node) => ({
+            service_id: node.id,
+            label_ar: node.label_ar,
+            label_en: node.label_en,
+            is_allowed: node.is_allowed,
+            sub_services: node.sub_services ? buildTree(node.sub_services) : [],
+            sub_sub_services: node.sub_sub_services ? buildTree(node.sub_sub_services) : [],
+          }));
         };
 
-        const tree = await buildTree();
-        setPermissions(tree);
+        const permissionTree = data || [];
+        setPermissions(permissionTree);
+
+        // جلب صلاحيات الوظيفة الأصلية لتطبيق منطق الحفظ الجديد
+        const { data: jobPermsData, error: jobError } = await supabase
+          .from("job_permissions")
+          .select("*")
+          .eq("job_id", selectedUser.job_id);
+
+        if (jobError) throw jobError;
+
+        const jobMap = new Map<string, boolean>();
+        jobPermsData.forEach((jp: any) => {
+          const key = `${jp.service_id ?? 0}-${jp.sub_service_id ?? 0}-${jp.sub_sub_service_id ?? 0}`;
+          jobMap.set(key, true);
+        });
+        setJobPermissions(jobMap);
+
       } catch (err) {
-        console.error("Error fetching permissions or services:", err);
+        console.error("Error fetching permissions:", err);
         setPermissions([]);
       } finally {
         setLoading(false);
@@ -149,10 +126,17 @@ const UserData: React.FC<Props> = ({ language, onLanguageChange, onNavigateTo })
     fetchPermissionsAndServices();
   }, [selectedUser]);
 
+  // تبديل حالة الصلاحية لعقدة معينة
   const togglePermissionNode = (node: PermissionNode) => {
     const recursiveToggle = (arr: PermissionNode[]): PermissionNode[] => {
       return arr.map((n) => {
-        if (n === node) return { ...n, is_allowed: !n.is_allowed };
+        // Find the node to toggle
+        const isTarget = (n.service_id === node.service_id && n.sub_service_id === node.sub_service_id && n.sub_sub_service_id === node.sub_sub_service_id);
+        
+        if (isTarget) {
+          return { ...n, is_allowed: !n.is_allowed };
+        }
+        
         return {
           ...n,
           sub_services: recursiveToggle(n.sub_services),
@@ -163,49 +147,38 @@ const UserData: React.FC<Props> = ({ language, onLanguageChange, onNavigateTo })
     setPermissions((prev) => recursiveToggle(prev));
   };
 
+  // تبديل حالة عرض الخدمات الفرعية
   const toggleExpand = (serviceId: number) => {
     setExpandedServices((prev) => ({ ...prev, [serviceId]: !prev[serviceId] }));
   };
 
+  // تحويل شجرة الصلاحيات إلى قائمة مسطحة
   const flattenPermissions = (nodes: PermissionNode[]): { key: string; node: PermissionNode }[] => {
     let result: { key: string; node: PermissionNode }[] = [];
     nodes.forEach((n) => {
       const key = `${n.service_id ?? 0}-${n.sub_service_id ?? 0}-${n.sub_sub_service_id ?? 0}`;
       result.push({ key, node: n });
-      if (n.sub_services.length > 0) result = result.concat(flattenPermissions(n.sub_services));
-      if (n.sub_sub_services.length > 0) result = result.concat(flattenPermissions(n.sub_sub_services));
+      if (n.sub_services && n.sub_services.length > 0) result = result.concat(flattenPermissions(n.sub_services));
+      if (n.sub_sub_services && n.sub_sub_services.length > 0) result = result.concat(flattenPermissions(n.sub_sub_services));
     });
     return result;
   };
 
+  // دالة الحفظ الجديدة بناءً على المنطق المطلوب
   const savePermissionsBatch = async () => {
     if (!selectedUser) return;
     setLoading(true);
 
     try {
-      // جلب صلاحيات الوظيفة
-      const { data: jobPermsData, error: jobError } = await supabase
-        .from("job_permissions")
-        .select("*")
-        .eq("job_id", selectedUser.job_id);
-      if (jobError) throw jobError;
-
-      // جلب صلاحيات المستخدم
+      // جلب صلاحيات المستخدم الحالية
       const { data: userPermsData, error: userError } = await supabase
         .from("user_permissions")
         .select("*")
         .eq("user_id", selectedUser.id);
       if (userError) throw userError;
 
-      // تحويل البيانات إلى خرائط للوصول السريع
-      const jobMap = new Map<string, boolean>();
-      jobPermsData?.forEach((jp: any) => {
-        const key = `${jp.service_id ?? 0}-${jp.sub_service_id ?? 0}-${jp.sub_sub_service_id ?? 0}`;
-        jobMap.set(key, true);
-      });
-
       const userMap = new Map<string, any>();
-      userPermsData?.forEach((up: any) => {
+      userPermsData.forEach((up: any) => {
         const key = `${up.service_id ?? 0}-${up.sub_service_id ?? 0}-${up.sub_sub_service_id ?? 0}`;
         userMap.set(key, up);
       });
@@ -217,97 +190,115 @@ const UserData: React.FC<Props> = ({ language, onLanguageChange, onNavigateTo })
       const deletes: any[] = [];
 
       for (const { key, node } of flatPerms) {
-        const inJob = jobMap.has(key);
-        const inUser = userMap.has(key);
-
-        if (node.is_allowed) {
-          if (inJob) {
-            // true + موجود في job
-            if (inUser) deletes.push({ service_id: node.service_id, sub_service_id: node.sub_service_id, sub_sub_service_id: node.sub_sub_service_id });
-            // اذا غير موجود في user → تجاهل
-          } else {
-            // true + غير موجود في job
-            if (inUser) {
-              updates.push({
-                user_id: selectedUser.id,
-                service_id: node.service_id,
-                sub_service_id: node.sub_service_id,
-                sub_sub_service_id: node.sub_sub_service_id,
-                is_allowed: true,
-              });
-            } else {
-              inserts.push({
-                user_id: selectedUser.id,
-                service_id: node.service_id,
-                sub_service_id: node.sub_service_id,
-                sub_sub_service_id: node.sub_sub_service_id,
-                is_allowed: true,
-              });
-            }
+        const isAllowedInJob = jobPermissions.has(key);
+        const isAllowedByUser = node.is_allowed;
+        const existsInUserPerms = userMap.has(key);
+        
+        // 1. = true وهي موجودة داخل جدول job_permissions
+        if (isAllowedByUser && isAllowedInJob) {
+          if (existsInUserPerms) {
+            // يجب حذفها من جدول صلاحيات المستخدم لأنها أصبحت مطابقة لصلاحية الوظيفة الأصلية
+            deletes.push({
+              service_id: node.service_id,
+              sub_service_id: node.sub_service_id,
+              sub_sub_service_id: node.sub_sub_service_id,
+            });
           }
-        } else {
-          if (inJob) {
-            // false + موجودة في job → تحديث أو إضافة
-            if (inUser) {
-              updates.push({
-                user_id: selectedUser.id,
-                service_id: node.service_id,
-                sub_service_id: node.sub_service_id,
-                sub_sub_service_id: node.sub_sub_service_id,
-                is_allowed: false,
-              });
-            } else {
-              inserts.push({
-                user_id: selectedUser.id,
-                service_id: node.service_id,
-                sub_service_id: node.sub_service_id,
-                sub_sub_service_id: node.sub_sub_service_id,
-                is_allowed: false,
-              });
-            }
+        // 2. = true وهي غير موجودة داخل جدول job_permissions
+        } else if (isAllowedByUser && !isAllowedInJob) {
+          if (existsInUserPerms) {
+            // تحديث الصلاحية الموجودة
+            updates.push({
+              user_id: selectedUser.id,
+              service_id: node.service_id,
+              sub_service_id: node.sub_service_id,
+              sub_sub_service_id: node.sub_sub_service_id,
+              is_allowed: true,
+            });
           } else {
-            // false + غير موجودة في job
-            if (inUser) {
-              deletes.push({ service_id: node.service_id, sub_service_id: node.sub_service_id, sub_sub_service_id: node.sub_sub_service_id });
-            }
-            // اذا غير موجودة في user → تجاهل
+            // إضافة الصلاحية
+            inserts.push({
+              user_id: selectedUser.id,
+              service_id: node.service_id,
+              sub_service_id: node.sub_service_id,
+              sub_sub_service_id: node.sub_sub_service_id,
+              is_allowed: true,
+            });
+          }
+        // 3. = false وهي موجودة داخل جدول job_permissions
+        } else if (!isAllowedByUser && isAllowedInJob) {
+          if (existsInUserPerms) {
+            // تحديث الصلاحية الموجودة
+            updates.push({
+              user_id: selectedUser.id,
+              service_id: node.service_id,
+              sub_service_id: node.sub_service_id,
+              sub_sub_service_id: node.sub_sub_service_id,
+              is_allowed: false,
+            });
+          } else {
+            // إضافة الصلاحية
+            inserts.push({
+              user_id: selectedUser.id,
+              service_id: node.service_id,
+              sub_service_id: node.sub_service_id,
+              sub_sub_service_id: node.sub_sub_service_id,
+              is_allowed: false,
+            });
+          }
+        // 4. = false وهي غير موجودة داخل جدول job_permissions
+        } else if (!isAllowedByUser && !isAllowedInJob) {
+          if (existsInUserPerms) {
+            // حذف الصلاحية من جدول المستخدم لأنها أصبحت مطابقة لصلاحية الوظيفة الأصلية
+            deletes.push({
+              service_id: node.service_id,
+              sub_service_id: node.sub_service_id,
+              sub_sub_service_id: node.sub_sub_service_id,
+            });
           }
         }
       }
 
-      // تنفيذ الحذف
+      // تنفيذ الحذف بشكل جماعي
       for (const d of deletes) {
         let query = supabase.from("user_permissions").delete().eq("user_id", selectedUser.id);
-
-        if (d.service_id != null) query = query.eq("service_id", d.service_id);
+        
+        // التعامل مع قيم null في الأعمدة
+        if (d.service_id !== undefined) query = query.eq("service_id", d.service_id);
         else query = query.is("service_id", null);
 
-        if (d.sub_service_id != null) query = query.eq("sub_service_id", d.sub_service_id);
+        if (d.sub_service_id !== undefined) query = query.eq("sub_service_id", d.sub_service_id);
         else query = query.is("sub_service_id", null);
 
-        if (d.sub_sub_service_id != null) query = query.eq("sub_sub_service_id", d.sub_sub_service_id);
+        if (d.sub_sub_service_id !== undefined) query = query.eq("sub_sub_service_id", d.sub_sub_service_id);
         else query = query.is("sub_sub_service_id", null);
-
-        await query;
+        
+        const { error } = await query;
+        if (error) console.error("Error deleting permission:", error);
       }
 
       // تنفيذ الإضافة
-      if (inserts.length > 0) await supabase.from("user_permissions").insert(inserts);
+      if (inserts.length > 0) {
+        const { error } = await supabase.from("user_permissions").insert(inserts);
+        if (error) console.error("Error inserting permissions:", error);
+      }
 
       // تنفيذ التحديث
+      // يمكن استخدام upsert لتحسين هذه العملية
       for (const u of updates) {
         let query = supabase.from("user_permissions").update({ is_allowed: u.is_allowed }).eq("user_id", u.user_id);
 
-        if (u.service_id != null) query = query.eq("service_id", u.service_id);
+        if (u.service_id !== undefined) query = query.eq("service_id", u.service_id);
         else query = query.is("service_id", null);
 
-        if (u.sub_service_id != null) query = query.eq("sub_service_id", u.sub_service_id);
+        if (u.sub_service_id !== undefined) query = query.eq("sub_service_id", u.sub_service_id);
         else query = query.is("sub_service_id", null);
 
-        if (u.sub_sub_service_id != null) query = query.eq("sub_sub_service_id", u.sub_sub_service_id);
+        if (u.sub_sub_service_id !== undefined) query = query.eq("sub_sub_service_id", u.sub_sub_service_id);
         else query = query.is("sub_sub_service_id", null);
 
-        await query;
+        const { error } = await query;
+        if (error) console.error("Error updating permission:", error);
       }
 
       alert(language === "ar" ? "تم حفظ الصلاحيات بنجاح" : "Permissions saved successfully");
@@ -319,7 +310,8 @@ const UserData: React.FC<Props> = ({ language, onLanguageChange, onNavigateTo })
     }
   };
 
-  const renderServiceCard = (node: PermissionNode, level: number = 0, parentKey: string = "") => {
+  // عرض بطاقة الخدمة (مستويات الشجرة)
+  const renderServiceCard = (node: PermissionNode, level: number = 0) => {
     const serviceId = node.service_id ?? node.sub_service_id ?? node.sub_sub_service_id ?? 0;
     const isExpanded = expandedServices[serviceId];
     const label = language === "ar" ? node.label_ar : node.label_en;
@@ -327,11 +319,10 @@ const UserData: React.FC<Props> = ({ language, onLanguageChange, onNavigateTo })
     const levelBg = level === 0 ? "bg-blue-100" : level === 1 ? "bg-blue-200" : "bg-blue-300";
     const levelBorder = level === 0 ? "border-blue-200" : level === 1 ? "border-blue-300" : "border-blue-400";
 
-    const key = `${parentKey}-${serviceId}-${level}-${label}`;
-    const hasChildren = node.sub_services.length + node.sub_sub_services.length > 0;
+    const hasChildren = (node.sub_services?.length ?? 0) > 0 || (node.sub_sub_services?.length ?? 0) > 0;
 
     return (
-      <div key={key} className={`${levelBg} rounded-xl shadow-md p-4 mb-3 hover:shadow-lg transition`}>
+      <div key={serviceId} className={`${levelBg} rounded-xl shadow-md p-4 mb-3 hover:shadow-lg transition`}>
         <div className="flex justify-between items-center cursor-pointer select-none" onClick={() => toggleExpand(serviceId)}>
           <div className="flex items-center space-x-4 space-x-reverse">
             <button
@@ -355,8 +346,8 @@ const UserData: React.FC<Props> = ({ language, onLanguageChange, onNavigateTo })
               exit={{ opacity: 0, height: 0 }}
               className={`ml-6 border-l-4 pl-4 mt-3 ${levelBorder}`}
             >
-              {node.sub_services.map((sub) => renderServiceCard(sub, level + 1, key))}
-              {node.sub_sub_services.map((subsub) => renderServiceCard(subsub, level + 2, key))}
+              {node.sub_services?.map((sub) => renderServiceCard(sub, level + 1))}
+              {node.sub_sub_services?.map((subsub) => renderServiceCard(subsub, level + 2))}
             </motion.div>
           )}
         </AnimatePresence>
