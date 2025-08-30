@@ -31,6 +31,20 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service, language, isF
   const label = language === 'ar' ? service.label_ar : service.label_en;
   const [ripple, setRipple] = useState<{ x: number; y: number; size: number } | null>(null);
 
+  // تحديث دالة النقر لتطبيق التأثير
+  const handleCardClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height);
+    const x = event.clientX - rect.left - size / 2;
+    const y = event.clientY - rect.top - size / 2;
+
+    setRipple({ x, y, size });
+    
+    // في تطبيق حقيقي، سيتم استدعاء دالة التنقل هنا
+    // setTimeout(() => navigate(`/service/${service.id}`), 400);
+  };
+  
+  // دالة لتتبع حركة الفأرة لتأثير الإضاءة
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -39,30 +53,23 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service, language, isF
     e.currentTarget.style.setProperty('--mouse-y', `${y}px`);
   };
 
-  const handleCardClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const size = Math.max(rect.width, rect.height);
-    const x = event.clientX - rect.left - size / 2;
-    const y = event.clientY - rect.top - size / 2;
-    setRipple({ x, y, size });
-  };
-
   return (
     <motion.div
       variants={{ hidden: { opacity: 0, scale: 0.8 }, visible: { opacity: 1, scale: 1 } }}
       layout
       initial="rest"
       whileHover="hover"
-      whileTap={{ scale: 0.97 }}
+      whileTap={{ scale: 0.97 }} // تأثير الضغط الملموس
       animate="rest"
       onClick={handleCardClick}
-      onMouseMove={handleMouseMove}
+      onMouseMove={handleMouseMove} // تفعيل تتبع الفأرة
       className="service-card-artistic relative group rounded-xl p-4 flex flex-col items-center justify-center text-center aspect-square cursor-pointer overflow-hidden"
     >
       {/* الخلفية والإضاءة المحيطية */}
-      <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-md rounded-xl border border-white/10"></div>
+      <div className="absolute inset-0 bg-gray-900 rounded-xl border border-white/10"></div>
       <div className="spotlight"></div>
       
+      {/* تأثير التموج عند النقر */}
       <AnimatePresence>
         {ripple && (
           <motion.div
@@ -77,6 +84,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service, language, isF
         )}
       </AnimatePresence>
 
+      {/* زر المفضلة والأنيميشن الخاص به */}
       <motion.button
         onClick={(e) => { e.stopPropagation(); onToggleFavorite(service.id); }}
         className="absolute top-2 right-2 p-1 z-30"
@@ -91,21 +99,23 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service, language, isF
         </motion.div>
       </motion.button>
       
+      {/* المحتوى الرئيسي المتحرك */}
       <motion.div 
         variants={cardContentVariants}
         transition={{ type: 'spring', stiffness: 250, damping: 20 }}
         className="relative z-20 flex flex-col items-center justify-center h-full"
       >
-        <DynamicIcon name={service.icon} className="w-12 h-12 mb-3 text-[#FFD700] icon-glow" />
+        <DynamicIcon name={service.icon} className="w-12 h-12 mb-3 text-[#FFD700]" />
         <p className="text-white text-base font-bold">{label}</p>
       </motion.div>
       
+      {/* زر "فتح" (تم تغيير الكلمة) */}
       <motion.div 
         variants={openButtonVariants}
         className="absolute bottom-6 left-0 right-0 z-20 text-center"
       >
         <div className="inline-flex items-center text-sm font-semibold text-yellow-400 bg-black/30 px-3 py-1 rounded-full">
-          <span>{language === 'ar' ? 'تشغيل' : 'Launch'}</span>
+          <span>{language === 'ar' ? 'فتح' : 'Open'}</span>
           <ArrowRight size={16} className={`transition-transform duration-300 group-hover:translate-x-1 ${language === 'ar' ? 'mr-1' : 'ml-1'}`} />
         </div>
       </motion.div>
