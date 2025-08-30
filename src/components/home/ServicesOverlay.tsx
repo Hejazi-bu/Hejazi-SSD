@@ -6,7 +6,6 @@ import { useAuth } from '../contexts/UserContext';
 import { ServiceCard, Service } from './ServiceCard';
 import { X, Search } from 'lucide-react';
 
-// واجهة لتمثيل المجموعات مع خدماتها
 interface ServiceGroup {
   id: number;
   name_ar: string;
@@ -117,26 +116,30 @@ export const ServicesOverlay: React.FC<ServicesOverlayProps> = ({ isOpen, onClos
 
 
   const overlayVariants: Variants = {
-    hidden: { y: "100%", opacity: 0.8 },
-    visible: { y: "0%", opacity: 1, transition: { type: 'spring', stiffness: 120, damping: 20 } },
-    exit: { y: "100%", opacity: 0.8, transition: { duration: 0.3 } },
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { duration: 0.3 } },
+    exit: { opacity: 0, transition: { duration: 0.3 } },
   };
+
+  const contentVariants: Variants = {
+    hidden: { y: "100%" },
+    visible: { y: "0%", transition: { type: 'spring', stiffness: 120, damping: 20 } },
+    exit: { y: "100%", transition: { duration: 0.3 } },
+  }
 
   return (
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          variants={overlayVariants}
+          initial="hidden"
+          animate="visible"
+          exit="exit"
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
           onClick={onClose}
         >
           <motion.div
-            variants={overlayVariants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
+            variants={contentVariants}
             className="bg-gray-900/50 backdrop-blur-xl border-t border-gray-700 w-full h-full shadow-lg flex flex-col p-4 sm:p-6"
             onClick={(e) => e.stopPropagation()}
           >
@@ -153,7 +156,7 @@ export const ServicesOverlay: React.FC<ServicesOverlayProps> = ({ isOpen, onClos
                 placeholder={t.searchPlaceholder}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-gray-800 text-white rounded-full py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-[#FFD700]"
+                className="w-full bg-gray-800/70 text-white rounded-full py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-[#FFD700] border border-transparent focus:border-[#FFD700]"
               />
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
             </div>
@@ -213,4 +216,3 @@ export const ServicesOverlay: React.FC<ServicesOverlayProps> = ({ isOpen, onClos
     </AnimatePresence>
   );
 };
-

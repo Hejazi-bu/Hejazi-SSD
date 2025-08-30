@@ -10,3 +10,73 @@ html, body, #root {
   background-color: #0d1b2a; /* اللون الأزرق الداكن المطلوب */
 }
 
+/* --- أكواد التأثيرات الكريستالية الجديدة --- */
+
+.crystalline-card {
+  transform-style: preserve-3d;
+  transform: perspective(1000px);
+  transition: transform 0.2s;
+}
+
+.crystalline-card:hover {
+  transform: translateY(-10px) perspective(1000px);
+}
+
+.crystalline-bg {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-color: rgba(22, 34, 48, 0.7); /* لون أغمق وأكثر فخامة */
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.spotlight {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle 300px at var(--mouse-x) var(--mouse-y), rgba(255, 215, 0, 0.15), transparent 50%);
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+
+.crystalline-card:hover .spotlight {
+  opacity: 1;
+}
+
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  background-color: rgba(255, 215, 0, 0.5);
+  transform: scale(0);
+  pointer-events: none;
+}
+
+.icon-glow {
+  filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.6));
+  transition: filter 0.3s;
+}
+
+.crystalline-card:hover .icon-glow {
+  filter: drop-shadow(0 0 15px rgba(255, 215, 0, 0.8));
+}
+
+/* تصميم شريط التمرير المخصص */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 215, 0, 0.3);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 215, 0, 0.5);
+}
+
