@@ -56,7 +56,7 @@ export const ServicesOverlay: React.FC<ServicesOverlayProps> = ({ isOpen, onClos
   const [groupedServices, setGroupedServices] = useState<ServiceGroup[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'all' | 'favorites'>('all'); // حالة للتحكم في التبويب
+  const [activeTab, setActiveTab] = useState<'all' | 'favorites'>('all');
   const t = translations[language];
 
   useEffect(() => {
@@ -96,8 +96,8 @@ export const ServicesOverlay: React.FC<ServicesOverlayProps> = ({ isOpen, onClos
   }, [isOpen]);
 
   const handleToggleFavorite = (serviceId: number) => {
-    if (!user) return;
-    const currentFavorites = user.favorite_services || [];
+    if (!user || !user.favorite_services) return;
+    const currentFavorites = user.favorite_services;
     const newFavorites = currentFavorites.includes(serviceId)
       ? currentFavorites.filter(id => id !== serviceId)
       : [...currentFavorites, serviceId];

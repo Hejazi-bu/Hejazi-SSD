@@ -31,45 +31,38 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service, language, isF
   const label = language === 'ar' ? service.label_ar : service.label_en;
   const [ripple, setRipple] = useState<{ x: number; y: number; size: number } | null>(null);
 
-  const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    event.currentTarget.style.setProperty('--mouse-x', `${x}px`);
-    event.currentTarget.style.setProperty('--mouse-y', `${y}px`);
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    e.currentTarget.style.setProperty('--mouse-x', `${x}px`);
+    e.currentTarget.style.setProperty('--mouse-y', `${y}px`);
   };
-  
+
   const handleCardClick = (event: React.MouseEvent<HTMLDivElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const size = Math.max(rect.width, rect.height);
     const x = event.clientX - rect.left - size / 2;
     const y = event.clientY - rect.top - size / 2;
-
     setRipple({ x, y, size });
-    
-    // في تطبيق حقيقي، سيتم استدعاء دالة التنقل هنا
-    // setTimeout(() => navigate(`/service/${service.id}`), 400);
   };
 
   return (
     <motion.div
-      variants={{
-        hidden: { opacity: 0, scale: 0.7, filter: 'blur(10px)' },
-        visible: { opacity: 1, scale: 1, filter: 'blur(0px)' },
-      }}
+      variants={{ hidden: { opacity: 0, scale: 0.8 }, visible: { opacity: 1, scale: 1 } }}
       layout
       initial="rest"
       whileHover="hover"
+      whileTap={{ scale: 0.97 }}
       animate="rest"
       onClick={handleCardClick}
       onMouseMove={handleMouseMove}
-      className="crystalline-card relative group rounded-xl p-4 flex flex-col items-center justify-center text-center aspect-square cursor-pointer overflow-hidden"
+      className="service-card-artistic relative group rounded-xl p-4 flex flex-col items-center justify-center text-center aspect-square cursor-pointer overflow-hidden"
     >
       {/* الخلفية والإضاءة المحيطية */}
-      <div className="crystalline-bg"></div>
+      <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-md rounded-xl border border-white/10"></div>
       <div className="spotlight"></div>
       
-      {/* تأثير التموج عند النقر */}
       <AnimatePresence>
         {ripple && (
           <motion.div
@@ -84,7 +77,6 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service, language, isF
         )}
       </AnimatePresence>
 
-      {/* زر المفضلة والأنيميشن الخاص به */}
       <motion.button
         onClick={(e) => { e.stopPropagation(); onToggleFavorite(service.id); }}
         className="absolute top-2 right-2 p-1 z-30"
@@ -99,7 +91,6 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service, language, isF
         </motion.div>
       </motion.button>
       
-      {/* المحتوى الرئيسي المتحرك */}
       <motion.div 
         variants={cardContentVariants}
         transition={{ type: 'spring', stiffness: 250, damping: 20 }}
@@ -109,7 +100,6 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service, language, isF
         <p className="text-white text-base font-bold">{label}</p>
       </motion.div>
       
-      {/* زر "تشغيل" */}
       <motion.div 
         variants={openButtonVariants}
         className="absolute bottom-6 left-0 right-0 z-20 text-center"
