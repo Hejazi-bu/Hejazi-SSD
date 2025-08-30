@@ -10,7 +10,7 @@ import React, {
 import { supabase } from "../../lib/supabaseClient";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
-// الواجهة الآن تحتوي فقط على البيانات الأساسية من جدول users
+// 1. تحديث الواجهة لتشمل المفضلات
 export interface User {
   id: string;
   name_ar?: string | null;
@@ -20,30 +20,29 @@ export interface User {
   email?: string | null;
   avatar_url?: string | null;
   is_super_admin?: boolean;
+  favorite_services?: number[]; // <-- إضافة جديدة
 }
 
 export type Permissions = { [key: string]: boolean };
 
+// 2. تحديث خصائص الـ Context
 interface UserContextProps {
   user: User | null;
+  setUser: (user: User | null) => void; // ضروري للتحديث المتفائل
   permissions: Permissions;
   isLoading: boolean;
   hasPermission: (key: string) => boolean;
+  updateFavorites: (newFavorites: number[]) => Promise<void>; // دالة تحديث المفضلات
 }
 
-const UserContext = createContext<UserContextProps>({
-  user: null,
-  permissions: {},
-  isLoading: true,
-  hasPermission: () => false,
-});
+const UserContext = createContext<UserContextProps | undefined>(undefined);
 
 export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [permissions, setPermissions] = useState<Permissions>({});
   const [isLoading, setIsLoading] = useState(true);
 
-  // الاستعلام بسيط ومباشر لضمان عدم فشله
+  // 3. تحديث دالة جلب البيانات لتشمل المفضلات
   const fetchFullUserData = async (
     supabaseUser: SupabaseUser
   ): Promise<User | null> => {
@@ -59,6 +58,25 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       return null;
     }
     return data as User;
+  };
+
+  // 4. إضافة دالة لتحديث المفضلات في قاعدة البيانات
+  const updateFavorites = async (newFavorites: number[]) => {
+    if (!user) return;
+
+    // تحديث متفائل للواجهة لتجربة سريعة
+    setUser(currentUser => currentUser ? { ...currentUser, favorite_services: newFavorites } : null);
+
+    // تحديث قاعدة البيانات في الخلفية
+    const { error } = await supabase
+      .from('users')
+      .update({ favorite_services: newFavorites })
+      .eq('id', user.id);
+
+    if (error) {
+      console.error("Error updating favorites:", error);
+      // يمكنك هنا إعادة الحالة القديمة إذا فشل التحديث
+    }
   };
 
   useEffect(() => {
@@ -107,7 +125,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     [user, permissions, isLoading]
   );
 
-  const value = { user, permissions, isLoading, hasPermission };
+  const value = { user, setUser, permissions, isLoading, hasPermission, updateFavorites };
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
 };
@@ -119,3 +137,4 @@ export const useAuth = (): UserContextProps => {
   }
   return context;
 };
+
