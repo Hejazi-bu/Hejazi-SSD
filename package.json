@@ -8,7 +8,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.7",
     "@heroicons/react": "^2.2.0",
+    "@react-pdf/renderer": "^4.3.0",
     "@supabase/supabase-js": "^2.50.3",
     "classnames": "^2.5.1",
     "framer-motion": "^12.23.12",

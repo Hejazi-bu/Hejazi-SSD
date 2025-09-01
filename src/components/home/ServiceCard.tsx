@@ -107,4 +107,3 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service, language, isF
     </motion.div>
   );
 };
-
