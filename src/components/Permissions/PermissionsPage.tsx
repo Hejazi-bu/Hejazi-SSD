@@ -86,7 +86,6 @@ const normalizeService = (s: any): Service => {
   };
 };
 
-
       setServices(json.map(normalizeService));
       console.log("Fetched and normalized permissions:", json);
     } catch (err) {

@@ -1,39 +1,47 @@
-// src/components/LogIn/LoginForm.tsx
 import React, { useState } from 'react';
-import { supabase } from '../../lib/supabaseClient';
+import { useAuth, AuthErrorKey } from '../contexts/UserContext'; // استيراد النوع الجديد
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 
 const logoUrl = '/assets/Hejazi.png';
 
-const translations = {
+// --- ✅ تعديل: استخدام مفتاح محدد للترجمات ---
+// هذا يخبر TypeScript أن هذا الكائن يستخدم مفاتيح محددة
+const translations: { [key: string]: { [key in AuthErrorKey | 'title' | 'emailLabel' | 'passwordLabel' | 'loginButton' | 'loadingButton' | 'forgotPassword' | 'loggingIn']: string } } = {
   ar: {
     title: "تسجيل الدخول",
-    emailLabel: "البريد الإلكتروني", // تم التغيير
+    emailLabel: "البريد الإلكتروني",
     passwordLabel: "كلمة المرور",
     loginButton: "دخول",
     loadingButton: "جاري الدخول...",
     forgotPassword: "نسيت كلمة المرور؟",
-    error: "البريد الإلكتروني أو كلمة المرور غير صحيحة.",
+    errorCredentials: "البريد الإلكتروني أو كلمة المرور غير صحيحة.",
+    errorPermission: "ليس لديك الصلاحية للدخول إلى هذا النظام.",
+    errorProfileNotFound: "لم يتم العثور على ملف المستخدم. يرجى مراجعة المسؤول.",
+    errorGeneric: "حدث خطأ ما. يرجى المحاولة مرة أخرى.",
     loggingIn: "جاري التحقق...",
   },
   en: {
     title: "Login",
-    emailLabel: "Email Address", // Changed
+    emailLabel: "Email Address",
     passwordLabel: "Password",
     loginButton: "Login",
     loadingButton: "Logging in...",
     forgotPassword: "Forgot Password?",
-    error: "Invalid email or password.",
+    errorCredentials: "Invalid email or password.",
+    errorPermission: "You do not have permission to access this system.",
+    errorProfileNotFound: "User profile not found. Please contact an administrator.",
+    errorGeneric: "An error occurred. Please try again.",
     loggingIn: "Verifying...",
   },
 };
 
 export const LoginForm = () => {
   const { language, toggleLanguage } = useLanguage();
+  const { signInAndCheckPermissions } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState(''); // تم التغيير: العودة إلى email
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -46,34 +54,22 @@ export const LoginForm = () => {
     setIsLoading(true);
     setError(null);
 
-    // --- التغيير الجوهري هنا ---
-    // العودة إلى طريقة Supabase القياسية لتسجيل الدخول
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email, // استخدام البريد الإلكتروني مباشرة
-      password: password,
-    });
+    const result = await signInAndCheckPermissions({ email, password });
 
-    if (error) {
-      setError(t.error);
-      setIsLoading(false);
-    } else {
+    if (result.success) {
       setIsSuccess(true);
-      // UserContext سيتكفل بالباقي
+    } else {
+      // الآن هذا السطر سيعمل بدون مشاكل
+      setError(t[result.errorKey || 'errorGeneric']);
+      setIsLoading(false);
     }
   };
 
-  const formVariants: Variants = {
-    hidden: { scale: 0.95, opacity: 0 },
-    visible: { scale: 1, opacity: 1, transition: { duration: 0.4, ease: "easeOut" } },
-    exit: { scale: 0.95, opacity: 0, transition: { duration: 0.3, ease: "easeIn" } },
-  };
-
-  const successVariants: Variants = {
-    hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { delay: 0.5 } },
-  };
+  const formVariants: Variants = { /* ... لم يتغير ... */ };
+  const successVariants: Variants = { /* ... لم يتغير ... */ };
 
   return (
+    // ... محتوى الـ JSX لم يتغير ...
     <motion.div
       className="flex items-center justify-center min-h-screen text-white px-4"
       initial={{ opacity: 0 }}

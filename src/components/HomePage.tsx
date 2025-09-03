@@ -1,4 +1,3 @@
-// src/components/HomePage.tsx
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './contexts/UserContext';
 import { useLanguage } from './contexts/LanguageContext';
@@ -7,6 +6,7 @@ import { Header } from './dashboard/Header';
 import { DashboardCard } from './dashboard/DashboardCard';
 import { AnimatePresence, motion, Variants } from 'framer-motion';
 import { supabase } from '../lib/supabaseClient';
+import { Navigate } from 'react-router-dom';
 
 const PlaceholderChart = ({ color = '#FFD700' }) => (
   <div className="h-48 bg-gray-700 rounded-md flex items-center justify-center text-gray-500">
@@ -16,25 +16,28 @@ const PlaceholderChart = ({ color = '#FFD700' }) => (
   </div>
 );
 
-export const HomePage = () => {
-  const { user, hasPermission } = useAuth();
+const HomePage = () => {
+  const { user, hasPermission, permissions, signOut } = useAuth();
   const { language } = useLanguage();
   const [isServicesOpen, setIsServicesOpen] = useState(false);
-  
-  // --- إضافة جديدة: حالة لتخزين اسم الشركة ---
   const [companyName, setCompanyName] = useState<string | null>(null);
   const [isLoadingCompany, setIsLoadingCompany] = useState(true);
 
+  // --- ✅ التحقق من الصلاحية العامة ---
+  // إذا كانت صلاحية الدخول العامة `false`، يتم تسجيل خروج المستخدم وإعادته لصفحة الدخول
+  if (permissions.general_access === false) {
+    console.warn("User lacks general_access permission. Signing out and redirecting.");
+    signOut(); // قم بتسجيل خروج المستخدم لضمان أمان الجلسة
+    return <Navigate to="/login" replace />;
+  }
+
   useEffect(() => {
-    // دالة لجلب اسم الشركة بشكل منفصل
     const fetchCompanyName = async () => {
       if (!user?.company_id) {
         setIsLoadingCompany(false);
         return;
       }
-
-      // --- THE FIX IS HERE ---
-      // We now select both name columns to create a predictable object type
+      setIsLoadingCompany(true);
       const { data, error } = await supabase
         .from('companies')
         .select('name_ar, name_en')
@@ -43,9 +46,8 @@ export const HomePage = () => {
       
       if (error) {
         console.error("Error fetching company name:", error);
-      } else {
-        // This line now works correctly because `data` contains both properties
-        setCompanyName(data?.[language === 'ar' ? 'name_ar' : 'name_en']);
+      } else if (data) {
+        setCompanyName(language === 'ar' ? data.name_ar : data.name_en);
       }
       setIsLoadingCompany(false);
     };
@@ -53,7 +55,7 @@ export const HomePage = () => {
     if (user) {
       fetchCompanyName();
     }
-  }, [user, language]); // يتم تشغيلها عند تغير المستخدم أو اللغة
+  }, [user, language]);
 
   const welcomeName = language === 'ar' ? user?.name_ar : user?.name_en;
 
