@@ -19,8 +19,6 @@ interface AdminSectionLayoutProps {
   mainServiceId: number;
   hasUnsavedChanges?: boolean;
   onNavigateWithPrompt?: () => void;
-  // الخاصية الجديدة للمحتوى الإضافي
-  extraStickyContent?: React.ReactNode; 
 }
 
 const AdminSectionLayout: React.FC<AdminSectionLayoutProps> = ({ 
@@ -28,7 +26,6 @@ const AdminSectionLayout: React.FC<AdminSectionLayoutProps> = ({
   mainServiceId,
   hasUnsavedChanges,
   onNavigateWithPrompt,
-  extraStickyContent
 }) => {
   const { language, toggleLanguage } = useLanguage();
   const { hasPermission } = useAuth();
@@ -90,9 +87,7 @@ const AdminSectionLayout: React.FC<AdminSectionLayoutProps> = ({
 
   return (
     <div className="bg-[#0D1B2A] min-h-screen text-white" dir={isRTL ? 'rtl' : 'ltr'}>
-      {/* دمج الهيدر مع المحتوى الإضافي في عنصر واحد لاصق */}
       <header className="sticky top-0 z-40 bg-gray-900/80 backdrop-blur-sm shadow-lg">
-        {/* شريط التنقل العلوي */}
         <div className="flex items-center justify-between px-4 sm:px-6 py-3">
           <div className="flex items-center gap-2">
             <button 
@@ -145,13 +140,6 @@ const AdminSectionLayout: React.FC<AdminSectionLayoutProps> = ({
             </button>
           </div>
         </div>
-        
-        {/* عرض المحتوى الإضافي اللاصق هنا */}
-        {extraStickyContent && (
-          <div className="w-full px-4 sm:px-6 pb-3">
-            {extraStickyContent}
-          </div>
-        )}
       </header>
       
       <main className="p-4 sm:p-6">

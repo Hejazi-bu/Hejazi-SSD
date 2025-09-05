@@ -1,5 +1,3 @@
-// JobPermissionsPage.tsx
-// ... (الكود العلوي لم يتغير)
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { useAuth } from '../../components/contexts/UserContext';
@@ -187,7 +185,6 @@ const translations = {
         noPermission: "ليس لديك صلاحية.",
         selectAll: "تفعيل الكل",
         deselectAll: "تعطيل الكل",
-        reset: "إعادة تهيئة",
         resetVisible: "إعادة",
         controlElementsTitle: "عناصر التحكم",
         visibleActionsDescription: "تتحكم هذه الأزرار في الصلاحيات المعروضة في القائمة الحالية فقط.",
@@ -202,8 +199,6 @@ const translations = {
         confirmYes: "نعم، تجاهل التغييرات",
         confirmCancel: "إلغاء",
         globalActions: "إجراءات شاملة",
-        globalSelectAll: "تفعيل الكل",
-        globalDeselectAll: "تعطيل الكل",
         noResults: "لا توجد نتائج."
     },
     en: {
@@ -219,7 +214,6 @@ const translations = {
         noPermission: "No permission.",
         selectAll: "Select All",
         deselectAll: "Deselect All",
-        reset: "Reset",
         resetVisible: "Reset",
         controlElementsTitle: "Control Elements",
         visibleActionsDescription: "These buttons control the permissions in the current visible list only.",
@@ -234,8 +228,6 @@ const translations = {
         confirmYes: "Yes, Discard Changes",
         confirmCancel: "Cancel",
         globalActions: "Global Actions",
-        globalSelectAll: "Select All",
-        globalDeselectAll: "Deselect All",
         noResults: "No results."
     }
 };
@@ -249,7 +241,7 @@ const JobPermissionsPage = () => {
     
     // تعريف ref للهيدر للحصول على ارتفاعه
     const headerRef = useRef<HTMLElement>(null);
-    const [headerHeight, setHeaderHeight] = useState(0);
+    const [mainHeaderHeight, setMainHeaderHeight] = useState(0);
 
     const [jobs, setJobs] = useState<Job[]>([]);
     const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
@@ -580,12 +572,6 @@ const JobPermissionsPage = () => {
         }
     };
     
-    const handleReset = useCallback(() => {
-        setJobPermissions(new Set(initialJobPermissions));
-        const initialPermsForView = getInitialVisiblePermissions(filteredNodes, initialJobPermissions);
-        setInitialVisiblePermissions(initialPermsForView);
-    }, [initialJobPermissions, filteredNodes, getInitialVisiblePermissions]);
-
     const handleResetVisible = useCallback(() => {
         setJobPermissions(prev => {
             const newPerms = new Set(prev);
@@ -618,20 +604,6 @@ const JobPermissionsPage = () => {
             return newPerms;
         });
     }, [filteredNodes]);
-    
-    const handleGlobalSelectAll = useCallback(() => {
-      const allPermissions = getAllPermissionIds(servicesTree);
-      setJobPermissions(allPermissions);
-      const initialPermsForView = getInitialVisiblePermissions(filteredNodes, allPermissions);
-      setInitialVisiblePermissions(initialPermsForView);
-    }, [servicesTree, filteredNodes, getInitialVisiblePermissions, getAllPermissionIds]);
-    
-    const handleGlobalDeselectAll = useCallback(() => {
-      const allPermissions = new Set<string>();
-      setJobPermissions(allPermissions);
-      const initialPermsForView = getInitialVisiblePermissions(filteredNodes, allPermissions);
-      setInitialVisiblePermissions(initialPermsForView);
-    }, [filteredNodes, getInitialVisiblePermissions]);
     
     const handleNavigate = useCallback((node: ServiceNode) => {
         if (node.children && node.children.length > 0) {
@@ -679,22 +651,25 @@ const JobPermissionsPage = () => {
     
     const containerKey = path.map(p => p.id).join('-');
 
-    const [isScrolled, setIsScrolled] = useState(false);
+    const [scrollProgress, setScrollProgress] = useState(0);
+
     useEffect(() => {
         const handleScroll = () => {
-            setIsScrolled(window.scrollY > 10);
+            const scrollY = window.scrollY;
+            const maxScroll = 100;
+            const progress = Math.min(1, scrollY / maxScroll);
+            setScrollProgress(progress);
         };
         window.addEventListener('scroll', handleScroll);
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
-    // ** التأثير الجديد لقياس ارتفاع الهيدر **
     useEffect(() => {
-        const header = document.querySelector('header.sticky');
-        if (header instanceof HTMLElement) {
-            setHeaderHeight(header.offsetHeight);
+        const mainHeader = document.querySelector('header.sticky');
+        if (mainHeader instanceof HTMLElement) {
+            setMainHeaderHeight(mainHeader.offsetHeight);
         }
-    }, [selectedJobId, language]);
+    }, [language]);
 
     if (!hasPermission('ss:9')) {
         return <AdminSectionLayout mainServiceId={17}><div className="text-center text-red-500 p-10">{t.noPermission}</div></AdminSectionLayout>;
@@ -715,12 +690,20 @@ const JobPermissionsPage = () => {
         {selectedJobId ? (
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between gap-4">
-              <span className={`font-extrabold text-[#FFD700] break-words transition-all duration-300 ${isScrolled ? 'text-lg' : 'text-2xl'}`}>
+              {/* استخدام scale() بدلاً من تغيير حجم الخط والهوامش */}
+              <span
+                style={{
+                  transform: `scale(${1 - 0.2 * scrollProgress})`,
+                  transformOrigin: isRTL ? 'right' : 'left',
+                  transition: 'none' // لا يزال مهمًا لمنع الانتقالات غير المتزامنة
+                }}
+                className={`font-extrabold text-[#FFD700] break-words`}
+              >
                 {selectedJobName}
               </span>
               <button
                 onClick={handleChangeJob}
-                className={`flex items-center justify-center gap-2 px-4 py-2 font-semibold bg-gray-700 rounded-md text-gray-300 transition-all hover:scale-105 active:scale-95 ${isScrolled ? 'text-xs' : 'text-sm'}`}
+                className={`flex items-center justify-center gap-2 px-4 py-2 font-semibold bg-gray-700 rounded-md text-gray-300 transition-all hover:scale-105 active:scale-95`}
               >
                 <Edit size={20} />
                 <span className="hidden md:block">
@@ -729,7 +712,7 @@ const JobPermissionsPage = () => {
               </button>
             </div>
             <AnimatePresence>
-              {!isScrolled && (
+              {scrollProgress < 1 && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
@@ -808,8 +791,8 @@ const JobPermissionsPage = () => {
             )}
           </AnimatePresence>
           
-          <div className="sticky top-0 z-20" style={{ top: `${headerHeight}px` }}>
-            <div className={`bg-gray-900/80 backdrop-blur-sm shadow-lg`}>
+          <div className="sticky z-20" style={{ top: `${mainHeaderHeight}px` }}>
+            <div className={`bg-gray-900/80 backdrop-blur-sm shadow-lg rounded-lg`}>
               {jobTitleElement}
             </div>
           </div>
@@ -883,36 +866,8 @@ const JobPermissionsPage = () => {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 20 }}
-                      className="mt-6 flex flex-col md:flex-row md:justify-between md:items-center gap-4"
+                      className="mt-6 flex flex-col md:flex-row md:justify-end gap-4"
                   >
-                      <div className="flex flex-wrap items-center gap-2">
-                          <button
-                              onClick={handleGlobalSelectAll}
-                              disabled={enabledPermissionsCount === totalPermissionsCount}
-                              className={`flex items-center gap-2 px-6 py-3 font-bold bg-green-600 text-white rounded-lg transition-all hover:scale-105 active:scale-95 disabled:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-gray-700 disabled:hover:scale-100 disabled:active:scale-100`}
-                          >
-                              <Check size={20} />
-                              {t.globalSelectAll}
-                          </button>
-                          <button
-                              onClick={handleGlobalDeselectAll}
-                              disabled={enabledPermissionsCount === 0}
-                              className={`flex items-center gap-2 px-6 py-3 font-bold bg-red-600 text-white rounded-lg transition-all hover:scale-105 active:scale-95 disabled:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-gray-700 disabled:hover:scale-100 disabled:active:scale-100`}
-                          >
-                              <X size={20} />
-                              {t.globalDeselectAll}
-                          </button>
-                          <button
-                              onClick={handleReset}
-                              disabled={!hasChanges}
-                              // ** التغيير هنا: تحديث كلاسات اللون **
-                              className={`flex items-center gap-2 px-6 py-3 font-bold text-white rounded-lg bg-gradient-to-r from-yellow-500 to-yellow-600 transition-all hover:scale-105 active:scale-95 disabled:bg-gray-700 disabled:from-gray-700 disabled:to-gray-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100`}
-                          >
-                              <RotateCcw />
-                              {t.reset}
-                          </button>
-                      </div>
-                      
                       <button
                           onClick={handleSave}
                           disabled={isSaving || !hasChanges}
