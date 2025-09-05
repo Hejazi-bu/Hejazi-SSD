@@ -165,14 +165,14 @@ const PermissionsList = React.memo(({
                     </div>
                 );
             })}
-             <Tooltip id="tooltip" className="bg-gray-700 text-white rounded-md p-2 shadow-lg z-50" />
+            <Tooltip id="tooltip" className="bg-gray-700 text-white rounded-md p-2 shadow-lg z-50" />
         </div>
     );
 });
 
 
 const translations = {
-    ar: { 
+    ar: {
         pageTitle: "صلاحيات المسميات الوظيفية",
         selectJob: "اختر مسمى وظيفي:",
         permissionsTree: "شجرة الصلاحيات",
@@ -183,10 +183,12 @@ const translations = {
         saveSuccess: "تم حفظ الصلاحيات بنجاح.",
         saveError: "حدث خطأ أثناء حفظ الصلاحيات.",
         noPermission: "ليس لديك صلاحية.",
-        selectAll: "تحديد الكل (المعروض)",
-        deselectAll: "إلغاء تحديد الكل (المعروض)",
-        reset: "إعادة التهيئة",
-        resetVisible: "إعادة تهيئة المعروض",
+        selectAll: "الكل",
+        deselectAll: "إلغاء التحديد",
+        reset: "إعادة تهيئة",
+        resetVisible: "إعادة",
+        controlElementsTitle: "عناصر التحكم",
+        visibleActionsDescription: "تتحكم هذه الأزرار في الصلاحيات المعروضة في القائمة الحالية فقط.",
         searchPermissions: "بحث في الصلاحيات...",
         noSearchResults: "لا توجد نتائج بحث مطابقة.",
         enabledPermissions: "صلاحيات مفعلة",
@@ -197,9 +199,12 @@ const translations = {
         confirmTitle: "تنبيه!",
         confirmYes: "نعم، تجاهل التغييرات",
         confirmCancel: "إلغاء",
+        globalActions: "إجراءات شاملة",
+        globalSelectAll: "تفعيل الكل",
+        globalDeselectAll: "تعطيل الكل",
         noResults: "لا توجد نتائج."
     },
-    en: { 
+    en: {
         pageTitle: "Job Permissions Management",
         selectJob: "Select a Job Title:",
         permissionsTree: "Permissions Tree",
@@ -210,10 +215,12 @@ const translations = {
         saveSuccess: "Permissions saved successfully.",
         saveError: "An error occurred while saving permissions.",
         noPermission: "No permission.",
-        selectAll: "Select All (Visible)",
-        deselectAll: "Deselect All (Visible)",
+        selectAll: "All",
+        deselectAll: "Deselect All",
         reset: "Reset",
-        resetVisible: "Reset Visible",
+        resetVisible: "Reset",
+        controlElementsTitle: "Control Elements",
+        visibleActionsDescription: "These buttons control the permissions in the current visible list only.",
         searchPermissions: "Search permissions...",
         noSearchResults: "No matching search results.",
         enabledPermissions: "Enabled permissions",
@@ -224,6 +231,9 @@ const translations = {
         confirmTitle: "Warning!",
         confirmYes: "Yes, Discard Changes",
         confirmCancel: "Cancel",
+        globalActions: "Global Actions",
+        globalSelectAll: "Select All",
+        globalDeselectAll: "Deselect All",
         noResults: "No results."
     }
 };
@@ -232,7 +242,7 @@ const JobPermissionsPage = () => {
     const { language } = useLanguage();
     const { hasPermission, user } = useAuth();
     const isRTL = language === 'ar';
-    const navigate = useNavigate();
+    const navigate = useNavigate(); 
 
     const [jobs, setJobs] = useState<Job[]>([]);
     const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
@@ -255,7 +265,12 @@ const JobPermissionsPage = () => {
         }
         let current = { id: 'root', label: 'Root', children: servicesTree };
         for (const item of path) {
-            current = current.children.find(node => node.id === item.id) || current;
+                const found = current.children.find(node => node.id === item.id);
+                if (found) {
+                    current = found;
+                } else {
+                    return { id: 'root', label: 'Root', children: servicesTree };
+                }
         }
         return current;
     }, [path, servicesTree]);
@@ -282,7 +297,6 @@ const JobPermissionsPage = () => {
       return currentNodes;
     }, [currentNode]);
     
-    // 👇 دالة مساعدة جديدة لحساب الصلاحيات الأولية للمنطقة المرئية
     const getInitialVisiblePermissions = useCallback((nodes: ServiceNode[], allInitialPermissions: Set<string>): Set<string> => {
         const initialPerms = new Set<string>();
         const traverseAndCheck = (currentNodes: ServiceNode[]) => {
@@ -295,6 +309,18 @@ const JobPermissionsPage = () => {
         };
         traverseAndCheck(nodes);
         return initialPerms;
+    }, []);
+
+    const getAllPermissionIds = useCallback((nodes: ServiceNode[]): Set<string> => {
+      const allIds = new Set<string>();
+      const traverse = (currentNodes: ServiceNode[]) => {
+        currentNodes.forEach(node => {
+          allIds.add(node.id);
+          traverse(node.children);
+        });
+      };
+      traverse(nodes);
+      return allIds;
     }, []);
 
     const allVisibleNodesSelected = useMemo(() => {
@@ -329,7 +355,7 @@ const JobPermissionsPage = () => {
     const filteredJobs = useMemo(() => {
         if (!jobSearchFilter) return jobs;
         const lowercasedFilter = jobSearchFilter.toLowerCase();
-        return jobs.filter(job => 
+        return jobs.filter(job =>
             (job.name_ar && job.name_ar.toLowerCase().includes(lowercasedFilter)) ||
             (job.name_en && job.name_en.toLowerCase().includes(lowercasedFilter))
         );
@@ -356,6 +382,24 @@ const JobPermissionsPage = () => {
         return initialIdsString !== currentIdsString;
     }, [jobPermissions, initialJobPermissions]);
     
+    const handleNavigationWithPrompt = useCallback(() => {
+        if (hasChanges) {
+            setIsConfirming(true);
+            confirmToast(t.unsavedChangesWarning,
+                () => { // onConfirm
+                    navigate('/dashboard');
+                    setIsConfirming(false);
+                },
+                () => { // onCancel
+                    setIsConfirming(false);
+                },
+                t
+            );
+        } else {
+            navigate('/dashboard');
+        }
+    }, [hasChanges, t, navigate]);
+
     usePrompt(t.unsavedChangesWarning, hasChanges);
 
     useEffect(() => {
@@ -399,7 +443,16 @@ const JobPermissionsPage = () => {
         if(hasPermission('ss:9')) fetchInitialData(); else setIsLoading(false);
     }, [language, hasPermission, findNode]);
     
-    // 👇 تعديل دالة اختيار المسمى الوظيفي
+    // ** التأثير الجديد لتحديث الاسم عند تغيير اللغة **
+    useEffect(() => {
+        if (selectedJobId !== null) {
+            const job = jobs.find(j => j.id === selectedJobId);
+            if (job) {
+                setSelectedJobName(language === 'ar' ? job.name_ar : job.name_en);
+            }
+        }
+    }, [language, selectedJobId, jobs]);
+
     const handleSelectJob = useCallback(async (job: Job) => {
         setSelectedJobId(job.id);
         setSelectedJobName(language === 'ar' ? job.name_ar : job.name_en);
@@ -414,7 +467,6 @@ const JobPermissionsPage = () => {
         setJobPermissions(perms);
         setInitialJobPermissions(new Set(perms));
         setPath([]);
-        // 👇 استخدام الدالة المساعدة الجديدة
         const initialPermsForView = getInitialVisiblePermissions(servicesTree, perms);
         setInitialVisiblePermissions(initialPermsForView);
     }, [language, servicesTree, getInitialVisiblePermissions]);
@@ -422,7 +474,7 @@ const JobPermissionsPage = () => {
     const handleChangeJob = () => {
         if (hasChanges) {
             setIsConfirming(true);
-            confirmToast(t.unsavedChangesWarning, 
+            confirmToast(t.unsavedChangesWarning,
                 () => { // onConfirm
                     setSelectedJobId(null);
                     setSelectedJobName('');
@@ -511,7 +563,6 @@ const JobPermissionsPage = () => {
             if (error) throw error;
             toast.success(t.saveSuccess);
             setInitialJobPermissions(new Set(jobPermissions));
-            // 👇 بعد الحفظ، يجب تحديث الحالة الأولية للعناصر المرئية
             const newVisiblePerms = getInitialVisiblePermissions(filteredNodes, jobPermissions);
             setInitialVisiblePermissions(newVisiblePerms);
         } catch (error) {
@@ -524,7 +575,6 @@ const JobPermissionsPage = () => {
     
     const handleReset = useCallback(() => {
         setJobPermissions(new Set(initialJobPermissions));
-        // 👇 عند إعادة التهيئة الكاملة، يجب تحديث حالة العناصر المرئية أيضًا
         const initialPermsForView = getInitialVisiblePermissions(filteredNodes, initialJobPermissions);
         setInitialVisiblePermissions(initialPermsForView);
     }, [initialJobPermissions, filteredNodes, getInitialVisiblePermissions]);
@@ -534,13 +584,11 @@ const JobPermissionsPage = () => {
             const newPerms = new Set(prev);
             const visibleNodesIds = new Set(filteredNodes.map(node => node.id));
 
-            // إزالة الصلاحيات المرئية التي لم تكن مفعلة في البداية
             prev.forEach(permId => {
                 if (visibleNodesIds.has(permId) && !initialVisiblePermissions.has(permId)) {
                     newPerms.delete(permId);
                 }
             });
-            // إضافة الصلاحيات المرئية التي كانت مفعلة في البداية
             initialVisiblePermissions.forEach(permId => {
                 newPerms.add(permId);
             });
@@ -549,32 +597,43 @@ const JobPermissionsPage = () => {
     }, [initialVisiblePermissions, filteredNodes]);
 
     const handleSelectAllVisible = useCallback((select: boolean) => {
-        const newPerms = new Set(jobPermissions);
-        const traverseAndToggle = (nodes: ServiceNode[]) => {
-            nodes.forEach(node => {
+        setJobPermissions(prev => {
+            const newPerms = new Set(prev);
+            const visibleNodesIds = new Set(filteredNodes.map(node => node.id));
+
+            visibleNodesIds.forEach(id => {
                 if (select) {
-                    newPerms.add(node.id);
+                    newPerms.add(id);
                 } else {
-                    newPerms.delete(node.id);
+                    newPerms.delete(id);
                 }
-                traverseAndToggle(node.children);
             });
-        };
-        traverseAndToggle(currentNode.children);
-        setJobPermissions(newPerms);
-    }, [currentNode, jobPermissions]);
+            return newPerms;
+        });
+    }, [filteredNodes]);
     
-    // 👇 تحديث دالة التنقل
+    const handleGlobalSelectAll = useCallback(() => {
+      const allPermissions = getAllPermissionIds(servicesTree);
+      setJobPermissions(allPermissions);
+      const initialPermsForView = getInitialVisiblePermissions(filteredNodes, allPermissions);
+      setInitialVisiblePermissions(initialPermsForView);
+    }, [servicesTree, filteredNodes, getInitialVisiblePermissions, getAllPermissionIds]);
+    
+    const handleGlobalDeselectAll = useCallback(() => {
+      const allPermissions = new Set<string>();
+      setJobPermissions(allPermissions);
+      const initialPermsForView = getInitialVisiblePermissions(filteredNodes, allPermissions);
+      setInitialVisiblePermissions(initialPermsForView);
+    }, [filteredNodes, getInitialVisiblePermissions]);
+    
     const handleNavigate = useCallback((node: ServiceNode) => {
         if (node.children && node.children.length > 0) {
-            // 👇 استخدام الدالة المساعدة الجديدة
             const initialPermsForView = getInitialVisiblePermissions(node.children, initialJobPermissions);
             setInitialVisiblePermissions(initialPermsForView);
             setPath(prevPath => [...prevPath, { id: node.id, label: node.label }]);
         }
     }, [initialJobPermissions, getInitialVisiblePermissions]);
     
-    // 👇 تحديث دالة العودة
     const handleGoBack = useCallback(() => {
         setPath(prevPath => {
             const newPath = prevPath.slice(0, -1);
@@ -584,12 +643,19 @@ const JobPermissionsPage = () => {
             } else {
                 let current = { children: servicesTree };
                 for (const item of newPath) {
-                    current = current.children.find(node => node.id === item.id) || current;
+                    const found = current.children.find(node => node.id === item.id);
+                    if (found) {
+                        current = found;
+                    } else {
+                        targetNode = { children: servicesTree };
+                        break;
+                    }
                 }
-                targetNode = current;
+                if (!targetNode) {
+                    targetNode = current;
+                }
             }
 
-            // 👇 استخدام الدالة المساعدة الجديدة
             const initialPermsForView = getInitialVisiblePermissions(targetNode.children, initialJobPermissions);
             setInitialVisiblePermissions(initialPermsForView);
             
@@ -606,20 +672,6 @@ const JobPermissionsPage = () => {
     
     const containerKey = path.map(p => p.id).join('-');
 
-    const handleNavigationWithPrompt = useCallback(() => {
-        setIsConfirming(true);
-        confirmToast(t.unsavedChangesWarning,
-            () => { // onConfirm
-                navigate('/dashboard');
-                setIsConfirming(false);
-            },
-            () => { // onCancel
-                setIsConfirming(false);
-            },
-            t
-        );
-    }, [t, navigate]);
-
     if (!hasPermission('ss:9')) {
         return <AdminSectionLayout mainServiceId={17}><div className="text-center text-red-500 p-10">{t.noPermission}</div></AdminSectionLayout>;
     }
@@ -629,7 +681,7 @@ const JobPermissionsPage = () => {
     }
     
     return (
-      <AdminSectionLayout 
+      <AdminSectionLayout
           mainServiceId={17}
           hasUnsavedChanges={hasChanges}
           onNavigateWithPrompt={handleNavigationWithPrompt}
@@ -647,25 +699,25 @@ const JobPermissionsPage = () => {
                 )}
             </AnimatePresence>
             
-          <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
+          <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 sticky top-[74px] z-20 backdrop-blur-sm shadow-lg mb-4">
             {selectedJobId ? (
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex flex-col">
-                      <span className="text-lg font-extrabold text-[#FFD700] break-words">{selectedJobName}</span>
-                      <div className="flex items-center gap-4 text-sm text-gray-400 mt-2">
-                        <span className="flex items-center gap-1">
-                            <Check size={16} className="text-green-400" />
-                            {enabledPermissionsCount} {t.enabledPermissions}
-                        </span>
-                        <span className="flex items-center gap-1">
-                            <X size={16} className="text-red-400" />
-                            {disabledPermissionsCount} {t.disabledPermissions}
-                        </span>
-                      </div>
+                        <span className="text-lg font-extrabold text-[#FFD700] break-words">{selectedJobName}</span>
+                        <div className="flex items-center gap-4 text-sm text-gray-400 mt-2">
+                            <span className="flex items-center gap-1">
+                                <Check size={16} className="text-green-400" />
+                                {enabledPermissionsCount} {t.enabledPermissions}
+                            </span>
+                            <span className="flex items-center gap-1">
+                                <X size={16} className="text-red-400" />
+                                {disabledPermissionsCount} {t.disabledPermissions}
+                            </span>
+                        </div>
                     </div>
                     <button
                         onClick={handleChangeJob}
-                        className="flex items-center gap-1 px-4 py-2 text-xs font-semibold bg-gray-700 rounded-md text-gray-300 hover:bg-gray-600 transition-colors"
+                        className="flex items-center gap-1 px-4 py-2 text-xs font-semibold bg-gray-700 rounded-md text-gray-300 transition-all hover:scale-105 active:scale-95"
                     >
                         {t.changeJob}
                     </button>
@@ -713,7 +765,7 @@ const JobPermissionsPage = () => {
               <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6 overflow-hidden relative">
                   <div className="flex items-center gap-4 mb-4">
                     {path.length > 0 && (
-                        <button onClick={handleGoBack} className="p-2 rounded-full hover:bg-gray-700 transition-colors">
+                        <button onClick={handleGoBack} className="p-2 rounded-full hover:bg-gray-700 transition-all hover:scale-105 active:scale-95">
                             <ChevronLeft size={24} className={`text-white ${isRTL ? 'rotate-180' : ''}`} />
                         </button>
                     )}
@@ -728,31 +780,35 @@ const JobPermissionsPage = () => {
                     <Tooltip id="header-tooltip" className="bg-gray-700 text-white rounded-md p-2 shadow-lg z-50" />
                   </div>
                   
-                  <div className="flex gap-2 w-full md:w-auto mb-4">
-                    {!allVisibleNodesSelected && (
-                        <button
-                          onClick={() => handleSelectAllVisible(true)}
-                          className="flex-1 text-xs px-2 py-1 rounded-md text-white bg-gradient-to-r from-green-500 to-green-600 transition-all hover:scale-105 hover:shadow-lg hover:shadow-green-500/20 active:scale-95"
-                        >
-                          <Check size={14} className="inline-block me-1" /> {t.selectAll}
-                        </button>
-                    )}
-                    {!noVisibleNodesSelected && (
-                        <button
-                          onClick={() => handleSelectAllVisible(false)}
-                          className="flex-1 text-xs px-2 py-1 rounded-md text-white bg-gradient-to-r from-red-500 to-red-600 transition-all hover:scale-105 hover:shadow-lg hover:shadow-red-500/20 active:scale-95"
-                        >
-                          { <X size={14} className="inline-block me-1" /> } {t.deselectAll}
-                        </button>
-                    )}
-                    {hasVisibleChanges && (
-                      <button
-                          onClick={handleResetVisible}
-                          className="flex-1 text-xs px-2 py-1 rounded-md text-white bg-gradient-to-r from-yellow-500 to-yellow-600 transition-all hover:scale-105 hover:shadow-lg hover:shadow-yellow-500/20 active:scale-95"
-                      >
-                          <RotateCcw size={14} className="inline-block me-1" /> {t.resetVisible}
-                      </button>
-                    )}
+                  <div className="mb-4 p-3 bg-gray-900/50 rounded-lg border border-gray-700/50">
+                    <h3 className="text-sm font-semibold text-gray-400 mb-2">{t.controlElementsTitle}</h3>
+                    <p className="text-xs text-gray-500 mb-4">{t.visibleActionsDescription}</p>
+                    <div className="flex flex-wrap gap-2">
+                        {!allVisibleNodesSelected && (
+                            <button
+                              onClick={() => handleSelectAllVisible(true)}
+                              className="flex items-center gap-1 justify-center h-8 text-xs px-2 rounded-md text-white bg-gradient-to-r from-green-500 to-green-600 transition-all hover:scale-105 active:scale-95"
+                            >
+                              <Check size={16} /> {t.selectAll}
+                            </button>
+                        )}
+                        {!noVisibleNodesSelected && (
+                            <button
+                              onClick={() => handleSelectAllVisible(false)}
+                              className="flex items-center gap-1 justify-center h-8 text-xs px-2 rounded-md text-white bg-gradient-to-r from-red-500 to-red-600 transition-all hover:scale-105 active:scale-95"
+                            >
+                              { <X size={16} /> } {t.deselectAll}
+                            </button>
+                        )}
+                        {hasVisibleChanges && (
+                          <button
+                              onClick={handleResetVisible}
+                              className="flex items-center gap-1 justify-center h-8 text-xs px-2 rounded-md text-white bg-gradient-to-r from-yellow-500 to-yellow-600 transition-all hover:scale-105 active:scale-95"
+                          >
+                              <RotateCcw size={16} /> {t.resetVisible}
+                          </button>
+                        )}
+                    </div>
                   </div>
                   
                   <AnimatePresence mode="wait">
@@ -763,7 +819,7 @@ const JobPermissionsPage = () => {
                           exit={{ x: isRTL ? '-100%' : '100%', opacity: 0 }}
                           transition={{ type: "tween", duration: 0.3 }}
                       >
-                          <PermissionsList 
+                          <PermissionsList
                               nodes={filteredNodes}
                               onNavigate={handleNavigate}
                               onToggle={handlePermissionToggle}
@@ -773,30 +829,54 @@ const JobPermissionsPage = () => {
                   </AnimatePresence>
                   
                   <AnimatePresence>
-                      {hasChanges && (
-                          <motion.div
-                              initial={{ opacity: 0, y: 20 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: 20 }}
-                              className="mt-6 flex justify-end gap-2"
-                          >
-                            <button
-                                onClick={handleReset}
-                                className="flex items-center gap-2 px-6 py-3 font-bold bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all shadow-lg shadow-black/50"
-                            >
-                                <RotateCcw />
-                                {t.reset}
-                            </button>
+                      <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 20 }}
+                          className={`mt-6 flex justify-between gap-2`}
+                      >
+                          <div className={`flex gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                            {enabledPermissionsCount < totalPermissionsCount && (
+                                <button
+                                    onClick={handleGlobalSelectAll}
+                                    className="flex items-center gap-2 px-6 py-3 font-bold bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all hover:scale-105 active:scale-95"
+                                >
+                                    <Check size={20} />
+                                    {t.globalSelectAll}
+                                </button>
+                            )}
+                            {enabledPermissionsCount > 0 && (
+                                <button
+                                    onClick={handleGlobalDeselectAll}
+                                    className="flex items-center gap-2 px-6 py-3 font-bold bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all hover:scale-105 active:scale-95"
+                                >
+                                    <X size={20} />
+                                    {t.globalDeselectAll}
+                                </button>
+                            )}
+                            {hasChanges && (
+                                <button
+                                    onClick={handleReset}
+                                    className="flex items-center gap-2 px-6 py-3 font-bold bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all hover:scale-105 active:scale-95"
+                                >
+                                    <RotateCcw />
+                                    {t.reset}
+                                </button>
+                            )}
+                          </div>
+                          
+                          {/* زر الحفظ يظهر فقط عند وجود تعديلات */}
+                          {hasChanges && (
                             <button
                                 onClick={handleSave}
                                 disabled={isSaving}
-                                className="flex items-center gap-2 px-6 py-3 font-bold bg-[#FFD700] text-black rounded-lg hover:bg-yellow-400 disabled:bg-gray-500 transition-all shadow-lg shadow-black/50"
+                                className={`flex items-center gap-2 px-6 py-3 font-bold bg-[#FFD700] text-black rounded-lg hover:bg-yellow-400 disabled:bg-gray-500 transition-all hover:scale-105 active:scale-95`}
                             >
                                 {isSaving ? <LoaderCircle className="animate-spin" /> : <Save />}
                                 {isSaving ? t.saving : t.saveChanges}
                             </button>
-                          </motion.div>
-                      )}
+                          )}
+                      </motion.div>
                   </AnimatePresence>
               </div>
             )}

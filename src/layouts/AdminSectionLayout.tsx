@@ -1,3 +1,4 @@
+// AdminSectionLayout.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../components/contexts/LanguageContext';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -19,13 +20,15 @@ interface AdminSectionLayoutProps {
   mainServiceId: number; // ID الخدمة الرئيسية (مثل 16 أو 17)
   hasUnsavedChanges?: boolean;
   onNavigateWithPrompt?: () => void;
+  jobTitleElement?: React.ReactNode; // إضافة الخاصية الجديدة
 }
 
 const AdminSectionLayout: React.FC<AdminSectionLayoutProps> = ({ 
   children, 
   mainServiceId,
   hasUnsavedChanges,
-  onNavigateWithPrompt
+  onNavigateWithPrompt,
+  jobTitleElement // استقبال الخاصية الجديدة
 }) => {
   const { language, toggleLanguage } = useLanguage();
   const { hasPermission } = useAuth();
@@ -133,12 +136,17 @@ const AdminSectionLayout: React.FC<AdminSectionLayoutProps> = ({
         </div>
         
         <div className="flex items-center gap-2">
-            <button onClick={toggleLanguage} className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-700/50">
+            <button onClick={toggleLanguage} className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-700/50"
+            >
               <Languages size={20} />
               <span className="hidden sm:inline font-semibold">{language === 'ar' ? 'EN' : 'AR'}</span>
             </button>
         </div>
       </header>
+      
+      {/* عرض الشريط الإضافي هنا */}
+      {jobTitleElement}
+      
       <main className="p-4 sm:p-6">
         {children}
       </main>
