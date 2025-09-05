@@ -12,6 +12,7 @@
     "@heroicons/react": "^2.2.0",
     "@react-pdf/renderer": "^4.3.0",
     "@supabase/supabase-js": "^2.50.3",
+    "@types/react-tooltip": "^3.11.0",
     "classnames": "^2.5.1",
     "framer-motion": "^12.23.12",
     "fuse.js": "^7.1.0",
@@ -22,11 +23,12 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-draggable": "^4.5.0",
-    "react-hot-toast": "^2.5.2",
+    "react-hot-toast": "^2.6.0",
     "react-i18next": "^13.2.2",
     "react-icons": "^5.5.0",
     "react-router-dom": "^7.6.2",
     "react-select": "^5.10.2",
+    "react-tooltip": "^5.29.1",
     "sonner": "^2.0.5"
   },
   "devDependencies": {
