@@ -382,6 +382,7 @@ const JobPermissionsPage = () => {
         return initialIdsString !== currentIdsString;
     }, [jobPermissions, initialJobPermissions]);
     
+    // استخدام usePrompt لتنبيه المستخدم عند وجود تغييرات غير محفوظة
     const handleNavigationWithPrompt = useCallback(() => {
         if (hasChanges) {
             setIsConfirming(true);
@@ -672,6 +673,15 @@ const JobPermissionsPage = () => {
     
     const containerKey = path.map(p => p.id).join('-');
 
+    const [isScrolled, setIsScrolled] = useState(false);
+    useEffect(() => {
+        const handleScroll = () => {
+            setIsScrolled(window.scrollY > 10);
+        };
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
+
     if (!hasPermission('ss:9')) {
         return <AdminSectionLayout mainServiceId={17}><div className="text-center text-red-500 p-10">{t.noPermission}</div></AdminSectionLayout>;
     }
@@ -699,25 +709,41 @@ const JobPermissionsPage = () => {
                 )}
             </AnimatePresence>
             
-          <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 sticky top-[74px] z-20 backdrop-blur-sm shadow-lg mb-4">
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+            className={`bg-gray-800/50 border border-gray-700 rounded-lg p-4 mb-4 ${selectedJobId ? 'sticky top-[74px] z-20 backdrop-blur-sm shadow-lg' : ''}`}
+          >
             {selectedJobId ? (
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex flex-col">
-                        <span className="text-lg font-extrabold text-[#FFD700] break-words">{selectedJobName}</span>
-                        <div className="flex items-center gap-4 text-sm text-gray-400 mt-2">
-                            <span className="flex items-center gap-1">
-                                <Check size={16} className="text-green-400" />
-                                {enabledPermissionsCount} {t.enabledPermissions}
-                            </span>
-                            <span className="flex items-center gap-1">
-                                <X size={16} className="text-red-400" />
-                                {disabledPermissionsCount} {t.disabledPermissions}
-                            </span>
-                        </div>
+                    <div className="flex flex-col flex-1">
+                        <span className={`font-extrabold text-[#FFD700] break-words transition-all duration-300 ${isScrolled ? 'text-lg' : 'text-2xl'}`}>{selectedJobName}</span>
+                        <AnimatePresence>
+                            {!isScrolled && (
+                                <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="flex items-center gap-4 text-sm text-gray-400 mt-2 overflow-hidden"
+                                >
+                                    <span className="flex items-center gap-1">
+                                        <Check size={16} className="text-green-400" />
+                                        {enabledPermissionsCount} {t.enabledPermissions}
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                        <X size={16} className="text-red-400" />
+                                        {disabledPermissionsCount} {t.disabledPermissions}
+                                    </span>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
                     <button
                         onClick={handleChangeJob}
-                        className="flex items-center gap-1 px-4 py-2 text-xs font-semibold bg-gray-700 rounded-md text-gray-300 transition-all hover:scale-105 active:scale-95"
+                        className={`flex items-center gap-1 px-4 py-2 font-semibold bg-gray-700 rounded-md text-gray-300 transition-all hover:scale-105 active:scale-95 ${isScrolled ? 'text-xs' : 'text-sm'}`}
                     >
                         {t.changeJob}
                     </button>
@@ -759,7 +785,7 @@ const JobPermissionsPage = () => {
                     </div>
                 </>
             )}
-          </div>
+          </motion.div>
 
           {selectedJobId && (
               <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6 overflow-hidden relative">
@@ -828,14 +854,15 @@ const JobPermissionsPage = () => {
                       </motion.div>
                   </AnimatePresence>
                   
-                  <AnimatePresence>
-                      <motion.div
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: 20 }}
-                          className={`mt-6 flex justify-between gap-2`}
-                      >
-                          <div className={`flex gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                <AnimatePresence>
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 20 }}
+                        className="mt-6 flex flex-col md:flex-row md:justify-between md:items-center gap-4"
+                    >
+                        {/* Container for the left-aligned buttons */}
+                        <div className="flex flex-wrap items-center gap-2">
                             {enabledPermissionsCount < totalPermissionsCount && (
                                 <button
                                     onClick={handleGlobalSelectAll}
@@ -863,10 +890,10 @@ const JobPermissionsPage = () => {
                                     {t.reset}
                                 </button>
                             )}
-                          </div>
-                          
-                          {/* زر الحفظ يظهر فقط عند وجود تعديلات */}
-                          {hasChanges && (
+                        </div>
+
+                        {/* Save button */}
+                        {hasChanges && (
                             <button
                                 onClick={handleSave}
                                 disabled={isSaving}
@@ -875,9 +902,9 @@ const JobPermissionsPage = () => {
                                 {isSaving ? <LoaderCircle className="animate-spin" /> : <Save />}
                                 {isSaving ? t.saving : t.saveChanges}
                             </button>
-                          )}
-                      </motion.div>
-                  </AnimatePresence>
+                        )}
+                    </motion.div>
+                </AnimatePresence>
               </div>
             )}
         </div>
