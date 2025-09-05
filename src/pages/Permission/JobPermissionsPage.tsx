@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+// JobPermissionsPage.tsx
+// ... (الكود العلوي لم يتغير)
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { useAuth } from '../../components/contexts/UserContext';
 import { useLanguage } from '../../components/contexts/LanguageContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Save, LoaderCircle, ChevronRight, Check, X, Search, ChevronLeft, RotateCcw } from 'lucide-react';
+import { Save, LoaderCircle, ChevronRight, Check, X, Search, ChevronLeft, RotateCcw, Edit } from 'lucide-react';
 import AdminSectionLayout from '../../layouts/AdminSectionLayout';
 import { Tooltip } from 'react-tooltip';
 import 'react-tooltip/dist/react-tooltip.css';
@@ -183,8 +185,8 @@ const translations = {
         saveSuccess: "تم حفظ الصلاحيات بنجاح.",
         saveError: "حدث خطأ أثناء حفظ الصلاحيات.",
         noPermission: "ليس لديك صلاحية.",
-        selectAll: "الكل",
-        deselectAll: "إلغاء التحديد",
+        selectAll: "تفعيل الكل",
+        deselectAll: "تعطيل الكل",
         reset: "إعادة تهيئة",
         resetVisible: "إعادة",
         controlElementsTitle: "عناصر التحكم",
@@ -215,7 +217,7 @@ const translations = {
         saveSuccess: "Permissions saved successfully.",
         saveError: "An error occurred while saving permissions.",
         noPermission: "No permission.",
-        selectAll: "All",
+        selectAll: "Select All",
         deselectAll: "Deselect All",
         reset: "Reset",
         resetVisible: "Reset",
@@ -238,11 +240,16 @@ const translations = {
     }
 };
 
+
 const JobPermissionsPage = () => {
     const { language } = useLanguage();
     const { hasPermission, user } = useAuth();
     const isRTL = language === 'ar';
     const navigate = useNavigate(); 
+    
+    // تعريف ref للهيدر للحصول على ارتفاعه
+    const headerRef = useRef<HTMLElement>(null);
+    const [headerHeight, setHeaderHeight] = useState(0);
 
     const [jobs, setJobs] = useState<Job[]>([]);
     const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
@@ -350,7 +357,6 @@ const JobPermissionsPage = () => {
 
       return initialIdsString !== currentIdsString;
     }, [filteredNodes, jobPermissions, initialVisiblePermissions]);
-
 
     const filteredJobs = useMemo(() => {
         if (!jobSearchFilter) return jobs;
@@ -682,6 +688,14 @@ const JobPermissionsPage = () => {
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
+    // ** التأثير الجديد لقياس ارتفاع الهيدر **
+    useEffect(() => {
+        const header = document.querySelector('header.sticky');
+        if (header instanceof HTMLElement) {
+            setHeaderHeight(header.offsetHeight);
+        }
+    }, [selectedJobId, language]);
+
     if (!hasPermission('ss:9')) {
         return <AdminSectionLayout mainServiceId={17}><div className="text-center text-red-500 p-10">{t.noPermission}</div></AdminSectionLayout>;
     }
@@ -690,223 +704,227 @@ const JobPermissionsPage = () => {
         return <AdminSectionLayout mainServiceId={17}><div className="flex justify-center items-center h-64"><LoaderCircle className="animate-spin text-[#FFD700]" size={48} /></div></AdminSectionLayout>;
     }
     
+    const jobTitleElement = (
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        transition={{ duration: 0.3 }}
+        className={`bg-gray-800/50 border border-gray-700 rounded-lg p-4`}
+      >
+        {selectedJobId ? (
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between gap-4">
+              <span className={`font-extrabold text-[#FFD700] break-words transition-all duration-300 ${isScrolled ? 'text-lg' : 'text-2xl'}`}>
+                {selectedJobName}
+              </span>
+              <button
+                onClick={handleChangeJob}
+                className={`flex items-center justify-center gap-2 px-4 py-2 font-semibold bg-gray-700 rounded-md text-gray-300 transition-all hover:scale-105 active:scale-95 ${isScrolled ? 'text-xs' : 'text-sm'}`}
+              >
+                <Edit size={20} />
+                <span className="hidden md:block">
+                  {t.changeJob}
+                </span>
+              </button>
+            </div>
+            <AnimatePresence>
+              {!isScrolled && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex flex-col sm:flex-row sm:items-center gap-4 text-sm text-gray-400 overflow-hidden"
+                >
+                  <span className="flex items-center gap-1">
+                    <Check size={16} className="text-green-400" />
+                    {enabledPermissionsCount}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <X size={16} className="text-red-400" />
+                    {disabledPermissionsCount}
+                  </span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        ) : (
+          <>
+            <div className="relative mb-4">
+              <div className="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none">
+                <Search className="w-4 h-4 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                placeholder={t.searchJobPlaceholder}
+                value={jobSearchFilter}
+                onChange={(e) => setJobSearchFilter(e.target.value)}
+                className="block w-full ps-10 pe-3 py-2 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg focus:ring-yellow-500 focus:border-yellow-500"
+              />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 max-h-96 overflow-y-auto custom-scrollbar">
+              {filteredJobs.length > 0 ? (
+                filteredJobs.map(job => (
+                  <motion.div
+                    key={job.id}
+                    className="p-4 bg-gray-700/50 rounded-lg cursor-pointer hover:bg-gray-600/50 transition-colors"
+                    onClick={() => handleSelectJob(job)}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <span className="font-semibold text-white">{language === 'ar' ? job.name_ar : job.name_en}</span>
+                  </motion.div>
+                ))
+              ) : (
+                <div className="col-span-full text-center text-gray-500 py-10">
+                  {t.noSearchResults}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </motion.div>
+    );
+
     return (
       <AdminSectionLayout
-          mainServiceId={17}
-          hasUnsavedChanges={hasChanges}
-          onNavigateWithPrompt={handleNavigationWithPrompt}
+        mainServiceId={17}
+        hasUnsavedChanges={hasChanges}
+        onNavigateWithPrompt={handleNavigationWithPrompt}
       >
         <div className="space-y-4">
-            <AnimatePresence>
-                {isConfirming && (
-                    <motion.div
-                        className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                    />
-                )}
-            </AnimatePresence>
-            
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.3 }}
-            className={`bg-gray-800/50 border border-gray-700 rounded-lg p-4 mb-4 ${selectedJobId ? 'sticky top-[74px] z-20 backdrop-blur-sm shadow-lg' : ''}`}
-          >
-            {selectedJobId ? (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex flex-col flex-1">
-                        <span className={`font-extrabold text-[#FFD700] break-words transition-all duration-300 ${isScrolled ? 'text-lg' : 'text-2xl'}`}>{selectedJobName}</span>
-                        <AnimatePresence>
-                            {!isScrolled && (
-                                <motion.div
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: 'auto' }}
-                                    exit={{ opacity: 0, height: 0 }}
-                                    transition={{ duration: 0.2 }}
-                                    className="flex items-center gap-4 text-sm text-gray-400 mt-2 overflow-hidden"
-                                >
-                                    <span className="flex items-center gap-1">
-                                        <Check size={16} className="text-green-400" />
-                                        {enabledPermissionsCount} {t.enabledPermissions}
-                                    </span>
-                                    <span className="flex items-center gap-1">
-                                        <X size={16} className="text-red-400" />
-                                        {disabledPermissionsCount} {t.disabledPermissions}
-                                    </span>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
-                    <button
-                        onClick={handleChangeJob}
-                        className={`flex items-center gap-1 px-4 py-2 font-semibold bg-gray-700 rounded-md text-gray-300 transition-all hover:scale-105 active:scale-95 ${isScrolled ? 'text-xs' : 'text-sm'}`}
-                    >
-                        {t.changeJob}
-                    </button>
-                </div>
-            ) : (
-                <>
-                    <div className="relative mb-4">
-                      <div className="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none">
-                          <Search className="w-4 h-4 text-gray-400" />
-                      </div>
-                      <input
-                          type="text"
-                          placeholder={t.searchJobPlaceholder}
-                          value={jobSearchFilter}
-                          onChange={(e) => setJobSearchFilter(e.target.value)}
-                          className="block w-full ps-10 pe-3 py-2 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg focus:ring-yellow-500 focus:border-yellow-500"
-                      />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 max-h-96 overflow-y-auto custom-scrollbar">
-                        {filteredJobs.length > 0 ? (
-                            filteredJobs.map(job => (
-                                <motion.div
-                                    key={job.id}
-                                    className="p-4 bg-gray-700/50 rounded-lg cursor-pointer hover:bg-gray-600/50 transition-colors"
-                                    onClick={() => handleSelectJob(job)}
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -20 }}
-                                    transition={{ duration: 0.2 }}
-                                >
-                                    <span className="font-semibold text-white">{language === 'ar' ? job.name_ar : job.name_en}</span>
-                                </motion.div>
-                            ))
-                        ) : (
-                            <div className="col-span-full text-center text-gray-500 py-10">
-                                {t.noSearchResults}
-                            </div>
-                        )}
-                    </div>
-                </>
+          <AnimatePresence>
+            {isConfirming && (
+              <motion.div
+                className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              />
             )}
-          </motion.div>
-
+          </AnimatePresence>
+          
+          <div className="sticky top-0 z-20" style={{ top: `${headerHeight}px` }}>
+            <div className={`bg-gray-900/80 backdrop-blur-sm shadow-lg`}>
+              {jobTitleElement}
+            </div>
+          </div>
+          
           {selectedJobId && (
-              <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6 overflow-hidden relative">
-                  <div className="flex items-center gap-4 mb-4">
-                    {path.length > 0 && (
-                        <button onClick={handleGoBack} className="p-2 rounded-full hover:bg-gray-700 transition-all hover:scale-105 active:scale-95">
-                            <ChevronLeft size={24} className={`text-white ${isRTL ? 'rotate-180' : ''}`} />
-                        </button>
-                    )}
-                    <h2
-                        className="font-bold text-xl break-words text-white"
-                        data-tooltip-id="header-tooltip"
-                        data-tooltip-content={headerTitle}
-                        data-tooltip-place="top"
-                    >
-                        {headerTitle}
-                    </h2>
-                    <Tooltip id="header-tooltip" className="bg-gray-700 text-white rounded-md p-2 shadow-lg z-50" />
-                  </div>
-                  
-                  <div className="mb-4 p-3 bg-gray-900/50 rounded-lg border border-gray-700/50">
-                    <h3 className="text-sm font-semibold text-gray-400 mb-2">{t.controlElementsTitle}</h3>
-                    <p className="text-xs text-gray-500 mb-4">{t.visibleActionsDescription}</p>
-                    <div className="flex flex-wrap gap-2">
-                        {!allVisibleNodesSelected && (
-                            <button
-                              onClick={() => handleSelectAllVisible(true)}
-                              className="flex items-center gap-1 justify-center h-8 text-xs px-2 rounded-md text-white bg-gradient-to-r from-green-500 to-green-600 transition-all hover:scale-105 active:scale-95"
-                            >
-                              <Check size={16} /> {t.selectAll}
-                            </button>
-                        )}
-                        {!noVisibleNodesSelected && (
-                            <button
-                              onClick={() => handleSelectAllVisible(false)}
-                              className="flex items-center gap-1 justify-center h-8 text-xs px-2 rounded-md text-white bg-gradient-to-r from-red-500 to-red-600 transition-all hover:scale-105 active:scale-95"
-                            >
-                              { <X size={16} /> } {t.deselectAll}
-                            </button>
-                        )}
-                        {hasVisibleChanges && (
-                          <button
-                              onClick={handleResetVisible}
-                              className="flex items-center gap-1 justify-center h-8 text-xs px-2 rounded-md text-white bg-gradient-to-r from-yellow-500 to-yellow-600 transition-all hover:scale-105 active:scale-95"
-                          >
-                              <RotateCcw size={16} /> {t.resetVisible}
-                          </button>
-                        )}
-                    </div>
-                  </div>
-                  
-                  <AnimatePresence mode="wait">
-                      <motion.div
-                          key={containerKey}
-                          initial={{ x: isRTL ? '100%' : '-100%', opacity: 0 }}
-                          animate={{ x: 0, opacity: 1 }}
-                          exit={{ x: isRTL ? '-100%' : '100%', opacity: 0 }}
-                          transition={{ type: "tween", duration: 0.3 }}
-                      >
-                          <PermissionsList
-                              nodes={filteredNodes}
-                              onNavigate={handleNavigate}
-                              onToggle={handlePermissionToggle}
-                              jobPermissions={jobPermissions}
-                          />
-                      </motion.div>
-                  </AnimatePresence>
-                  
-                <AnimatePresence>
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 20 }}
-                        className="mt-6 flex flex-col md:flex-row md:justify-between md:items-center gap-4"
-                    >
-                        {/* Container for the left-aligned buttons */}
-                        <div className="flex flex-wrap items-center gap-2">
-                            {enabledPermissionsCount < totalPermissionsCount && (
-                                <button
-                                    onClick={handleGlobalSelectAll}
-                                    className="flex items-center gap-2 px-6 py-3 font-bold bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all hover:scale-105 active:scale-95"
-                                >
-                                    <Check size={20} />
-                                    {t.globalSelectAll}
-                                </button>
-                            )}
-                            {enabledPermissionsCount > 0 && (
-                                <button
-                                    onClick={handleGlobalDeselectAll}
-                                    className="flex items-center gap-2 px-6 py-3 font-bold bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all hover:scale-105 active:scale-95"
-                                >
-                                    <X size={20} />
-                                    {t.globalDeselectAll}
-                                </button>
-                            )}
-                            {hasChanges && (
-                                <button
-                                    onClick={handleReset}
-                                    className="flex items-center gap-2 px-6 py-3 font-bold bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all hover:scale-105 active:scale-95"
-                                >
-                                    <RotateCcw />
-                                    {t.reset}
-                                </button>
-                            )}
-                        </div>
-
-                        {/* Save button */}
-                        {hasChanges && (
-                            <button
-                                onClick={handleSave}
-                                disabled={isSaving}
-                                className={`flex items-center gap-2 px-6 py-3 font-bold bg-[#FFD700] text-black rounded-lg hover:bg-yellow-400 disabled:bg-gray-500 transition-all hover:scale-105 active:scale-95`}
-                            >
-                                {isSaving ? <LoaderCircle className="animate-spin" /> : <Save />}
-                                {isSaving ? t.saving : t.saveChanges}
-                            </button>
-                        )}
-                    </motion.div>
-                </AnimatePresence>
+            <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6 overflow-hidden relative">
+              <div className="flex items-center gap-4 mb-4">
+                {path.length > 0 && (
+                  <button onClick={handleGoBack} className="p-2 rounded-full hover:bg-gray-700 transition-all hover:scale-105 active:scale-95">
+                    <ChevronLeft size={24} className={`text-white ${isRTL ? 'rotate-180' : ''}`} />
+                  </button>
+                )}
+                <h2
+                  className="font-bold text-xl break-words text-white"
+                  data-tooltip-id="header-tooltip"
+                  data-tooltip-content={headerTitle}
+                  data-tooltip-place="top"
+                >
+                  {headerTitle}
+                </h2>
+                <Tooltip id="header-tooltip" className="bg-gray-700 text-white rounded-md p-2 shadow-lg z-50" />
               </div>
-            )}
+              
+              <div className="mb-4 p-3 bg-gray-900/50 rounded-lg border border-gray-700/50">
+                <h3 className="text-sm font-semibold text-gray-400 mb-2">{t.controlElementsTitle}</h3>
+                <p className="text-xs text-gray-500 mb-4">{t.visibleActionsDescription}</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handleSelectAllVisible(true)}
+                    disabled={allVisibleNodesSelected}
+                    className={`flex items-center gap-1 justify-center h-8 text-xs px-2 rounded-md text-white bg-gradient-to-r from-green-500 to-green-600 transition-all hover:scale-105 active:scale-95 disabled:from-gray-700 disabled:to-gray-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100`}
+                  >
+                    <Check size={16} /> {t.selectAll}
+                  </button>
+                  <button
+                    onClick={() => handleSelectAllVisible(false)}
+                    disabled={noVisibleNodesSelected}
+                    className={`flex items-center gap-1 justify-center h-8 text-xs px-2 rounded-md text-white bg-gradient-to-r from-red-500 to-red-600 transition-all hover:scale-105 active:scale-95 disabled:from-gray-700 disabled:to-gray-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100`}
+                  >
+                    { <X size={16} /> } {t.deselectAll}
+                  </button>
+                  <button
+                    onClick={handleResetVisible}
+                    disabled={!hasVisibleChanges}
+                    className={`flex items-center gap-1 justify-center h-8 text-xs px-2 rounded-md text-white bg-gradient-to-r from-yellow-500 to-yellow-600 transition-all hover:scale-105 active:scale-95 disabled:from-gray-700 disabled:to-gray-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100`}
+                  >
+                    <RotateCcw size={16} /> {t.resetVisible}
+                  </button>
+                </div>
+              </div>
+              
+              <AnimatePresence mode="wait">
+                  <motion.div
+                      key={containerKey}
+                      initial={{ x: isRTL ? '100%' : '-100%', opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      exit={{ x: isRTL ? '-100%' : '100%', opacity: 0 }}
+                      transition={{ type: "tween", duration: 0.3 }}
+                  >
+                      <PermissionsList
+                          nodes={filteredNodes}
+                          onNavigate={handleNavigate}
+                          onToggle={handlePermissionToggle}
+                          jobPermissions={jobPermissions}
+                      />
+                  </motion.div>
+              </AnimatePresence>
+              
+              <AnimatePresence>
+                  <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 20 }}
+                      className="mt-6 flex flex-col md:flex-row md:justify-between md:items-center gap-4"
+                  >
+                      <div className="flex flex-wrap items-center gap-2">
+                          <button
+                              onClick={handleGlobalSelectAll}
+                              disabled={enabledPermissionsCount === totalPermissionsCount}
+                              className={`flex items-center gap-2 px-6 py-3 font-bold bg-green-600 text-white rounded-lg transition-all hover:scale-105 active:scale-95 disabled:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-gray-700 disabled:hover:scale-100 disabled:active:scale-100`}
+                          >
+                              <Check size={20} />
+                              {t.globalSelectAll}
+                          </button>
+                          <button
+                              onClick={handleGlobalDeselectAll}
+                              disabled={enabledPermissionsCount === 0}
+                              className={`flex items-center gap-2 px-6 py-3 font-bold bg-red-600 text-white rounded-lg transition-all hover:scale-105 active:scale-95 disabled:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-gray-700 disabled:hover:scale-100 disabled:active:scale-100`}
+                          >
+                              <X size={20} />
+                              {t.globalDeselectAll}
+                          </button>
+                          <button
+                              onClick={handleReset}
+                              disabled={!hasChanges}
+                              // ** التغيير هنا: تحديث كلاسات اللون **
+                              className={`flex items-center gap-2 px-6 py-3 font-bold text-white rounded-lg bg-gradient-to-r from-yellow-500 to-yellow-600 transition-all hover:scale-105 active:scale-95 disabled:bg-gray-700 disabled:from-gray-700 disabled:to-gray-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100`}
+                          >
+                              <RotateCcw />
+                              {t.reset}
+                          </button>
+                      </div>
+                      
+                      <button
+                          onClick={handleSave}
+                          disabled={isSaving || !hasChanges}
+                          className={`flex items-center gap-2 px-6 py-3 font-bold bg-[#FFD700] text-black rounded-lg transition-all hover:scale-105 active:scale-95 disabled:bg-gray-700 disabled:text-gray-400 disabled:opacity-50 disabled:hover:bg-gray-700 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100`}
+                      >
+                          {isSaving ? <LoaderCircle className="animate-spin" /> : <Save />}
+                          {isSaving ? t.saving : t.saveChanges}
+                      </button>
+                  </motion.div>
+              </AnimatePresence>
+            </div>
+          )}
         </div>
         <Toaster />
       </AdminSectionLayout>
