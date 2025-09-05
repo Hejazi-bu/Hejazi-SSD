@@ -17,9 +17,16 @@ type SubService = {
 interface AdminSectionLayoutProps {
   children: React.ReactNode;
   mainServiceId: number; // ID الخدمة الرئيسية (مثل 16 أو 17)
+  hasUnsavedChanges?: boolean;
+  onNavigateWithPrompt?: () => void;
 }
 
-const AdminSectionLayout: React.FC<AdminSectionLayoutProps> = ({ children, mainServiceId }) => {
+const AdminSectionLayout: React.FC<AdminSectionLayoutProps> = ({ 
+  children, 
+  mainServiceId,
+  hasUnsavedChanges,
+  onNavigateWithPrompt
+}) => {
   const { language, toggleLanguage } = useLanguage();
   const { hasPermission } = useAuth();
   const navigate = useNavigate();
@@ -36,7 +43,14 @@ const AdminSectionLayout: React.FC<AdminSectionLayoutProps> = ({ children, mainS
     en: { backToDash: "Dashboard" },
   }[language];
 
-  // جلب بيانات الهيدر
+  const handleHomeNavigation = () => {
+    if (hasUnsavedChanges && onNavigateWithPrompt) {
+      onNavigateWithPrompt();
+    } else {
+      navigate('/dashboard');
+    }
+  };
+
   useEffect(() => {
     const fetchHeaderData = async () => {
       const { data: serviceData } = await supabase
@@ -61,7 +75,6 @@ const AdminSectionLayout: React.FC<AdminSectionLayoutProps> = ({ children, mainS
     fetchHeaderData();
   }, [mainServiceId, language, hasPermission]);
 
-  // إغلاق القائمة عند الضغط خارجها
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -75,15 +88,16 @@ const AdminSectionLayout: React.FC<AdminSectionLayoutProps> = ({ children, mainS
   return (
     <div className="bg-[#0D1B2A] min-h-screen text-white" dir={isRTL ? 'rtl' : 'ltr'}>
       <header className="sticky top-0 z-40 bg-gray-900/80 backdrop-blur-sm shadow-lg flex items-center justify-between px-4 sm:px-6 py-3">
-        {/* --- الجهة اليسرى (أو اليمنى في العربية) --- */}
         <div className="flex items-center gap-2">
-            <button onClick={() => navigate('/dashboard')} className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-700/50">
+            <button 
+                onClick={handleHomeNavigation} 
+                className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-700/50"
+            >
               <Home size={20} />
               <span className="hidden sm:inline font-semibold">{t.backToDash}</span>
             </button>
         </div>
         
-        {/* --- المنتصف: القائمة المنسدلة للخدمات --- */}
         <div className="relative" ref={menuRef}>
           <button 
             onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -118,7 +132,6 @@ const AdminSectionLayout: React.FC<AdminSectionLayoutProps> = ({ children, mainS
           </AnimatePresence>
         </div>
         
-        {/* --- الجهة اليمنى (أو اليسرى في العربية) --- */}
         <div className="flex items-center gap-2">
             <button onClick={toggleLanguage} className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-700/50">
               <Languages size={20} />

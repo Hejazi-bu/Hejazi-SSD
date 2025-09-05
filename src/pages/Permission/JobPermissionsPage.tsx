@@ -3,12 +3,13 @@ import { supabase } from '../../lib/supabaseClient';
 import { useAuth } from '../../components/contexts/UserContext';
 import { useLanguage } from '../../components/contexts/LanguageContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Save, LoaderCircle, ChevronRight, Check, X, Search, ChevronLeft } from 'lucide-react';
+import { Save, LoaderCircle, ChevronRight, Check, X, Search, ChevronLeft, RotateCcw } from 'lucide-react';
 import AdminSectionLayout from '../../layouts/AdminSectionLayout';
 import { Tooltip } from 'react-tooltip';
 import 'react-tooltip/dist/react-tooltip.css';
 import { usePrompt } from '../../hooks/usePrompt';
 import toast, { Toaster } from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
 type Job = { id: number; name_ar: string; name_en: string; };
 type ServiceNode = {
@@ -25,7 +26,7 @@ type PathItem = {
 // وظيفة لعرض إشعار تأكيد مخصص
 const confirmToast = (message: string, onConfirm: () => void, onCancel: () => void, t: any) => {
     toast((toastInstance) => (
-        <div className="flex flex-col items-start p-4 bg-gray-800 rounded-lg shadow-xl">
+        <div className="relative z-50 p-4 bg-gray-800 rounded-lg shadow-xl min-w-[280px]">
             <h3 className="text-lg font-bold text-[#FFD700] mb-2">{t.confirmTitle}</h3>
             <p className="text-sm font-semibold text-gray-200 mb-4">{message}</p>
             <div className="flex gap-2 w-full justify-end">
@@ -184,6 +185,8 @@ const translations = {
         noPermission: "ليس لديك صلاحية.",
         selectAll: "تحديد الكل (المعروض)",
         deselectAll: "إلغاء تحديد الكل (المعروض)",
+        reset: "إعادة التهيئة",
+        resetVisible: "إعادة تهيئة المعروض",
         searchPermissions: "بحث في الصلاحيات...",
         noSearchResults: "لا توجد نتائج بحث مطابقة.",
         enabledPermissions: "صلاحيات مفعلة",
@@ -209,6 +212,8 @@ const translations = {
         noPermission: "No permission.",
         selectAll: "Select All (Visible)",
         deselectAll: "Deselect All (Visible)",
+        reset: "Reset",
+        resetVisible: "Reset Visible",
         searchPermissions: "Search permissions...",
         noSearchResults: "No matching search results.",
         enabledPermissions: "Enabled permissions",
@@ -227,6 +232,7 @@ const JobPermissionsPage = () => {
     const { language } = useLanguage();
     const { hasPermission, user } = useAuth();
     const isRTL = language === 'ar';
+    const navigate = useNavigate();
 
     const [jobs, setJobs] = useState<Job[]>([]);
     const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
@@ -234,11 +240,13 @@ const JobPermissionsPage = () => {
     const [servicesTree, setServicesTree] = useState<ServiceNode[]>([]);
     const [jobPermissions, setJobPermissions] = useState<Set<string>>(new Set());
     const [initialJobPermissions, setInitialJobPermissions] = useState<Set<string>>(new Set());
+    const [initialVisiblePermissions, setInitialVisiblePermissions] = useState<Set<string>>(new Set());
     
     const [jobSearchFilter, setJobSearchFilter] = useState('');
     
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [isConfirming, setIsConfirming] = useState(false);
 
     const [path, setPath] = useState<PathItem[]>([]);
     const currentNode = useMemo(() => {
@@ -274,6 +282,21 @@ const JobPermissionsPage = () => {
       return currentNodes;
     }, [currentNode]);
     
+    // 👇 دالة مساعدة جديدة لحساب الصلاحيات الأولية للمنطقة المرئية
+    const getInitialVisiblePermissions = useCallback((nodes: ServiceNode[], allInitialPermissions: Set<string>): Set<string> => {
+        const initialPerms = new Set<string>();
+        const traverseAndCheck = (currentNodes: ServiceNode[]) => {
+            currentNodes.forEach(node => {
+                if (allInitialPermissions.has(node.id)) {
+                    initialPerms.add(node.id);
+                }
+                traverseAndCheck(node.children);
+            });
+        };
+        traverseAndCheck(nodes);
+        return initialPerms;
+    }, []);
+
     const allVisibleNodesSelected = useMemo(() => {
         if (filteredNodes.length === 0) return false;
         return filteredNodes.every(node => jobPermissions.has(node.id));
@@ -283,6 +306,25 @@ const JobPermissionsPage = () => {
         if (filteredNodes.length === 0) return true;
         return filteredNodes.every(node => !jobPermissions.has(node.id));
     }, [filteredNodes, jobPermissions]);
+    
+    const hasVisibleChanges = useMemo(() => {
+      const currentVisiblePerms = new Set<string>();
+      const traverseAndCheck = (nodes: ServiceNode[]) => {
+          nodes.forEach(node => {
+              if (jobPermissions.has(node.id)) {
+                  currentVisiblePerms.add(node.id);
+              }
+              traverseAndCheck(node.children);
+          });
+      };
+      traverseAndCheck(filteredNodes);
+      
+      const initialIdsString = Array.from(initialVisiblePermissions).sort().join(',');
+      const currentIdsString = Array.from(currentVisiblePerms).sort().join(',');
+
+      return initialIdsString !== currentIdsString;
+    }, [filteredNodes, jobPermissions, initialVisiblePermissions]);
+
 
     const filteredJobs = useMemo(() => {
         if (!jobSearchFilter) return jobs;
@@ -314,23 +356,7 @@ const JobPermissionsPage = () => {
         return initialIdsString !== currentIdsString;
     }, [jobPermissions, initialJobPermissions]);
     
-    // هذا الـ hook يعالج التحذير عند التنقل داخل التطبيق
     usePrompt(t.unsavedChangesWarning, hasChanges);
-
-    // 👇 هذا الـ useEffect يعالج التحذير عند محاولة مغادرة الصفحة
-    useEffect(() => {
-        if (hasChanges) {
-            const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-                event.preventDefault();
-                event.returnValue = '';
-            };
-            window.addEventListener('beforeunload', handleBeforeUnload);
-            return () => {
-                window.removeEventListener('beforeunload', handleBeforeUnload);
-            };
-        }
-    }, [hasChanges]);
-
 
     useEffect(() => {
         const fetchInitialData = async () => {
@@ -372,7 +398,8 @@ const JobPermissionsPage = () => {
         };
         if(hasPermission('ss:9')) fetchInitialData(); else setIsLoading(false);
     }, [language, hasPermission, findNode]);
-
+    
+    // 👇 تعديل دالة اختيار المسمى الوظيفي
     const handleSelectJob = useCallback(async (job: Job) => {
         setSelectedJobId(job.id);
         setSelectedJobName(language === 'ar' ? job.name_ar : job.name_en);
@@ -387,10 +414,14 @@ const JobPermissionsPage = () => {
         setJobPermissions(perms);
         setInitialJobPermissions(new Set(perms));
         setPath([]);
-    }, [language]);
-    
+        // 👇 استخدام الدالة المساعدة الجديدة
+        const initialPermsForView = getInitialVisiblePermissions(servicesTree, perms);
+        setInitialVisiblePermissions(initialPermsForView);
+    }, [language, servicesTree, getInitialVisiblePermissions]);
+
     const handleChangeJob = () => {
         if (hasChanges) {
+            setIsConfirming(true);
             confirmToast(t.unsavedChangesWarning, 
                 () => { // onConfirm
                     setSelectedJobId(null);
@@ -399,9 +430,10 @@ const JobPermissionsPage = () => {
                     setInitialJobPermissions(new Set());
                     setPath([]);
                     setJobSearchFilter('');
+                    setIsConfirming(false);
                 },
                 () => { // onCancel
-                    // لا شيء يحدث، فقط يتم إخفاء الإشعار
+                    setIsConfirming(false);
                 },
                 t
             );
@@ -414,15 +446,6 @@ const JobPermissionsPage = () => {
             setJobSearchFilter('');
         }
     };
-
-    useEffect(() => {
-        if (selectedJobId !== null && jobs.length > 0) {
-            const job = jobs.find(j => j.id === selectedJobId);
-            if (job) {
-                setSelectedJobName(language === 'ar' ? job.name_ar : job.name_en);
-            }
-        }
-    }, [language, selectedJobId, jobs]);
 
     const handlePermissionToggle = useCallback((nodeId: string, isChecked: boolean) => {
         setJobPermissions(prev => {
@@ -488,6 +511,9 @@ const JobPermissionsPage = () => {
             if (error) throw error;
             toast.success(t.saveSuccess);
             setInitialJobPermissions(new Set(jobPermissions));
+            // 👇 بعد الحفظ، يجب تحديث الحالة الأولية للعناصر المرئية
+            const newVisiblePerms = getInitialVisiblePermissions(filteredNodes, jobPermissions);
+            setInitialVisiblePermissions(newVisiblePerms);
         } catch (error) {
             console.error("Error saving permissions:", error);
             toast.error(t.saveError);
@@ -496,6 +522,32 @@ const JobPermissionsPage = () => {
         }
     };
     
+    const handleReset = useCallback(() => {
+        setJobPermissions(new Set(initialJobPermissions));
+        // 👇 عند إعادة التهيئة الكاملة، يجب تحديث حالة العناصر المرئية أيضًا
+        const initialPermsForView = getInitialVisiblePermissions(filteredNodes, initialJobPermissions);
+        setInitialVisiblePermissions(initialPermsForView);
+    }, [initialJobPermissions, filteredNodes, getInitialVisiblePermissions]);
+
+    const handleResetVisible = useCallback(() => {
+        setJobPermissions(prev => {
+            const newPerms = new Set(prev);
+            const visibleNodesIds = new Set(filteredNodes.map(node => node.id));
+
+            // إزالة الصلاحيات المرئية التي لم تكن مفعلة في البداية
+            prev.forEach(permId => {
+                if (visibleNodesIds.has(permId) && !initialVisiblePermissions.has(permId)) {
+                    newPerms.delete(permId);
+                }
+            });
+            // إضافة الصلاحيات المرئية التي كانت مفعلة في البداية
+            initialVisiblePermissions.forEach(permId => {
+                newPerms.add(permId);
+            });
+            return newPerms;
+        });
+    }, [initialVisiblePermissions, filteredNodes]);
+
     const handleSelectAllVisible = useCallback((select: boolean) => {
         const newPerms = new Set(jobPermissions);
         const traverseAndToggle = (nodes: ServiceNode[]) => {
@@ -512,15 +564,38 @@ const JobPermissionsPage = () => {
         setJobPermissions(newPerms);
     }, [currentNode, jobPermissions]);
     
+    // 👇 تحديث دالة التنقل
     const handleNavigate = useCallback((node: ServiceNode) => {
         if (node.children && node.children.length > 0) {
+            // 👇 استخدام الدالة المساعدة الجديدة
+            const initialPermsForView = getInitialVisiblePermissions(node.children, initialJobPermissions);
+            setInitialVisiblePermissions(initialPermsForView);
             setPath(prevPath => [...prevPath, { id: node.id, label: node.label }]);
         }
-    }, []);
+    }, [initialJobPermissions, getInitialVisiblePermissions]);
     
-    const handleGoBack = () => {
-        setPath(prevPath => prevPath.slice(0, -1));
-    };
+    // 👇 تحديث دالة العودة
+    const handleGoBack = useCallback(() => {
+        setPath(prevPath => {
+            const newPath = prevPath.slice(0, -1);
+            let targetNode;
+            if (newPath.length === 0) {
+                targetNode = { children: servicesTree };
+            } else {
+                let current = { children: servicesTree };
+                for (const item of newPath) {
+                    current = current.children.find(node => node.id === item.id) || current;
+                }
+                targetNode = current;
+            }
+
+            // 👇 استخدام الدالة المساعدة الجديدة
+            const initialPermsForView = getInitialVisiblePermissions(targetNode.children, initialJobPermissions);
+            setInitialVisiblePermissions(initialPermsForView);
+            
+            return newPath;
+        });
+    }, [initialJobPermissions, servicesTree, getInitialVisiblePermissions]);
 
     const headerTitle = useMemo(() => {
         if (path.length === 0) {
@@ -531,6 +606,20 @@ const JobPermissionsPage = () => {
     
     const containerKey = path.map(p => p.id).join('-');
 
+    const handleNavigationWithPrompt = useCallback(() => {
+        setIsConfirming(true);
+        confirmToast(t.unsavedChangesWarning,
+            () => { // onConfirm
+                navigate('/dashboard');
+                setIsConfirming(false);
+            },
+            () => { // onCancel
+                setIsConfirming(false);
+            },
+            t
+        );
+    }, [t, navigate]);
+
     if (!hasPermission('ss:9')) {
         return <AdminSectionLayout mainServiceId={17}><div className="text-center text-red-500 p-10">{t.noPermission}</div></AdminSectionLayout>;
     }
@@ -540,9 +629,24 @@ const JobPermissionsPage = () => {
     }
     
     return (
-      <AdminSectionLayout mainServiceId={17}>
+      <AdminSectionLayout 
+          mainServiceId={17}
+          hasUnsavedChanges={hasChanges}
+          onNavigateWithPrompt={handleNavigationWithPrompt}
+      >
         <div className="space-y-4">
-          
+            <AnimatePresence>
+                {isConfirming && (
+                    <motion.div
+                        className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                    />
+                )}
+            </AnimatePresence>
+            
           <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
             {selectedJobId ? (
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -641,6 +745,14 @@ const JobPermissionsPage = () => {
                           { <X size={14} className="inline-block me-1" /> } {t.deselectAll}
                         </button>
                     )}
+                    {hasVisibleChanges && (
+                      <button
+                          onClick={handleResetVisible}
+                          className="flex-1 text-xs px-2 py-1 rounded-md text-white bg-gradient-to-r from-yellow-500 to-yellow-600 transition-all hover:scale-105 hover:shadow-lg hover:shadow-yellow-500/20 active:scale-95"
+                      >
+                          <RotateCcw size={14} className="inline-block me-1" /> {t.resetVisible}
+                      </button>
+                    )}
                   </div>
                   
                   <AnimatePresence mode="wait">
@@ -666,16 +778,23 @@ const JobPermissionsPage = () => {
                               initial={{ opacity: 0, y: 20 }}
                               animate={{ opacity: 1, y: 0 }}
                               exit={{ opacity: 0, y: 20 }}
-                              className="mt-6 flex justify-end"
+                              className="mt-6 flex justify-end gap-2"
                           >
-                              <button
-                                  onClick={handleSave}
-                                  disabled={isSaving}
-                                  className="flex items-center gap-2 px-6 py-3 font-bold bg-[#FFD700] text-black rounded-lg hover:bg-yellow-400 disabled:bg-gray-500 transition-all shadow-lg shadow-black/50"
-                              >
-                                  {isSaving ? <LoaderCircle className="animate-spin" /> : <Save />}
-                                  {isSaving ? t.saving : t.saveChanges}
-                              </button>
+                            <button
+                                onClick={handleReset}
+                                className="flex items-center gap-2 px-6 py-3 font-bold bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all shadow-lg shadow-black/50"
+                            >
+                                <RotateCcw />
+                                {t.reset}
+                            </button>
+                            <button
+                                onClick={handleSave}
+                                disabled={isSaving}
+                                className="flex items-center gap-2 px-6 py-3 font-bold bg-[#FFD700] text-black rounded-lg hover:bg-yellow-400 disabled:bg-gray-500 transition-all shadow-lg shadow-black/50"
+                            >
+                                {isSaving ? <LoaderCircle className="animate-spin" /> : <Save />}
+                                {isSaving ? t.saving : t.saveChanges}
+                            </button>
                           </motion.div>
                       )}
                   </AnimatePresence>
