@@ -117,19 +117,27 @@ const PermissionsList = React.memo(({
                 const disabledPermissionsCount = totalPermissionsCount - enabledPermissionsCount;
 
                 return (
-                    <div
+                    <motion.div
                         key={node.id}
-                        className="bg-gray-800/30 rounded-lg border border-transparent transition-colors hover:border-gray-700/50"
+                        className="bg-gray-800/30 rounded-lg border border-transparent transition-colors"
+                        whileHover={{ backgroundColor: 'rgba(55, 65, 81, 0.4)' }}
+                        transition={{ duration: 0.15 }}
                     >
-                        <div
-                            className="flex items-center justify-between p-4 cursor-pointer"
-                            onClick={() => hasChildren ? onNavigate(node) : onToggle(node.id, !isChecked)}
-                        >
+                        <div className="flex items-center justify-between p-4">
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-3">
-                                    {hasChildren && <Folder size={18} className="text-yellow-400" />}
+                                    {hasChildren && (
+                                        <motion.button
+                                            onClick={() => onNavigate(node)}
+                                            className="text-yellow-400 p-1 rounded-full hover:bg-gray-700/50 transition-all active:scale-90"
+                                            whileHover={{ scale: 1.1 }}
+                                            whileTap={{ scale: 0.95 }}
+                                        >
+                                            <Folder size={20} />
+                                        </motion.button>
+                                    )}
                                     <span
-                                        className="font-bold text-white break-words"
+                                        className="font-bold text-white break-words flex-1 min-w-0"
                                         data-tooltip-id={`tooltip-${node.id}`}
                                         data-tooltip-content={node.label}
                                         data-tooltip-place="top"
@@ -152,15 +160,16 @@ const PermissionsList = React.memo(({
                                 )}
                             </div>
                             <div className="flex-shrink-0">
-                                <button
+                                <motion.button
                                     onClick={(e) => { e.stopPropagation(); onToggle(node.id, !isChecked); }}
                                     className={`relative inline-flex items-center h-6 w-11 rounded-full transition-all ${isChecked ? 'bg-green-500' : 'bg-gray-600'} hover:scale-105 active:scale-95`}
+                                    whileTap={{ scale: 0.95 }}
                                 >
                                     <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-all ${isChecked ? 'translate-x-6 rtl:-translate-x-6' : 'translate-x-1 rtl:-translate-x-1'}`} />
-                                </button>
+                                </motion.button>
                             </div>
                         </div>
-                    </div>
+                    </motion.div>
                 );
             })}
             <Tooltip id="tooltip" className="bg-gray-700 text-white rounded-md p-2 shadow-lg z-50" />
@@ -429,7 +438,7 @@ const JobPermissionsPage = () => {
           setPath(prevPath => {
               // إذا كان المسار فارغًا، لا حاجة للتحديث
               if (prevPath.length === 0) return prevPath;
-    
+  
               return prevPath.map(item => {
                   const node = findNode(servicesTree, item.id);
                   // إذا تم العثور على العقدة، قم بتحديث التسمية (label)
@@ -440,7 +449,7 @@ const JobPermissionsPage = () => {
               });
           });
       };
-    
+  
       updatePathLabels();
     }, [language, servicesTree, findNode]); // الاعتماد على اللغة وشجرة الخدمات لضمان التحديث الصحيح
 
@@ -717,6 +726,10 @@ const JobPermissionsPage = () => {
     
     const handleGoBack = useCallback(() => {
         setPath(prevPath => {
+            if (prevPath.length === 0) {
+                // إذا كان المسار فارغًا، لا تفعل شيئًا لمنع العودة إلى صفحة غير مرغوبة
+                return prevPath;
+            }
             const newPath = prevPath.slice(0, -1);
             let targetNode;
             if (newPath.length === 0) {
@@ -753,18 +766,73 @@ const JobPermissionsPage = () => {
         }
     }, [language]);
 
+    // **التغيير الجديد: التعامل مع زر الرجوع في المتصفح**
+    useEffect(() => {
+        if (selectedJobId !== null) {
+            // إضافة مسار إلى history Stack عند تغيير المسار في الشجرة
+            const state = { path: path };
+            history.pushState(state, '');
+        }
+
+        const handlePopState = (e: PopStateEvent) => {
+            // تحقق من وجود مسار في حالة history
+            if (e.state && e.state.path && Array.isArray(e.state.path)) {
+                setPath(e.state.path);
+            } else {
+                // إذا لم يكن هناك مسار في الـ history، عد إلى المستوى الأعلى
+                handleGoBack();
+            }
+        };
+
+        window.addEventListener('popstate', handlePopState);
+
+        return () => {
+            window.removeEventListener('popstate', handlePopState);
+        };
+    }, [path, selectedJobId, handleGoBack]);
+
     if (!hasPermission('ss:9')) {
-        return <AdminSectionLayout mainServiceId={17}><div className="text-center text-red-500 p-10">{t.noPermission}</div></AdminSectionLayout>;
+        return (
+            <AdminSectionLayout mainServiceId={17}>
+                <motion.div
+                    key="no-permission"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
+                    className="text-center text-red-500 p-10"
+                >
+                    {t.noPermission}
+                </motion.div>
+            </AdminSectionLayout>
+        );
     }
 
     if (isLoading) {
-        return <AdminSectionLayout mainServiceId={17}><div className="flex justify-center items-center h-64"><LoaderCircle className="animate-spin text-[#FFD700]" size={48} /></div></AdminSectionLayout>;
+        return (
+            <AdminSectionLayout mainServiceId={17}>
+                <motion.div
+                    key="loading"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
+                    className="flex justify-center items-center h-64"
+                >
+                    <LoaderCircle className="animate-spin text-[#FFD700]" size={48} />
+                </motion.div>
+            </AdminSectionLayout>
+        );
     }
     
     const jobTitleElement = (
     <div className="flex flex-col gap-2 p-2">
         {selectedJobId ? (
-            <div className="flex flex-col gap-2">
+            <motion.div
+                key={`job-selected-${selectedJobId}-${language}`}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="flex flex-col gap-2"
+            >
             <div className="flex items-center justify-between gap-2">
                 <span
                 className={`font-extrabold text-lg text-[#FFD700] break-words`}
@@ -799,9 +867,14 @@ const JobPermissionsPage = () => {
                     </span>
                 </motion.div>
             </AnimatePresence>
-            </div>
+            </motion.div>
         ) : (
-            <>
+            <motion.div
+                key={`job-not-selected-${language}`}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+            >
             <div className="relative mb-2">
                 <div className="absolute inset-y-0 start-0 flex items-center ps-2 pointer-events-none">
                 <Search className="w-3 h-3 text-gray-400" />
@@ -835,13 +908,19 @@ const JobPermissionsPage = () => {
                 </div>
                 )}
             </div>
-            </>
+            </motion.div>
         )}
     </div>
     );
 
     const Breadcrumb = () => (
-        <div className="flex items-center text-sm font-semibold text-gray-400 gap-1 overflow-x-auto custom-scrollbar whitespace-nowrap p-2">
+        <motion.div
+            key={`breadcrumb-${path.length}-${language}`}
+            initial={{ opacity: 0, x: isRTL ? 20 : -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.2 }}
+            className="flex items-center text-sm font-semibold text-gray-400 gap-1 overflow-x-auto custom-scrollbar whitespace-nowrap p-2"
+        >
             <span
                 className="cursor-pointer text-gray-400 hover:text-white transition-colors"
                 onClick={() => setPath([])}
@@ -859,7 +938,7 @@ const JobPermissionsPage = () => {
                     </span>
                 </React.Fragment>
             ))}
-        </div>
+        </motion.div>
     );
 
     return (
@@ -881,16 +960,26 @@ const JobPermissionsPage = () => {
             )}
           </AnimatePresence>
           
-          <div
+          <motion.div
+            key={`sticky-header-${language}`}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
             className="sticky top-0 z-20 bg-gray-900/80 backdrop-blur-sm shadow-lg rounded-lg"
             style={{ top: `${mainHeaderHeight}px`, transition: 'top 0.3s ease-in-out' }}
           >
               {jobTitleElement}
               {selectedJobId && path.length > 0 && <Breadcrumb />}
-          </div>
+          </motion.div>
           
           {selectedJobId && (
-            <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6 overflow-hidden relative">
+            <motion.div
+                key={`permissions-content-${language}`}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="bg-gray-800/50 border border-gray-700 rounded-lg p-6 overflow-hidden relative"
+            >
               
               <div className="mb-4 p-3 bg-gray-900/50 rounded-lg border border-gray-700/50">
                 <h3 className="text-sm font-semibold text-gray-400 mb-2">{t.controlElementsTitle}</h3>
@@ -954,7 +1043,7 @@ const JobPermissionsPage = () => {
                     </button>
                   </motion.div>
               </AnimatePresence>
-            </div>
+            </motion.div>
           )}
         </div>
         <Toaster />
