@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { useAuth } from '../../components/contexts/UserContext';
 import { useLanguage } from '../../components/contexts/LanguageContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Save, LoaderCircle, ChevronRight, Check, X, Search, ChevronLeft, RotateCcw, Edit, Folder } from 'lucide-react';
+import { Save, LoaderCircle, ChevronRight, Check, X, Search, ChevronLeft, RotateCcw, Edit, Folder, FolderOpen } from 'lucide-react';
 import AdminSectionLayout from '../../layouts/AdminSectionLayout';
 import { Tooltip } from 'react-tooltip';
 import 'react-tooltip/dist/react-tooltip.css';
@@ -23,7 +23,6 @@ type PathItem = {
     label: string;
 };
 
-// وظيفة لعرض إشعار تأكيد مخصص
 const confirmToast = (message: string, onConfirm: () => void, onCancel: () => void, t: any) => {
     toast((toastInstance) => (
         <div className="relative z-50 p-4 bg-gray-800 rounded-lg shadow-xl min-w-[280px]">
@@ -138,9 +137,6 @@ const PermissionsList = React.memo(({
                                     )}
                                     <span
                                         className="font-bold text-white break-words flex-1 min-w-0"
-                                        data-tooltip-id={`tooltip-${node.id}`}
-                                        data-tooltip-content={node.label}
-                                        data-tooltip-place="top"
                                     >
                                         {node.label}
                                     </span>
@@ -172,7 +168,6 @@ const PermissionsList = React.memo(({
                     </motion.div>
                 );
             })}
-            <Tooltip id="tooltip" className="bg-gray-700 text-white rounded-md p-2 shadow-lg z-50" />
         </div>
     );
 });
@@ -249,13 +244,68 @@ const translations = {
     }
 };
 
+interface BreadcrumbProps {
+    path: PathItem[];
+    setPath: React.Dispatch<React.SetStateAction<PathItem[]>>;
+    language: string;
+    translations: { [key: string]: any };
+    isRTL: boolean;
+}
+
+const MemoizedBreadcrumb = React.memo(({ path, setPath, language, translations, isRTL }: BreadcrumbProps) => {
+    const t = translations[language];
+    return (
+        <motion.div
+            key={`breadcrumb-${path.length}-${language}`}
+            initial={{ opacity: 0, x: isRTL ? 20 : -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.2 }}
+            className="flex items-center text-sm font-semibold text-gray-400 gap-1 overflow-x-auto custom-scrollbar whitespace-nowrap p-2 rounded-lg bg-gray-900 shadow-inner shadow-gray-700/20"
+        >
+            <motion.button
+                onClick={() => setPath([])}
+                className="flex items-center gap-2 p-2 rounded-lg transition-all cursor-pointer text-[#FFD700] bg-gray-800 hover:bg-gray-700 active:scale-95 transform whitespace-nowrap"
+                aria-label={t.root}
+                whileTap={{ scale: 0.95 }}
+                whileHover={{ scale: 1.05 }}
+            >
+                <Folder size={18} className="text-[#FFD700]" />
+                <span className="hidden sm:inline-block font-bold">{t.root}</span>
+            </motion.button>
+
+            {path.map((item, index) => (
+                <React.Fragment key={item.id}>
+                    <ChevronRight size={18} className={`mx-1 text-gray-500 ${isRTL ? 'rotate-180' : ''}`} />
+                    <motion.button
+                        onClick={() => setPath(path.slice(0, index + 1))}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all cursor-pointer ${
+                            index === path.length - 1
+                                ? 'bg-gradient-to-r from-gray-700 to-gray-800 text-white shadow-lg'
+                                : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                        } active:scale-95 transform whitespace-nowrap`}
+                        aria-label={item.label}
+                        whileTap={{ scale: 0.95 }}
+                        whileHover={{ scale: 1.05 }}
+                    >
+                        {index === path.length - 1 ? (
+                            <FolderOpen size={18} className="text-[#FFD700]" />
+                        ) : (
+                            <Folder size={18} />
+                        )}
+                        <span className="font-bold">{item.label}</span>
+                    </motion.button>
+                </React.Fragment>
+            ))}
+        </motion.div>
+    );
+});
+
 const JobPermissionsPage = () => {
     const { language } = useLanguage();
     const { hasPermission, user } = useAuth();
     const isRTL = language === 'ar';
     const navigate = useNavigate(); 
     
-    // تعريف ref للهيدر للحصول على ارتفاعه
     const headerRef = useRef<HTMLElement>(null);
     const [mainHeaderHeight, setMainHeaderHeight] = useState(0);
 
@@ -431,27 +481,23 @@ const JobPermissionsPage = () => {
         };
     }, [hasChanges]);
     
-    // useEffect جديد لتحديث المسار عند تغيير اللغة
     useEffect(() => {
-      // هذه الدالة تعيد بناء المسار بناءً على اللغة الجديدة
       const updatePathLabels = () => {
           setPath(prevPath => {
-              // إذا كان المسار فارغًا، لا حاجة للتحديث
               if (prevPath.length === 0) return prevPath;
   
               return prevPath.map(item => {
                   const node = findNode(servicesTree, item.id);
-                  // إذا تم العثور على العقدة، قم بتحديث التسمية (label)
                   if (node) {
                       return { ...item, label: node.label };
                   }
-                  return item; // وإلا، أعد العنصر كما هو
+                  return item;
               });
           });
       };
   
       updatePathLabels();
-    }, [language, servicesTree, findNode]); // الاعتماد على اللغة وشجرة الخدمات لضمان التحديث الصحيح
+    }, [language, servicesTree, findNode]);
 
     useEffect(() => {
         const fetchInitialData = async () => {
@@ -572,7 +618,6 @@ const JobPermissionsPage = () => {
         });
     }, [servicesTree, findNode]);
     
-    // دالة الحفظ التي تحتوي على المنطق
     const handleSave = async () => {
         if (!selectedJobId || !user) return;
         setIsSaving(true);
@@ -657,7 +702,6 @@ const JobPermissionsPage = () => {
         });
     }, [filteredNodes]);
     
-    // دوال التأكيد الجديدة
     const handleConfirmSelectAll = useCallback(() => {
         setIsConfirming(true);
         confirmToast(t.confirmSelectAll,
@@ -726,10 +770,6 @@ const JobPermissionsPage = () => {
     
     const handleGoBack = useCallback(() => {
         setPath(prevPath => {
-            if (prevPath.length === 0) {
-                // إذا كان المسار فارغًا، لا تفعل شيئًا لمنع العودة إلى صفحة غير مرغوبة
-                return prevPath;
-            }
             const newPath = prevPath.slice(0, -1);
             let targetNode;
             if (newPath.length === 0) {
@@ -765,31 +805,6 @@ const JobPermissionsPage = () => {
             setMainHeaderHeight(mainHeader.offsetHeight);
         }
     }, [language]);
-
-    // **التغيير الجديد: التعامل مع زر الرجوع في المتصفح**
-    useEffect(() => {
-        if (selectedJobId !== null) {
-            // إضافة مسار إلى history Stack عند تغيير المسار في الشجرة
-            const state = { path: path };
-            history.pushState(state, '');
-        }
-
-        const handlePopState = (e: PopStateEvent) => {
-            // تحقق من وجود مسار في حالة history
-            if (e.state && e.state.path && Array.isArray(e.state.path)) {
-                setPath(e.state.path);
-            } else {
-                // إذا لم يكن هناك مسار في الـ history، عد إلى المستوى الأعلى
-                handleGoBack();
-            }
-        };
-
-        window.addEventListener('popstate', handlePopState);
-
-        return () => {
-            window.removeEventListener('popstate', handlePopState);
-        };
-    }, [path, selectedJobId, handleGoBack]);
 
     if (!hasPermission('ss:9')) {
         return (
@@ -912,35 +927,7 @@ const JobPermissionsPage = () => {
         )}
     </div>
     );
-
-    const Breadcrumb = () => (
-        <motion.div
-            key={`breadcrumb-${path.length}-${language}`}
-            initial={{ opacity: 0, x: isRTL ? 20 : -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.2 }}
-            className="flex items-center text-sm font-semibold text-gray-400 gap-1 overflow-x-auto custom-scrollbar whitespace-nowrap p-2"
-        >
-            <span
-                className="cursor-pointer text-gray-400 hover:text-white transition-colors"
-                onClick={() => setPath([])}
-            >
-                {t.root}
-            </span>
-            {path.map((item, index) => (
-                <React.Fragment key={item.id}>
-                    <ChevronRight size={16} className={`mx-1 text-gray-500 ${isRTL ? 'rotate-180' : ''}`} />
-                    <span
-                        className={`cursor-pointer ${index === path.length - 1 ? 'text-white' : 'text-gray-400 hover:text-white transition-colors'}`}
-                        onClick={() => setPath(path.slice(0, index + 1))}
-                    >
-                        {item.label}
-                    </span>
-                </React.Fragment>
-            ))}
-        </motion.div>
-    );
-
+    
     return (
       <AdminSectionLayout
         mainServiceId={17}
@@ -969,7 +956,15 @@ const JobPermissionsPage = () => {
             style={{ top: `${mainHeaderHeight}px`, transition: 'top 0.3s ease-in-out' }}
           >
               {jobTitleElement}
-              {selectedJobId && path.length > 0 && <Breadcrumb />}
+              {selectedJobId && path.length > 0 && (
+                <MemoizedBreadcrumb 
+                    path={path} 
+                    setPath={setPath} 
+                    language={language} 
+                    translations={translations} 
+                    isRTL={isRTL} 
+                />
+              )}
           </motion.div>
           
           {selectedJobId && (
