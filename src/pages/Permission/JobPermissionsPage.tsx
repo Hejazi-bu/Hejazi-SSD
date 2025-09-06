@@ -199,7 +199,10 @@ const translations = {
         confirmYes: "نعم، تجاهل التغييرات",
         confirmCancel: "إلغاء",
         globalActions: "إجراءات شاملة",
-        noResults: "لا توجد نتائج."
+        noResults: "لا توجد نتائج.",
+        confirmSelectAll: "سيتم تفعيل جميع الصلاحيات المعروضة الآن. هل تريد المتابعة؟",
+        confirmDeselectAll: "سيتم تعطيل جميع الصلاحيات المعروضة الآن. هل تريد المتابعة؟",
+        confirmReset: "سيتم إعادة تهيئة الصلاحيات المعروضة الآن إلى حالتها الأصلية. هل تريد المتابعة؟"
     },
     en: {
         pageTitle: "Job Permissions Management",
@@ -228,10 +231,12 @@ const translations = {
         confirmYes: "Yes, Discard Changes",
         confirmCancel: "Cancel",
         globalActions: "Global Actions",
-        noResults: "No results."
+        noResults: "No results.",
+        confirmSelectAll: "This will enable all currently displayed permissions. Do you want to proceed?",
+        confirmDeselectAll: "This will disable all currently displayed permissions. Do you want to proceed?",
+        confirmReset: "This will reset all currently displayed permissions to their original state. Do you want to proceed?"
     }
 };
-
 
 const JobPermissionsPage = () => {
     const { language } = useLanguage();
@@ -335,12 +340,12 @@ const JobPermissionsPage = () => {
     const hasVisibleChanges = useMemo(() => {
       const currentVisiblePerms = new Set<string>();
       const traverseAndCheck = (nodes: ServiceNode[]) => {
-          nodes.forEach(node => {
-              if (jobPermissions.has(node.id)) {
-                  currentVisiblePerms.add(node.id);
-              }
-              traverseAndCheck(node.children);
-          });
+            nodes.forEach(node => {
+                if (jobPermissions.has(node.id)) {
+                    currentVisiblePerms.add(node.id);
+                }
+                traverseAndCheck(node.children);
+            });
       };
       traverseAndCheck(filteredNodes);
       
@@ -380,16 +385,15 @@ const JobPermissionsPage = () => {
         return initialIdsString !== currentIdsString;
     }, [jobPermissions, initialJobPermissions]);
     
-    // استخدام usePrompt لتنبيه المستخدم عند وجود تغييرات غير محفوظة
     const handleNavigationWithPrompt = useCallback(() => {
         if (hasChanges) {
             setIsConfirming(true);
             confirmToast(t.unsavedChangesWarning,
-                () => { // onConfirm
+                () => {
                     navigate('/dashboard');
                     setIsConfirming(false);
                 },
-                () => { // onCancel
+                () => {
                     setIsConfirming(false);
                 },
                 t
@@ -442,7 +446,6 @@ const JobPermissionsPage = () => {
         if(hasPermission('ss:9')) fetchInitialData(); else setIsLoading(false);
     }, [language, hasPermission, findNode]);
     
-    // ** التأثير الجديد لتحديث الاسم عند تغيير اللغة **
     useEffect(() => {
         if (selectedJobId !== null) {
             const job = jobs.find(j => j.id === selectedJobId);
@@ -474,7 +477,7 @@ const JobPermissionsPage = () => {
         if (hasChanges) {
             setIsConfirming(true);
             confirmToast(t.unsavedChangesWarning,
-                () => { // onConfirm
+                () => {
                     setSelectedJobId(null);
                     setSelectedJobName('');
                     setJobPermissions(new Set());
@@ -483,7 +486,7 @@ const JobPermissionsPage = () => {
                     setJobSearchFilter('');
                     setIsConfirming(false);
                 },
-                () => { // onCancel
+                () => {
                     setIsConfirming(false);
                 },
                 t
@@ -605,6 +608,50 @@ const JobPermissionsPage = () => {
         });
     }, [filteredNodes]);
     
+    // دوال التأكيد الجديدة
+    const handleConfirmSelectAll = () => {
+        setIsConfirming(true);
+        confirmToast(t.confirmSelectAll,
+            () => {
+                handleSelectAllVisible(true);
+                setIsConfirming(false);
+            },
+            () => {
+                setIsConfirming(false);
+            },
+            t
+        );
+    };
+
+    const handleConfirmDeselectAll = () => {
+        setIsConfirming(true);
+        confirmToast(t.confirmDeselectAll,
+            () => {
+                handleSelectAllVisible(false);
+                setIsConfirming(false);
+            },
+            () => {
+                setIsConfirming(false);
+            },
+            t
+        );
+    };
+    
+    const handleConfirmResetVisible = () => {
+        setIsConfirming(true);
+        confirmToast(t.confirmReset,
+            () => {
+                handleResetVisible();
+                setIsConfirming(false);
+            },
+            () => {
+                setIsConfirming(false);
+            },
+            t
+        );
+    };
+
+
     const handleNavigate = useCallback((node: ServiceNode) => {
         if (node.children && node.children.length > 0) {
             const initialPermsForView = getInitialVisiblePermissions(node.children, initialJobPermissions);
@@ -651,19 +698,6 @@ const JobPermissionsPage = () => {
     
     const containerKey = path.map(p => p.id).join('-');
 
-    const [scrollProgress, setScrollProgress] = useState(0);
-
-    useEffect(() => {
-        const handleScroll = () => {
-            const scrollY = window.scrollY;
-            const maxScroll = 100;
-            const progress = Math.min(1, scrollY / maxScroll);
-            setScrollProgress(progress);
-        };
-        window.addEventListener('scroll', handleScroll);
-        return () => window.removeEventListener('scroll', handleScroll);
-    }, []);
-
     useEffect(() => {
         const mainHeader = document.querySelector('header.sticky');
         if (mainHeader instanceof HTMLElement) {
@@ -680,96 +714,82 @@ const JobPermissionsPage = () => {
     }
     
     const jobTitleElement = (
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-        transition={{ duration: 0.3 }}
-        className={`bg-gray-800/50 border border-gray-700 rounded-lg p-4`}
-      >
+    <div className="flex flex-col gap-2">
         {selectedJobId ? (
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between gap-4">
-              {/* استخدام scale() بدلاً من تغيير حجم الخط والهوامش */}
-              <span
-                style={{
-                  transform: `scale(${1 - 0.2 * scrollProgress})`,
-                  transformOrigin: isRTL ? 'right' : 'left',
-                  transition: 'none' // لا يزال مهمًا لمنع الانتقالات غير المتزامنة
-                }}
-                className={`font-extrabold text-[#FFD700] break-words`}
-              >
+            <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+                <span
+                className={`font-extrabold text-lg text-[#FFD700] break-words`}
+                >
                 {selectedJobName}
-              </span>
-              <button
-                onClick={handleChangeJob}
-                className={`flex items-center justify-center gap-2 px-4 py-2 font-semibold bg-gray-700 rounded-md text-gray-300 transition-all hover:scale-105 active:scale-95`}
-              >
-                <Edit size={20} />
-                <span className="hidden md:block">
-                  {t.changeJob}
                 </span>
-              </button>
+                <button
+                onClick={handleChangeJob}
+                className={`flex items-center justify-center gap-1 px-2 py-1 font-semibold bg-gray-700 rounded-md text-gray-300 transition-all hover:scale-105 active:scale-95 text-xs`}
+                >
+                <Edit size={16} />
+                <span className="hidden sm:inline">
+                    {t.changeJob}
+                </span>
+                </button>
             </div>
             <AnimatePresence>
-              {scrollProgress < 1 && (
                 <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="flex flex-col sm:flex-row sm:items-center gap-4 text-sm text-gray-400 overflow-hidden"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex items-center gap-2 text-xs text-gray-400 overflow-hidden flex-wrap"
                 >
-                  <span className="flex items-center gap-1">
-                    <Check size={16} className="text-green-400" />
+                    <span className="flex items-center gap-1">
+                    <Check size={12} className="text-green-400" />
                     {enabledPermissionsCount}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <X size={16} className="text-red-400" />
+                    </span>
+                    <span className="flex items-center gap-1">
+                    <X size={12} className="text-red-400" />
                     {disabledPermissionsCount}
-                  </span>
+                    </span>
                 </motion.div>
-              )}
             </AnimatePresence>
-          </div>
+            </div>
         ) : (
-          <>
-            <div className="relative mb-4">
-              <div className="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none">
-                <Search className="w-4 h-4 text-gray-400" />
-              </div>
-              <input
+            <>
+            <div className="relative mb-2">
+                <div className="absolute inset-y-0 start-0 flex items-center ps-2 pointer-events-none">
+                <Search className="w-3 h-3 text-gray-400" />
+                </div>
+                <input
                 type="text"
                 placeholder={t.searchJobPlaceholder}
                 value={jobSearchFilter}
                 onChange={(e) => setJobSearchFilter(e.target.value)}
-                className="block w-full ps-10 pe-3 py-2 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg focus:ring-yellow-500 focus:border-yellow-500"
-              />
+                className="block w-full ps-8 pe-2 py-1 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg focus:ring-yellow-500 focus:border-yellow-500"
+                />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 max-h-96 overflow-y-auto custom-scrollbar">
-              {filteredJobs.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 max-h-96 overflow-y-auto custom-scrollbar">
+                {filteredJobs.length > 0 ? (
                 filteredJobs.map(job => (
-                  <motion.div
+                    <motion.div
                     key={job.id}
-                    className="p-4 bg-gray-700/50 rounded-lg cursor-pointer hover:bg-gray-600/50 transition-colors"
+                    className="p-2 bg-gray-700/50 rounded-lg cursor-pointer hover:bg-gray-600/50 transition-colors"
                     onClick={() => handleSelectJob(job)}
-                    initial={{ opacity: 0, y: 20 }}
+                    initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
+                    exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.2 }}
-                  >
-                    <span className="font-semibold text-white">{language === 'ar' ? job.name_ar : job.name_en}</span>
-                  </motion.div>
+                    >
+                    <span className="font-semibold text-white text-sm">{language === 'ar' ? job.name_ar : job.name_en}</span>
+                    </motion.div>
                 ))
-              ) : (
-                <div className="col-span-full text-center text-gray-500 py-10">
-                  {t.noSearchResults}
+                ) : (
+                <div className="col-span-full text-center text-gray-500 py-6">
+                    {t.noSearchResults}
                 </div>
-              )}
+                )}
             </div>
-          </>
+            </>
         )}
-      </motion.div>
+    </div>
     );
 
     return (
@@ -791,8 +811,11 @@ const JobPermissionsPage = () => {
             )}
           </AnimatePresence>
           
-          <div className="sticky z-20" style={{ top: `${mainHeaderHeight}px` }}>
-            <div className={`bg-gray-900/80 backdrop-blur-sm shadow-lg rounded-lg`}>
+          <div
+            className="sticky z-20"
+            style={{ top: `${mainHeaderHeight}px`, transition: 'top 0.3s ease-in-out' }}
+          >
+            <div className={`bg-gray-900/80 backdrop-blur-sm shadow-lg rounded-lg p-2`}>
               {jobTitleElement}
             </div>
           </div>
@@ -821,21 +844,21 @@ const JobPermissionsPage = () => {
                 <p className="text-xs text-gray-500 mb-4">{t.visibleActionsDescription}</p>
                 <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={() => handleSelectAllVisible(true)}
+                    onClick={handleConfirmSelectAll}
                     disabled={allVisibleNodesSelected}
                     className={`flex items-center gap-1 justify-center h-8 text-xs px-2 rounded-md text-white bg-gradient-to-r from-green-500 to-green-600 transition-all hover:scale-105 active:scale-95 disabled:from-gray-700 disabled:to-gray-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100`}
                   >
                     <Check size={16} /> {t.selectAll}
                   </button>
                   <button
-                    onClick={() => handleSelectAllVisible(false)}
+                    onClick={handleConfirmDeselectAll}
                     disabled={noVisibleNodesSelected}
                     className={`flex items-center gap-1 justify-center h-8 text-xs px-2 rounded-md text-white bg-gradient-to-r from-red-500 to-red-600 transition-all hover:scale-105 active:scale-95 disabled:from-gray-700 disabled:to-gray-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100`}
                   >
                     { <X size={16} /> } {t.deselectAll}
                   </button>
                   <button
-                    onClick={handleResetVisible}
+                    onClick={handleConfirmResetVisible}
                     disabled={!hasVisibleChanges}
                     className={`flex items-center gap-1 justify-center h-8 text-xs px-2 rounded-md text-white bg-gradient-to-r from-yellow-500 to-yellow-600 transition-all hover:scale-105 active:scale-95 disabled:from-gray-700 disabled:to-gray-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100`}
                   >
@@ -846,36 +869,36 @@ const JobPermissionsPage = () => {
               
               <AnimatePresence mode="wait">
                   <motion.div
-                      key={containerKey}
-                      initial={{ x: isRTL ? '100%' : '-100%', opacity: 0 }}
-                      animate={{ x: 0, opacity: 1 }}
-                      exit={{ x: isRTL ? '-100%' : '100%', opacity: 0 }}
-                      transition={{ type: "tween", duration: 0.3 }}
+                    key={containerKey}
+                    initial={{ x: isRTL ? '100%' : '-100%', opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    exit={{ x: isRTL ? '-100%' : '100%', opacity: 0 }}
+                    transition={{ type: "tween", duration: 0.3 }}
                   >
-                      <PermissionsList
-                          nodes={filteredNodes}
-                          onNavigate={handleNavigate}
-                          onToggle={handlePermissionToggle}
-                          jobPermissions={jobPermissions}
-                      />
+                    <PermissionsList
+                        nodes={filteredNodes}
+                        onNavigate={handleNavigate}
+                        onToggle={handlePermissionToggle}
+                        jobPermissions={jobPermissions}
+                    />
                   </motion.div>
               </AnimatePresence>
               
               <AnimatePresence>
                   <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 20 }}
-                      className="mt-6 flex flex-col md:flex-row md:justify-end gap-4"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 20 }}
+                    className="mt-6 flex flex-col md:flex-row md:justify-end gap-4"
                   >
-                      <button
-                          onClick={handleSave}
-                          disabled={isSaving || !hasChanges}
-                          className={`flex items-center gap-2 px-6 py-3 font-bold bg-[#FFD700] text-black rounded-lg transition-all hover:scale-105 active:scale-95 disabled:bg-gray-700 disabled:text-gray-400 disabled:opacity-50 disabled:hover:bg-gray-700 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100`}
-                      >
-                          {isSaving ? <LoaderCircle className="animate-spin" /> : <Save />}
-                          {isSaving ? t.saving : t.saveChanges}
-                      </button>
+                    <button
+                        onClick={handleSave}
+                        disabled={isSaving || !hasChanges}
+                        className={`flex items-center gap-2 px-6 py-3 font-bold bg-[#FFD700] text-black rounded-lg transition-all hover:scale-105 active:scale-95 disabled:bg-gray-700 disabled:text-gray-400 disabled:opacity-50 disabled:hover:bg-gray-700 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100`}
+                    >
+                        {isSaving ? <LoaderCircle className="animate-spin" /> : <Save />}
+                        {isSaving ? t.saving : t.saveChanges}
+                    </button>
                   </motion.div>
               </AnimatePresence>
             </div>
