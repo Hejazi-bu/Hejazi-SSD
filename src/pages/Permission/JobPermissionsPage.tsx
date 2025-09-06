@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { useAuth } from '../../components/contexts/UserContext';
 import { useLanguage } from '../../components/contexts/LanguageContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Save, LoaderCircle, ChevronRight, Check, X, Search, ChevronLeft, RotateCcw, Edit } from 'lucide-react';
+import { Save, LoaderCircle, ChevronRight, Check, X, Search, ChevronLeft, RotateCcw, Edit, Folder } from 'lucide-react';
 import AdminSectionLayout from '../../layouts/AdminSectionLayout';
 import { Tooltip } from 'react-tooltip';
 import 'react-tooltip/dist/react-tooltip.css';
@@ -31,15 +31,6 @@ const confirmToast = (message: string, onConfirm: () => void, onCancel: () => vo
             <p className="text-sm font-semibold text-gray-200 mb-4">{message}</p>
             <div className="flex gap-2 w-full justify-end">
                 <button
-                    className="bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-4 py-2 rounded-md transition-colors"
-                    onClick={() => {
-                        onConfirm();
-                        toast.dismiss(toastInstance.id);
-                    }}
-                >
-                    {t.confirmYes}
-                </button>
-                <button
                     className="bg-gray-500 hover:bg-gray-600 text-white text-xs font-bold px-4 py-2 rounded-md transition-colors"
                     onClick={() => {
                         onCancel();
@@ -47,6 +38,15 @@ const confirmToast = (message: string, onConfirm: () => void, onCancel: () => vo
                     }}
                 >
                     {t.confirmCancel}
+                </button>
+                <button
+                    className="bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-4 py-2 rounded-md transition-colors"
+                    onClick={() => {
+                        onConfirm();
+                        toast.dismiss(toastInstance.id);
+                    }}
+                >
+                    {t.confirmYes}
                 </button>
             </div>
         </div>
@@ -127,9 +127,7 @@ const PermissionsList = React.memo(({
                         >
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-3">
-                                    {hasChildren && (
-                                        <ChevronRight size={18} className={`text-gray-400 transition-transform duration-200 ${isRTL ? 'rotate-180' : ''}`} />
-                                    )}
+                                    {hasChildren && <Folder size={18} className="text-yellow-400" />}
                                     <span
                                         className="font-bold text-white break-words"
                                         data-tooltip-id={`tooltip-${node.id}`}
@@ -196,14 +194,15 @@ const translations = {
         changeJob: "تغيير المسمى",
         unsavedChangesWarning: "لديك تعديلات غير محفوظة. هل أنت متأكد من أنك تريد المتابعة؟",
         confirmTitle: "تنبيه!",
-        confirmYes: "نعم، تجاهل التغييرات",
+        confirmYes: "نعم، متابعة",
         confirmCancel: "إلغاء",
         globalActions: "إجراءات شاملة",
         noResults: "لا توجد نتائج.",
         confirmSelectAll: "سيتم تفعيل جميع الصلاحيات المعروضة الآن. هل تريد المتابعة؟",
         confirmDeselectAll: "سيتم تعطيل جميع الصلاحيات المعروضة الآن. هل تريد المتابعة؟",
         confirmReset: "سيتم إعادة تهيئة الصلاحيات المعروضة الآن إلى حالتها الأصلية. هل تريد المتابعة؟",
-        confirmSave: "سيتم حفظ جميع التغييرات التي قمت بها. هل تريد المتابعة؟"
+        confirmSave: "سيتم حفظ جميع التغييرات التي قمت بها. هل تريد المتابعة؟",
+        root: "الرئيسية"
     },
     en: {
         pageTitle: "Job Permissions Management",
@@ -229,17 +228,17 @@ const translations = {
         changeJob: "Change Job",
         unsavedChangesWarning: "You have unsaved changes. Are you sure you want to proceed?",
         confirmTitle: "Warning!",
-        confirmYes: "Yes, Discard Changes",
+        confirmYes: "Yes, proceed",
         confirmCancel: "Cancel",
         globalActions: "Global Actions",
         noResults: "No results.",
         confirmSelectAll: "This will enable all currently displayed permissions. Do you want to proceed?",
         confirmDeselectAll: "This will disable all currently displayed permissions. Do you want to proceed?",
         confirmReset: "This will reset all currently displayed permissions to their original state. Do you want to proceed?",
-        confirmSave: "This will save all your changes. Do you want to proceed?"
+        confirmSave: "This will save all your changes. Do you want to proceed?",
+        root: "Home"
     }
 };
-
 
 const JobPermissionsPage = () => {
     const { language } = useLanguage();
@@ -407,6 +406,21 @@ const JobPermissionsPage = () => {
     }, [hasChanges, t, navigate]);
 
     usePrompt(t.unsavedChangesWarning, hasChanges);
+
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            if (hasChanges) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+        };
+    }, [hasChanges]);
 
     useEffect(() => {
         const fetchInitialData = async () => {
@@ -708,13 +722,6 @@ const JobPermissionsPage = () => {
         });
     }, [initialJobPermissions, servicesTree, getInitialVisiblePermissions]);
 
-    const headerTitle = useMemo(() => {
-        if (path.length === 0) {
-            return t.permissionsTree;
-        }
-        return path.map(item => item.label).join(' - ');
-    }, [path, t]);
-    
     const containerKey = path.map(p => p.id).join('-');
 
     useEffect(() => {
@@ -733,7 +740,7 @@ const JobPermissionsPage = () => {
     }
     
     const jobTitleElement = (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2 p-2">
         {selectedJobId ? (
             <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-2">
@@ -811,6 +818,28 @@ const JobPermissionsPage = () => {
     </div>
     );
 
+    const Breadcrumb = () => (
+        <div className="flex items-center text-sm font-semibold text-gray-400 gap-1 overflow-x-auto custom-scrollbar whitespace-nowrap p-2">
+            <span
+                className="cursor-pointer text-gray-400 hover:text-white transition-colors"
+                onClick={() => setPath([])}
+            >
+                {t.root}
+            </span>
+            {path.map((item, index) => (
+                <React.Fragment key={item.id}>
+                    <ChevronRight size={16} className={`mx-1 text-gray-500 ${isRTL ? 'rotate-180' : ''}`} />
+                    <span
+                        className={`cursor-pointer ${index === path.length - 1 ? 'text-white' : 'text-gray-400 hover:text-white transition-colors'}`}
+                        onClick={() => setPath(path.slice(0, index + 1))}
+                    >
+                        {item.label}
+                    </span>
+                </React.Fragment>
+            ))}
+        </div>
+    );
+
     return (
       <AdminSectionLayout
         mainServiceId={17}
@@ -831,32 +860,15 @@ const JobPermissionsPage = () => {
           </AnimatePresence>
           
           <div
-            className="sticky z-20"
+            className="sticky top-0 z-20 bg-gray-900/80 backdrop-blur-sm shadow-lg rounded-lg"
             style={{ top: `${mainHeaderHeight}px`, transition: 'top 0.3s ease-in-out' }}
           >
-            <div className={`bg-gray-900/80 backdrop-blur-sm shadow-lg rounded-lg p-2`}>
               {jobTitleElement}
-            </div>
+              {selectedJobId && path.length > 0 && <Breadcrumb />}
           </div>
           
           {selectedJobId && (
             <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6 overflow-hidden relative">
-              <div className="flex items-center gap-4 mb-4">
-                {path.length > 0 && (
-                  <button onClick={handleGoBack} className="p-2 rounded-full hover:bg-gray-700 transition-all hover:scale-105 active:scale-95">
-                    <ChevronLeft size={24} className={`text-white ${isRTL ? 'rotate-180' : ''}`} />
-                  </button>
-                )}
-                <h2
-                  className="font-bold text-xl break-words text-white"
-                  data-tooltip-id="header-tooltip"
-                  data-tooltip-content={headerTitle}
-                  data-tooltip-place="top"
-                >
-                  {headerTitle}
-                </h2>
-                <Tooltip id="header-tooltip" className="bg-gray-700 text-white rounded-md p-2 shadow-lg z-50" />
-              </div>
               
               <div className="mb-4 p-3 bg-gray-900/50 rounded-lg border border-gray-700/50">
                 <h3 className="text-sm font-semibold text-gray-400 mb-2">{t.controlElementsTitle}</h3>
