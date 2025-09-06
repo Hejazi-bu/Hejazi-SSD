@@ -149,7 +149,7 @@ const PermissionsList = React.memo(({
                                             <X size={12} className="text-red-400" />
                                             {disabledPermissionsCount}
                                         </span>
-                                        <span className="font-semibold">{`(${node.children.length} ${language === 'ar' ? 'خدمات' : 'services'})`}</span>
+                                        <span className="font-semibold">{`(${node.children.length} ${language === 'ar' ? 'services' : 'services'})`}</span>
                                     </div>
                                 )}
                             </div>
@@ -202,7 +202,8 @@ const translations = {
         noResults: "لا توجد نتائج.",
         confirmSelectAll: "سيتم تفعيل جميع الصلاحيات المعروضة الآن. هل تريد المتابعة؟",
         confirmDeselectAll: "سيتم تعطيل جميع الصلاحيات المعروضة الآن. هل تريد المتابعة؟",
-        confirmReset: "سيتم إعادة تهيئة الصلاحيات المعروضة الآن إلى حالتها الأصلية. هل تريد المتابعة؟"
+        confirmReset: "سيتم إعادة تهيئة الصلاحيات المعروضة الآن إلى حالتها الأصلية. هل تريد المتابعة؟",
+        confirmSave: "سيتم حفظ جميع التغييرات التي قمت بها. هل تريد المتابعة؟"
     },
     en: {
         pageTitle: "Job Permissions Management",
@@ -234,9 +235,11 @@ const translations = {
         noResults: "No results.",
         confirmSelectAll: "This will enable all currently displayed permissions. Do you want to proceed?",
         confirmDeselectAll: "This will disable all currently displayed permissions. Do you want to proceed?",
-        confirmReset: "This will reset all currently displayed permissions to their original state. Do you want to proceed?"
+        confirmReset: "This will reset all currently displayed permissions to their original state. Do you want to proceed?",
+        confirmSave: "This will save all your changes. Do you want to proceed?"
     }
 };
+
 
 const JobPermissionsPage = () => {
     const { language } = useLanguage();
@@ -524,6 +527,7 @@ const JobPermissionsPage = () => {
         });
     }, [servicesTree, findNode]);
     
+    // دالة الحفظ التي تحتوي على المنطق
     const handleSave = async () => {
         if (!selectedJobId || !user) return;
         setIsSaving(true);
@@ -609,7 +613,7 @@ const JobPermissionsPage = () => {
     }, [filteredNodes]);
     
     // دوال التأكيد الجديدة
-    const handleConfirmSelectAll = () => {
+    const handleConfirmSelectAll = useCallback(() => {
         setIsConfirming(true);
         confirmToast(t.confirmSelectAll,
             () => {
@@ -621,9 +625,9 @@ const JobPermissionsPage = () => {
             },
             t
         );
-    };
+    }, [t, handleSelectAllVisible]);
 
-    const handleConfirmDeselectAll = () => {
+    const handleConfirmDeselectAll = useCallback(() => {
         setIsConfirming(true);
         confirmToast(t.confirmDeselectAll,
             () => {
@@ -635,9 +639,9 @@ const JobPermissionsPage = () => {
             },
             t
         );
-    };
+    }, [t, handleSelectAllVisible]);
     
-    const handleConfirmResetVisible = () => {
+    const handleConfirmResetVisible = useCallback(() => {
         setIsConfirming(true);
         confirmToast(t.confirmReset,
             () => {
@@ -649,7 +653,22 @@ const JobPermissionsPage = () => {
             },
             t
         );
-    };
+    }, [t, handleResetVisible]);
+
+    const handleConfirmSave = useCallback(() => {
+        setIsConfirming(true);
+        confirmToast(
+            t.confirmSave,
+            () => {
+                handleSave();
+                setIsConfirming(false);
+            },
+            () => {
+                setIsConfirming(false);
+            },
+            t
+        );
+    }, [t, handleSave]);
 
 
     const handleNavigate = useCallback((node: ServiceNode) => {
@@ -892,7 +911,7 @@ const JobPermissionsPage = () => {
                     className="mt-6 flex flex-col md:flex-row md:justify-end gap-4"
                   >
                     <button
-                        onClick={handleSave}
+                        onClick={handleConfirmSave}
                         disabled={isSaving || !hasChanges}
                         className={`flex items-center gap-2 px-6 py-3 font-bold bg-[#FFD700] text-black rounded-lg transition-all hover:scale-105 active:scale-95 disabled:bg-gray-700 disabled:text-gray-400 disabled:opacity-50 disabled:hover:bg-gray-700 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100`}
                     >
