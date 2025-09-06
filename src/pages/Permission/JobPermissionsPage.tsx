@@ -421,6 +421,28 @@ const JobPermissionsPage = () => {
             window.removeEventListener('beforeunload', handleBeforeUnload);
         };
     }, [hasChanges]);
+    
+    // useEffect جديد لتحديث المسار عند تغيير اللغة
+    useEffect(() => {
+      // هذه الدالة تعيد بناء المسار بناءً على اللغة الجديدة
+      const updatePathLabels = () => {
+          setPath(prevPath => {
+              // إذا كان المسار فارغًا، لا حاجة للتحديث
+              if (prevPath.length === 0) return prevPath;
+    
+              return prevPath.map(item => {
+                  const node = findNode(servicesTree, item.id);
+                  // إذا تم العثور على العقدة، قم بتحديث التسمية (label)
+                  if (node) {
+                      return { ...item, label: node.label };
+                  }
+                  return item; // وإلا، أعد العنصر كما هو
+              });
+          });
+      };
+    
+      updatePathLabels();
+    }, [language, servicesTree, findNode]); // الاعتماد على اللغة وشجرة الخدمات لضمان التحديث الصحيح
 
     useEffect(() => {
         const fetchInitialData = async () => {
@@ -461,7 +483,7 @@ const JobPermissionsPage = () => {
             setIsLoading(false);
         };
         if(hasPermission('ss:9')) fetchInitialData(); else setIsLoading(false);
-    }, [language, hasPermission, findNode]);
+    }, [language, hasPermission]);
     
     useEffect(() => {
         if (selectedJobId !== null) {
