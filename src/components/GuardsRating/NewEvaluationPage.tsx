@@ -1,15 +1,16 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { supabase } from "../../lib/supabaseClient"; // تأكد من صحة المسار
-import { cleanText } from "../../utils/textUtils"; // تأكد من صحة المسار
-import { useAuth } from "../contexts/UserContext"; // تأكد من صحة المسار
-import { useLanguage } from "../contexts/LanguageContext"; // تأكد من صحة المسار
+import { supabase } from "../../lib/supabaseClient";
+import { cleanText } from "../../utils/textUtils";
+import { useAuth } from "../contexts/UserContext";
+import { useLanguage } from "../contexts/LanguageContext";
+import LoadingScreen from "../LoadingScreen"; // 👈 هنا قمنا باستيراد مكون شاشة التحميل
 
 // --- أيقونات ومكتبات إضافية ---
 import { CalendarIcon, UsersIcon, ExclamationTriangleIcon, BriefcaseIcon } from "@heroicons/react/24/solid";
 import { motion, Variants } from "framer-motion";
 
 // --- استيراد الهيكل العام ---
-import GuardsRatingLayout from '../GuardsRating/GuardsRatingLayout'; // تأكد من صحة هذا المسار
+import GuardsRatingLayout from '../GuardsRating/GuardsRatingLayout';
 
 // --- الأنواع | Types ---
 type CompanyForEvaluation = {
@@ -92,7 +93,7 @@ function NewEvaluationContent() {
     const [questions, setQuestions] = useState<Question[]>([]);
     const [summary, setSummary] = useState("");
     const [isLoading, setIsLoading] = useState(true);
-    const [isSubmitting, setIsSubmitting] = useState(false); // حالة خاصة لزر الحفظ
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const labels = useMemo(() => ({
         ar: { title: "تقييم أداء جديد", month: "شهر التقييم", company: "اسم الشركة", questions: "أسئلة التقييم", summary: "ملخص التقييم / ملاحظات عامة", save: "حفظ وإرسال للاعتماد", contractNo: "رقم العقد", guardCount: "عدد الحراس", violationsCount: "عدد المخالفات", loading: "جاري تحليل السجلات..." },
@@ -197,9 +198,14 @@ function NewEvaluationContent() {
     const itemVariants: Variants = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } };
     const overallScore = useMemo(() => questions.length > 0 ? (questions.reduce((sum, q) => sum + q.ratingValue, 0) / questions.length) : 0, [questions]);
     
+    // 👈 هنا قمنا باستبدال عنصر التحميل بـ <LoadingScreen />
+    if (isLoading) {
+        return <LoadingScreen />;
+    }
+    
     return (
         <motion.div className="max-w-5xl mx-auto bg-gray-800/50 rounded-xl shadow-2xl space-y-6 p-4 sm:p-6 border border-gray-700" variants={containerVariants} initial="hidden" animate="visible">
-            {isLoading ? <p className="text-center text-gray-300 py-10">{labels[language].loading}</p> : companiesForEval.length > 0 && selectedCompany ? (
+            {companiesForEval.length > 0 && selectedCompany ? (
                 <>
                     <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
                         <div>
@@ -275,7 +281,6 @@ function NewEvaluationContent() {
 export default function NewEvaluationPage() {
     const { language } = useLanguage();
     
-    // تحديد عنوان الصفحة والخدمة النشطة بناءً على اللغة
     const pageTitle = language === 'ar' ? 'تقييم أداء جديد' : 'New Performance Evaluation';
     const activeServiceId = "new-evaluation";
 

@@ -8,12 +8,15 @@ import AppSecurityPage from "./pages/admin/AppSecurityPage";
 import NewEvaluationPage from "./components/GuardsRating/NewEvaluationPage";
 import EvaluationRecordsPage from "./components/GuardsRating/EvaluationRecordsPage";
 import JobPermissionsPage from "./pages/Permission/JobPermissionsPage";
+// 👈 استيراد المكون الجديد هنا
+import UserExceptionsPage from "./pages/Permission/UserExceptionsPage"; 
+import LoadingScreen from "./components/LoadingScreen";
 
 function App() {
   const { isLoading, user } = useAuth();
 
   if (isLoading) {
-    return <div className="flex items-center justify-center min-h-screen text-white bg-gray-900">جاري تحميل الجلسة...</div>;
+    return <LoadingScreen />;
   }
 
   return (
@@ -43,11 +46,22 @@ function App() {
       <Route
           path="/admin/job-permissions"
           element={
-              <ProtectedRoute permissionKey="ss:9">
+              <ProtectedRoute permissionKey="ss:8">
                   <JobPermissionsPage />
               </ProtectedRoute>
           }
       />
+      
+      {/* 👈 إضافة المسار الجديد هنا */}
+      <Route
+          path="/admin/user-exceptions"
+          element={
+              <ProtectedRoute permissionKey="ss:9">
+                  <UserExceptionsPage />
+              </ProtectedRoute>
+          }
+      />
+
       <Route path="*" element={<Navigate to={user ? "/dashboard" : "/login"} replace />} />
     </Routes>
   );

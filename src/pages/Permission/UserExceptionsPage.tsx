@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 // 👈 هنا قمنا باستيراد مكون شاشة التحميل
 import LoadingScreen from '../../components/LoadingScreen';
 
+type User = { id: string; name_ar: string; name_en: string; job_id: number | null; };
 type Job = { id: number; name_ar: string; name_en: string; };
 type ServiceNode = {
     id: string;
@@ -66,11 +67,13 @@ const PermissionsList = React.memo(({
     nodes,
     onNavigate,
     onToggle,
+    userPermissions,
     jobPermissions,
 }: {
     nodes: ServiceNode[];
     onNavigate: (node: ServiceNode) => void;
     onToggle: (id: string, isChecked: boolean) => void;
+    userPermissions: Map<string, boolean>;
     jobPermissions: Set<string>;
 }) => {
     const { language } = useLanguage();
@@ -88,9 +91,9 @@ const PermissionsList = React.memo(({
     return (
         <div className="space-y-3">
             {nodes.map(node => {
-                const isChecked = jobPermissions.has(node.id);
+                const isAllowed = userPermissions.has(node.id) ? userPermissions.get(node.id) : jobPermissions.has(node.id);
                 const hasChildren = node.children && node.children.length > 0;
-
+                
                 const totalPermissionsCount = useMemo(() => {
                     let count = 0;
                     const traverse = (nodes: ServiceNode[]) => {
@@ -107,7 +110,8 @@ const PermissionsList = React.memo(({
                     let count = 0;
                     const traverse = (nodes: ServiceNode[]) => {
                         nodes.forEach(n => {
-                            if (jobPermissions.has(n.id)) {
+                            const childIsAllowed = userPermissions.has(n.id) ? userPermissions.get(n.id) : jobPermissions.has(n.id);
+                            if (childIsAllowed) {
                                 count++;
                             }
                             traverse(n.children);
@@ -115,7 +119,7 @@ const PermissionsList = React.memo(({
                     };
                     traverse(node.children);
                     return count;
-                }, [node.children, jobPermissions]);
+                }, [node.children, userPermissions, jobPermissions]);
                 const disabledPermissionsCount = totalPermissionsCount - enabledPermissionsCount;
 
                 return (
@@ -160,11 +164,11 @@ const PermissionsList = React.memo(({
                             </div>
                             <div className="flex-shrink-0">
                                 <motion.button
-                                    onClick={(e) => { e.stopPropagation(); onToggle(node.id, !isChecked); }}
-                                    className={`relative inline-flex items-center h-6 w-11 rounded-full transition-all ${isChecked ? 'bg-green-500' : 'bg-gray-600'} hover:scale-105 active:scale-95`}
+                                    onClick={(e) => { e.stopPropagation(); onToggle(node.id, !isAllowed); }}
+                                    className={`relative inline-flex items-center h-6 w-11 rounded-full transition-all ${isAllowed ? 'bg-green-500' : 'bg-gray-600'} hover:scale-105 active:scale-95`}
                                     whileTap={{ scale: 0.95 }}
                                 >
-                                    <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-all ${isChecked ? 'translate-x-6 rtl:-translate-x-6' : 'translate-x-1 rtl:-translate-x-1'}`} />
+                                    <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-all ${isAllowed ? 'translate-x-6 rtl:-translate-x-6' : 'translate-x-1 rtl:-translate-x-1'}`} />
                                 </motion.button>
                             </div>
                         </div>
@@ -178,27 +182,27 @@ const PermissionsList = React.memo(({
 
 const translations = {
     ar: {
-        pageTitle: "صلاحيات المسميات الوظيفية",
-        selectJob: "اختر مسمى وظيفي:",
+        pageTitle: "استثناءات المستخدمين",
+        selectUser: "اختر مستخدماً:",
         permissionsTree: "شجرة الصلاحيات",
-        noJobSelected: "يرجى اختيار مسمى وظيفي لبدء إدارة الصلاحيات.",
+        noUserSelected: "يرجى اختيار مستخدم لبدء إدارة الاستثناءات.",
         loading: "جاري التحميل...",
         saveChanges: "حفظ التغييرات",
         saving: "جاري الحفظ...",
-        saveSuccess: "تم حفظ الصلاحيات بنجاح.",
-        saveError: "حدث خطأ أثناء حفظ الصلاحيات.",
+        saveSuccess: "تم حفظ الاستثناءات بنجاح.",
+        saveError: "حدث خطأ أثناء حفظ الاستثناءات.",
         noPermission: "ليس لديك صلاحية.",
         selectAll: "تفعيل الكل",
         deselectAll: "تعطيل الكل",
         resetVisible: "إعادة",
         controlElementsTitle: "عناصر التحكم",
-        visibleActionsDescription: "تتحكم هذه الأزرار في الصلاحيات المعروضة في القائمة الحالية فقط.",
+        visibleActionsDescription: "تتحكم هذه الأزرار في الصلاحيات المعروضة في القائمة الحالية فقط. وهي صلاحيات مستخدمين.",
         searchPermissions: "بحث في الصلاحيات...",
         noSearchResults: "لا توجد نتائج بحث مطابقة.",
         enabledPermissions: "صلاحيات مفعلة",
         disabledPermissions: "صلاحيات غير مفعلة",
-        searchJobPlaceholder: "ابحث عن مسمى وظيفي...",
-        changeJob: "تغيير المسمى",
+        searchUserPlaceholder: "ابحث عن مستخدم...",
+        changeUser: "تغيير المستخدم",
         unsavedChangesWarning: "لديك تعديلات غير محفوظة. هل أنت متأكد من أنك تريد المتابعة؟",
         confirmTitle: "تنبيه!",
         confirmYes: "نعم، متابعة",
@@ -212,27 +216,27 @@ const translations = {
         root: "الرئيسية"
     },
     en: {
-        pageTitle: "Job Permissions Management",
-        selectJob: "Select a Job Title:",
+        pageTitle: "User Exceptions Management",
+        selectUser: "Select a User:",
         permissionsTree: "Permissions Tree",
-        noJobSelected: "Please select a job title to start managing permissions.",
+        noUserSelected: "Please select a user to start managing exceptions.",
         loading: "Loading...",
         saveChanges: "Save Changes",
         saving: "Saving...",
-        saveSuccess: "Permissions saved successfully.",
-        saveError: "An error occurred while saving permissions.",
+        saveSuccess: "Exceptions saved successfully.",
+        saveError: "An error occurred while saving exceptions.",
         noPermission: "No permission.",
         selectAll: "Select All",
         deselectAll: "Deselect All",
         resetVisible: "Reset",
         controlElementsTitle: "Control Elements",
-        visibleActionsDescription: "These buttons control the permissions in the current visible list only.",
+        visibleActionsDescription: "These buttons control the permissions in the current visible list only. These are user permissions.",
         searchPermissions: "Search permissions...",
         noSearchResults: "No matching search results.",
         enabledPermissions: "Enabled permissions",
         disabledPermissions: "Disabled permissions",
-        searchJobPlaceholder: "Search for a job title...",
-        changeJob: "Change Job",
+        searchUserPlaceholder: "Search for a user...",
+        changeUser: "Change User",
         unsavedChangesWarning: "You have unsaved changes. Are you sure you want to proceed?",
         confirmTitle: "Warning!",
         confirmYes: "Yes, proceed",
@@ -303,24 +307,26 @@ const MemoizedBreadcrumb = React.memo(({ path, setPath, language, translations, 
     );
 });
 
-const JobPermissionsPage = () => {
+const UserExceptionsPage = () => {
     const { language } = useLanguage();
     const { hasPermission, user } = useAuth();
     const isRTL = language === 'ar';
-    const navigate = useNavigate(); 
-    
+    const navigate = useNavigate();
+
     const headerRef = useRef<HTMLElement>(null);
     const [mainHeaderHeight, setMainHeaderHeight] = useState(0);
 
+    const [users, setUsers] = useState<User[]>([]);
     const [jobs, setJobs] = useState<Job[]>([]);
-    const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
-    const [selectedJobName, setSelectedJobName] = useState<string>('');
+    const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+    const [selectedUserName, setSelectedUserName] = useState<string>('');
     const [servicesTree, setServicesTree] = useState<ServiceNode[]>([]);
+    const [userPermissions, setUserPermissions] = useState<Map<string, boolean>>(new Map());
     const [jobPermissions, setJobPermissions] = useState<Set<string>>(new Set());
-    const [initialJobPermissions, setInitialJobPermissions] = useState<Set<string>>(new Set());
-    const [initialVisiblePermissions, setInitialVisiblePermissions] = useState<Set<string>>(new Set());
+    const [initialUserPermissions, setInitialUserPermissions] = useState<Map<string, boolean>>(new Map());
+    const [initialVisiblePermissions, setInitialVisiblePermissions] = useState<Map<string, boolean>>(new Map());
     
-    const [jobSearchFilter, setJobSearchFilter] = useState('');
+    const [userSearchFilter, setUserSearchFilter] = useState('');
     
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -361,16 +367,17 @@ const JobPermissionsPage = () => {
     }, []);
 
     const filteredNodes = useMemo(() => {
-      const currentNodes = currentNode.children;
-      return currentNodes;
+        const currentNodes = currentNode.children;
+        return currentNodes;
     }, [currentNode]);
     
-    const getInitialVisiblePermissions = useCallback((nodes: ServiceNode[], allInitialPermissions: Set<string>): Set<string> => {
-        const initialPerms = new Set<string>();
+    const getInitialVisiblePermissions = useCallback((nodes: ServiceNode[], allInitialPermissions: Map<string, boolean>): Map<string, boolean> => {
+        const initialPerms = new Map<string, boolean>();
         const traverseAndCheck = (currentNodes: ServiceNode[]) => {
             currentNodes.forEach(node => {
-                if (allInitialPermissions.has(node.id)) {
-                    initialPerms.add(node.id);
+                const isAllowed = allInitialPermissions.get(node.id);
+                if (isAllowed !== undefined) {
+                    initialPerms.set(node.id, isAllowed);
                 }
                 traverseAndCheck(node.children);
             });
@@ -378,55 +385,78 @@ const JobPermissionsPage = () => {
         traverseAndCheck(nodes);
         return initialPerms;
     }, []);
-
-    const getAllPermissionIds = useCallback((nodes: ServiceNode[]): Set<string> => {
-      const allIds = new Set<string>();
-      const traverse = (currentNodes: ServiceNode[]) => {
-        currentNodes.forEach(node => {
-          allIds.add(node.id);
-          traverse(node.children);
-        });
-      };
-      traverse(nodes);
-      return allIds;
+    
+    const getVisibleNodeIds = useCallback((nodes: ServiceNode[]): Set<string> => {
+        const visibleIds = new Set<string>();
+        const traverse = (currentNodes: ServiceNode[]) => {
+            currentNodes.forEach(node => {
+                visibleIds.add(node.id);
+                traverse(node.children);
+            });
+        };
+        traverse(nodes);
+        return visibleIds;
     }, []);
 
     const allVisibleNodesSelected = useMemo(() => {
         if (filteredNodes.length === 0) return false;
-        return filteredNodes.every(node => jobPermissions.has(node.id));
-    }, [filteredNodes, jobPermissions]);
+        return filteredNodes.every(node => {
+            const isAllowed = userPermissions.has(node.id) ? userPermissions.get(node.id) : jobPermissions.has(node.id);
+            return isAllowed;
+        });
+    }, [filteredNodes, userPermissions, jobPermissions]);
 
     const noVisibleNodesSelected = useMemo(() => {
         if (filteredNodes.length === 0) return true;
-        return filteredNodes.every(node => !jobPermissions.has(node.id));
-    }, [filteredNodes, jobPermissions]);
+        return filteredNodes.every(node => {
+            const isAllowed = userPermissions.has(node.id) ? userPermissions.get(node.id) : jobPermissions.has(node.id);
+            return !isAllowed;
+        });
+    }, [filteredNodes, userPermissions, jobPermissions]);
     
     const hasVisibleChanges = useMemo(() => {
-      const currentVisiblePerms = new Set<string>();
-      const traverseAndCheck = (nodes: ServiceNode[]) => {
+        const currentVisiblePerms = new Map<string, boolean>();
+        const traverseAndCheck = (nodes: ServiceNode[]) => {
             nodes.forEach(node => {
-                if (jobPermissions.has(node.id)) {
-                    currentVisiblePerms.add(node.id);
+                const isAllowed = userPermissions.get(node.id);
+                if (isAllowed !== undefined) {
+                    currentVisiblePerms.set(node.id, isAllowed);
                 }
                 traverseAndCheck(node.children);
             });
-      };
-      traverseAndCheck(filteredNodes);
-      
-      const initialIdsString = Array.from(initialVisiblePermissions).sort().join(',');
-      const currentIdsString = Array.from(currentVisiblePerms).sort().join(',');
+        };
+        traverseAndCheck(filteredNodes);
 
-      return initialIdsString !== currentIdsString;
-    }, [filteredNodes, jobPermissions, initialVisiblePermissions]);
+        if (initialVisiblePermissions.size !== currentVisiblePerms.size) return true;
+        for (const [key, value] of initialVisiblePermissions) {
+            if (currentVisiblePerms.get(key) !== value) return true;
+        }
+        return false;
+    }, [filteredNodes, userPermissions, initialVisiblePermissions]);
 
-    const filteredJobs = useMemo(() => {
-        if (!jobSearchFilter) return jobs;
-        const lowercasedFilter = jobSearchFilter.toLowerCase();
-        return jobs.filter(job =>
-            (job.name_ar && job.name_ar.toLowerCase().includes(lowercasedFilter)) ||
-            (job.name_en && job.name_en.toLowerCase().includes(lowercasedFilter))
+    const filteredUsers = useMemo(() => {
+        if (!userSearchFilter) return users;
+        const lowercasedFilter = userSearchFilter.toLowerCase();
+        return users.filter(user =>
+            (user.name_ar && user.name_ar.toLowerCase().includes(lowercasedFilter)) ||
+            (user.name_en && user.name_en.toLowerCase().includes(lowercasedFilter))
         );
-    }, [jobs, jobSearchFilter]);
+    }, [users, userSearchFilter]);
+
+    const enabledPermissionsCount = useMemo(() => {
+        let count = 0;
+        const traverse = (nodes: ServiceNode[]) => {
+            nodes.forEach(n => {
+                const isAllowed = userPermissions.has(n.id) ? userPermissions.get(n.id) : jobPermissions.has(n.id);
+                if(isAllowed) {
+                    count++;
+                }
+                traverse(n.children);
+            });
+        };
+        traverse(servicesTree);
+        return count;
+    }, [servicesTree, userPermissions, jobPermissions]);
 
     const totalPermissionsCount = useMemo(() => {
         let count = 0;
@@ -439,15 +469,17 @@ const JobPermissionsPage = () => {
         traverse(servicesTree);
         return count;
     }, [servicesTree]);
-
-    const enabledPermissionsCount = useMemo(() => jobPermissions.size, [jobPermissions]);
+    
     const disabledPermissionsCount = totalPermissionsCount - enabledPermissionsCount;
 
+
     const hasChanges = useMemo(() => {
-        const initialIdsString = Array.from(initialJobPermissions).sort().join(',');
-        const currentIdsString = Array.from(jobPermissions).sort().join(',');
-        return initialIdsString !== currentIdsString;
-    }, [jobPermissions, initialJobPermissions]);
+        if (initialUserPermissions.size !== userPermissions.size) return true;
+        for (const [key, value] of initialUserPermissions) {
+            if (userPermissions.get(key) !== value) return true;
+        }
+        return false;
+    }, [userPermissions, initialUserPermissions]);
     
     const handleNavigationWithPrompt = useCallback(() => {
         if (hasChanges) {
@@ -485,33 +517,36 @@ const JobPermissionsPage = () => {
     }, [hasChanges]);
     
     useEffect(() => {
-      const updatePathLabels = () => {
-          setPath(prevPath => {
-              if (prevPath.length === 0) return prevPath;
- 
-              return prevPath.map(item => {
-                  const node = findNode(servicesTree, item.id);
-                  if (node) {
-                      return { ...item, label: node.label };
-                  }
-                  return item;
-              });
-          });
-      };
- 
-      updatePathLabels();
+        const updatePathLabels = () => {
+            setPath(prevPath => {
+                if (prevPath.length === 0) return prevPath;
+   
+                return prevPath.map(item => {
+                    const node = findNode(servicesTree, item.id);
+                    if (node) {
+                        return { ...item, label: node.label };
+                    }
+                    return item;
+                });
+            });
+        };
+   
+        updatePathLabels();
     }, [language, servicesTree, findNode]);
 
     useEffect(() => {
         const fetchInitialData = async () => {
-            const [jobsRes, servicesRes, subServicesRes, subSubServicesRes] = await Promise.all([
+            const [usersRes, jobsRes, servicesRes, subServicesRes, subSubServicesRes] = await Promise.all([
+                supabase.from('users').select('id, name_ar, name_en, job_id').order('name_ar'),
                 supabase.from('jobs').select('id, name_ar, name_en').order('id'),
                 supabase.from('services').select('id, label_ar, label_en').order('order'),
                 supabase.from('sub_services').select('id, service_id, label_ar, label_en').order('order'),
                 supabase.from('sub_sub_services').select('id, sub_service_id, label_ar, label_en').order('order')
             ]);
 
+            setUsers(usersRes.data || []);
             setJobs(jobsRes.data || []);
+
             const tree = (servicesRes.data || []).map(s => {
                 const subServices = (subServicesRes.data || [])
                     .filter(ss => ss.service_id === s.id)
@@ -540,47 +575,69 @@ const JobPermissionsPage = () => {
             setServicesTree(tree);
             setIsLoading(false);
         };
-        if(hasPermission('ss:9')) fetchInitialData(); else setIsLoading(false);
+        if(hasPermission('ss:10')) fetchInitialData(); else setIsLoading(false);
     }, [language, hasPermission]);
     
+    const fetchUserAndJobPermissions = useCallback(async (userId: string) => {
+        // جلب صلاحيات المستخدم
+        const { data: userData } = await supabase.from('user_permissions').select('*').eq('user_id', userId);
+        const userPermsMap = new Map<string, boolean>();
+        (userData || []).forEach(p => {
+            if (p.sub_sub_service_id) userPermsMap.set(`sss:${p.sub_sub_service_id}`, p.is_allowed);
+            else if (p.sub_service_id) userPermsMap.set(`ss:${p.sub_service_id}`, p.is_allowed);
+            else userPermsMap.set(`s:${p.service_id}`, p.is_allowed);
+        });
+        setUserPermissions(userPermsMap);
+        setInitialUserPermissions(new Map(userPermsMap));
+
+        // جلب صلاحيات الوظيفة
+        const userDetails = users.find(u => u.id === userId);
+        if (userDetails && userDetails.job_id) {
+            const { data: jobData } = await supabase.from('job_permissions').select('*').eq('job_id', userDetails.job_id);
+            const jobPermsSet = new Set<string>();
+            (jobData || []).forEach(p => {
+                if (p.sub_sub_service_id) jobPermsSet.add(`sss:${p.sub_sub_service_id}`);
+                else if (p.sub_service_id) jobPermsSet.add(`ss:${p.sub_service_id}`);
+                else jobPermsSet.add(`s:${p.service_id}`);
+            });
+            setJobPermissions(jobPermsSet);
+        } else {
+            setJobPermissions(new Set());
+        }
+
+        const initialVisiblePerms = getInitialVisiblePermissions(servicesTree, userPermsMap);
+        setInitialVisiblePermissions(initialVisiblePerms);
+        setPath([]);
+    }, [users, servicesTree, getInitialVisiblePermissions]);
+
     useEffect(() => {
-        if (selectedJobId !== null) {
-            const job = jobs.find(j => j.id === selectedJobId);
-            if (job) {
-                setSelectedJobName(language === 'ar' ? job.name_ar : job.name_en);
+        if (selectedUserId !== null) {
+            const user = users.find(u => u.id === selectedUserId);
+            if (user) {
+                setSelectedUserName(language === 'ar' ? user.name_ar : user.name_en);
+                fetchUserAndJobPermissions(selectedUserId);
             }
         }
-    }, [language, selectedJobId, jobs]);
+    }, [language, selectedUserId, users, fetchUserAndJobPermissions]);
 
-    const handleSelectJob = useCallback(async (job: Job) => {
-        setSelectedJobId(job.id);
-        setSelectedJobName(language === 'ar' ? job.name_ar : job.name_en);
-        setJobSearchFilter('');
+    const handleSelectUser = useCallback(async (user: User) => {
+        setSelectedUserId(user.id);
+        setSelectedUserName(language === 'ar' ? user.name_ar : user.name_en);
+        setUserSearchFilter('');
+    }, [language]);
 
-        const { data } = await supabase.from('job_permissions').select('*').eq('job_id', job.id);
-        const perms = new Set((data || []).map(p => {
-            if (p.sub_sub_service_id) return `sss:${p.sub_sub_service_id}`;
-            if (p.sub_service_id) return `ss:${p.sub_service_id}`;
-            return `s:${p.service_id}`;
-        }));
-        setJobPermissions(perms);
-        setInitialJobPermissions(new Set(perms));
-        setPath([]);
-        const initialPermsForView = getInitialVisiblePermissions(servicesTree, perms);
-        setInitialVisiblePermissions(initialPermsForView);
-    }, [language, servicesTree, getInitialVisiblePermissions]);
-
-    const handleChangeJob = () => {
+    const handleChangeUser = () => {
         if (hasChanges) {
             setIsConfirming(true);
             confirmToast(t.unsavedChangesWarning,
                 () => {
-                    setSelectedJobId(null);
-                    setSelectedJobName('');
+                    setSelectedUserId(null);
+                    setSelectedUserName('');
+                    setUserPermissions(new Map());
+                    setInitialUserPermissions(new Map());
                     setJobPermissions(new Set());
-                    setInitialJobPermissions(new Set());
                     setPath([]);
-                    setJobSearchFilter('');
+                    setUserSearchFilter('');
                     setIsConfirming(false);
                 },
                 () => {
@@ -589,43 +646,59 @@ const JobPermissionsPage = () => {
                 t
             );
         } else {
-            setSelectedJobId(null);
-            setSelectedJobName('');
+            setSelectedUserId(null);
+            setSelectedUserName('');
+            setUserPermissions(new Map());
+            setInitialUserPermissions(new Map());
             setJobPermissions(new Set());
-            setInitialJobPermissions(new Set());
             setPath([]);
-            setJobSearchFilter('');
+            setUserSearchFilter('');
         }
     };
 
     const handlePermissionToggle = useCallback((nodeId: string, isChecked: boolean) => {
-        setJobPermissions(prev => {
-            const newPerms = new Set(prev);
-            
-            if (isChecked) {
-                newPerms.add(nodeId);
-            } else {
-                newPerms.delete(nodeId);
-            }
+        setUserPermissions(prev => {
+            const newPerms = new Map(prev);
+            const isJobAllowed = jobPermissions.has(nodeId);
 
-            if (isChecked) {
-                const node = findNode(servicesTree, nodeId);
-                let parentId = node?.parentId;
-                while (parentId) {
-                    newPerms.add(parentId);
-                    const parentNode = findNode(servicesTree, parentId);
-                    parentId = parentNode?.parentId;
+            const toggleChildren = (nodes: ServiceNode[], check: boolean) => {
+                nodes.forEach(child => {
+                    const childIsJobAllowed = jobPermissions.has(child.id);
+                    if (check === childIsJobAllowed) {
+                        newPerms.delete(child.id);
+                    } else {
+                        newPerms.set(child.id, check);
+                    }
+                    toggleChildren(child.children, check);
+                });
+            };
+            
+            const findAndToggle = (nodes: ServiceNode[]) => {
+                for (const node of nodes) {
+                    if (node.id === nodeId) {
+                        if (isChecked === isJobAllowed) {
+                            newPerms.delete(nodeId);
+                        } else {
+                            newPerms.set(nodeId, isChecked);
+                        }
+                        toggleChildren(node.children, isChecked);
+                        return true;
+                    }
+                    if (findAndToggle(node.children)) return true;
                 }
-            }
+                return false;
+            };
+
+            findAndToggle(servicesTree);
             return newPerms;
         });
-    }, [servicesTree, findNode]);
+    }, [servicesTree, jobPermissions]);
     
     const handleSave = async () => {
-        if (!selectedJobId || !user) return;
+        if (!selectedUserId || !user) return;
         setIsSaving(true);
         try {
-            const permissionsToInsert = Array.from(jobPermissions).map(perm => {
+            const permissionsToInsert = Array.from(userPermissions.entries()).map(([perm, is_allowed]) => {
                 const [type, id] = perm.split(':');
                 let serviceId = null;
                 let subServiceId = null;
@@ -646,23 +719,24 @@ const JobPermissionsPage = () => {
                 }
 
                 return {
-                    job_id: selectedJobId,
+                    user_id: selectedUserId,
                     service_id: serviceId,
                     sub_service_id: subServiceId,
                     sub_sub_service_id: subSubServiceId,
+                    is_allowed: is_allowed
                 };
             });
 
-            const { error } = await supabase.rpc('update_job_permissions_and_cleanup_users', {
-                p_job_id: selectedJobId,
+            const { error } = await supabase.rpc('update_user_permissions_and_cleanup', {
+                p_user_id: selectedUserId,
                 p_permissions: permissionsToInsert,
                 p_changed_by_user_id: user.id
             });
 
             if (error) throw error;
             toast.success(t.saveSuccess);
-            setInitialJobPermissions(new Set(jobPermissions));
-            const newVisiblePerms = getInitialVisiblePermissions(filteredNodes, jobPermissions);
+            setInitialUserPermissions(new Map(userPermissions));
+            const newVisiblePerms = getInitialVisiblePermissions(filteredNodes, userPermissions);
             setInitialVisiblePermissions(newVisiblePerms);
         } catch (error) {
             console.error("Error saving permissions:", error);
@@ -671,39 +745,39 @@ const JobPermissionsPage = () => {
             setIsSaving(false);
         }
     };
-    
+        
     const handleResetVisible = useCallback(() => {
-        setJobPermissions(prev => {
-            const newPerms = new Set(prev);
-            const visibleNodesIds = new Set(filteredNodes.map(node => node.id));
+        setUserPermissions(prev => {
+            const newPerms = new Map(prev);
+            const visibleNodesIds = getVisibleNodeIds(filteredNodes);
 
-            prev.forEach(permId => {
-                if (visibleNodesIds.has(permId) && !initialVisiblePermissions.has(permId)) {
+            visibleNodesIds.forEach(permId => {
+                if (initialVisiblePermissions.has(permId)) {
+                    newPerms.set(permId, initialVisiblePermissions.get(permId)!);
+                } else {
                     newPerms.delete(permId);
                 }
             });
-            initialVisiblePermissions.forEach(permId => {
-                newPerms.add(permId);
-            });
             return newPerms;
         });
-    }, [initialVisiblePermissions, filteredNodes]);
+    }, [initialVisiblePermissions, filteredNodes, getVisibleNodeIds]);
 
     const handleSelectAllVisible = useCallback((select: boolean) => {
-        setJobPermissions(prev => {
-            const newPerms = new Set(prev);
-            const visibleNodesIds = new Set(filteredNodes.map(node => node.id));
+        setUserPermissions(prev => {
+            const newPerms = new Map(prev);
+            const visibleNodesIds = getVisibleNodeIds(filteredNodes);
 
-            visibleNodesIds.forEach(id => {
-                if (select) {
-                    newPerms.add(id);
+            visibleNodesIds.forEach(nodeId => {
+                const isJobAllowed = jobPermissions.has(nodeId);
+                if (select === isJobAllowed) {
+                    newPerms.delete(nodeId);
                 } else {
-                    newPerms.delete(id);
+                    newPerms.set(nodeId, select);
                 }
             });
             return newPerms;
         });
-    }, [filteredNodes]);
+    }, [filteredNodes, getVisibleNodeIds, jobPermissions]);
     
     const handleConfirmSelectAll = useCallback(() => {
         setIsConfirming(true);
@@ -765,40 +839,33 @@ const JobPermissionsPage = () => {
 
     const handleNavigate = useCallback((node: ServiceNode) => {
         if (node.children && node.children.length > 0) {
-            const initialPermsForView = getInitialVisiblePermissions(node.children, initialJobPermissions);
+            const initialPermsForView = getInitialVisiblePermissions(node.children, userPermissions);
             setInitialVisiblePermissions(initialPermsForView);
             setPath(prevPath => [...prevPath, { id: node.id, label: node.label }]);
         }
-    }, [initialJobPermissions, getInitialVisiblePermissions]);
+    }, [userPermissions, getInitialVisiblePermissions]);
     
     const handleGoBack = useCallback(() => {
         setPath(prevPath => {
             const newPath = prevPath.slice(0, -1);
-            let targetNode;
-            if (newPath.length === 0) {
-                targetNode = { children: servicesTree };
-            } else {
+            let targetNode = { children: servicesTree };
+            if (newPath.length > 0) {
                 let current = { children: servicesTree };
                 for (const item of newPath) {
                     const found = current.children.find(node => node.id === item.id);
                     if (found) {
                         current = found;
-                    } else {
-                        targetNode = { children: servicesTree };
-                        break;
                     }
                 }
-                if (!targetNode) {
-                    targetNode = current;
-                }
+                targetNode = current;
             }
 
-            const initialPermsForView = getInitialVisiblePermissions(targetNode.children, initialJobPermissions);
+            const initialPermsForView = getInitialVisiblePermissions(targetNode.children, initialUserPermissions);
             setInitialVisiblePermissions(initialPermsForView);
             
             return newPath;
         });
-    }, [initialJobPermissions, servicesTree, getInitialVisiblePermissions]);
+    }, [initialUserPermissions, servicesTree, getInitialVisiblePermissions]);
 
     const containerKey = path.map(p => p.id).join('-');
 
@@ -809,7 +876,7 @@ const JobPermissionsPage = () => {
         }
     }, [language]);
 
-    if (!hasPermission('ss:9')) {
+    if (!hasPermission('ss:10')) {
         return (
             <AdminSectionLayout mainServiceId={17}>
                 <motion.div
@@ -825,7 +892,6 @@ const JobPermissionsPage = () => {
         );
     }
 
-    // 👈 هنا استبدلنا شاشة التحميل القديمة بشاشة التحميل الاحترافية
     if (isLoading) {
         return (
             <AdminSectionLayout mainServiceId={17}>
@@ -834,212 +900,209 @@ const JobPermissionsPage = () => {
         );
     }
     
-    const jobTitleElement = (
-    <div className="flex flex-col gap-2 p-2">
-        {selectedJobId ? (
-            <motion.div
-                key={`job-selected-${selectedJobId}-${language}`}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-                className="flex flex-col gap-2"
-            >
-            <div className="flex items-center justify-between gap-2">
-                <span
-                className={`font-extrabold text-lg text-[#FFD700] break-words`}
-                >
-                {selectedJobName}
-                </span>
-                <button
-                onClick={handleChangeJob}
-                className={`flex items-center justify-center gap-1 px-2 py-1 font-semibold bg-gray-700 rounded-md text-gray-300 transition-all hover:scale-105 active:scale-95 text-xs`}
-                >
-                <Edit size={16} />
-                <span className="hidden sm:inline">
-                    {t.changeJob}
-                </span>
-                </button>
-            </div>
-            <AnimatePresence>
+    const userTitleElement = (
+        <div className="flex flex-col gap-2 p-2">
+            {selectedUserId ? (
                 <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="flex items-center gap-2 text-xs text-gray-400 overflow-hidden flex-wrap"
-                >
-                    <span className="flex items-center gap-1">
-                    <Check size={12} className="text-green-400" />
-                    {enabledPermissionsCount}
-                    </span>
-                    <span className="flex items-center gap-1">
-                    <X size={12} className="text-red-400" />
-                    {disabledPermissionsCount}
-                    </span>
-                </motion.div>
-            </AnimatePresence>
-            </motion.div>
-        ) : (
-            <motion.div
-                key={`job-not-selected-${language}`}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-            >
-            <div className="relative mb-2">
-                <div className="absolute inset-y-0 start-0 flex items-center ps-2 pointer-events-none">
-                <Search className="w-3 h-3 text-gray-400" />
-                </div>
-                <input
-                type="text"
-                placeholder={t.searchJobPlaceholder}
-                value={jobSearchFilter}
-                onChange={(e) => setJobSearchFilter(e.target.value)}
-                className="block w-full ps-8 pe-2 py-1 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg focus:ring-yellow-500 focus:border-yellow-500"
-                />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 max-h-96 overflow-y-auto custom-scrollbar">
-                {filteredJobs.length > 0 ? (
-                filteredJobs.map(job => (
-                    <motion.div
-                    key={job.id}
-                    className="p-2 bg-gray-700/50 rounded-lg cursor-pointer hover:bg-gray-600/50 transition-colors"
-                    onClick={() => handleSelectJob(job)}
-                    initial={{ opacity: 0, y: 10 }}
+                    key={`user-selected-${selectedUserId}-${language}`}
+                    initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.2 }}
-                    >
-                    <span className="font-semibold text-white text-sm">{language === 'ar' ? job.name_ar : job.name_en}</span>
-                    </motion.div>
-                ))
-                ) : (
-                <div className="col-span-full text-center text-gray-500 py-6">
-                    {t.noSearchResults}
-                </div>
-                )}
-            </div>
-            </motion.div>
-        )}
-    </div>
+                    transition={{ duration: 0.3 }}
+                    className="flex flex-col gap-2"
+                >
+                    <div className="flex items-center justify-between gap-2">
+                        <span className="font-extrabold text-lg text-[#FFD700] break-words">
+                            {selectedUserName}
+                        </span>
+                        <button
+                            onClick={handleChangeUser}
+                            className={`flex items-center justify-center gap-1 px-2 py-1 font-semibold bg-gray-700 rounded-md text-gray-300 transition-all hover:scale-105 active:scale-95 text-xs`}
+                        >
+                            <Edit size={16} />
+                            <span className="hidden sm:inline">{t.changeUser}</span>
+                        </button>
+                    </div>
+                    <AnimatePresence>
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="flex items-center gap-2 text-xs text-gray-400 overflow-hidden flex-wrap"
+                        >
+                            <span className="flex items-center gap-1">
+                                <Check size={12} className="text-green-400" />
+                                {enabledPermissionsCount}
+                            </span>
+                            <span className="flex items-center gap-1">
+                                <X size={12} className="text-red-400" />
+                                {disabledPermissionsCount}
+                            </span>
+                        </motion.div>
+                    </AnimatePresence>
+                </motion.div>
+            ) : (
+                <motion.div
+                    key={`user-not-selected-${language}`}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                >
+                    <div className="relative mb-2">
+                        <div className="absolute inset-y-0 start-0 flex items-center ps-2 pointer-events-none">
+                            <Search className="w-3 h-3 text-gray-400" />
+                        </div>
+                        <input
+                            type="text"
+                            placeholder={t.searchUserPlaceholder}
+                            value={userSearchFilter}
+                            onChange={(e) => setUserSearchFilter(e.target.value)}
+                            className="block w-full ps-8 pe-2 py-1 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg focus:ring-yellow-500 focus:border-yellow-500"
+                        />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 max-h-96 overflow-y-auto custom-scrollbar">
+                        {filteredUsers.length > 0 ? (
+                            filteredUsers.map(user => (
+                                <motion.div
+                                    key={user.id}
+                                    className="p-2 bg-gray-700/50 rounded-lg cursor-pointer hover:bg-gray-600/50 transition-colors"
+                                    onClick={() => handleSelectUser(user)}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    transition={{ duration: 0.2 }}
+                                >
+                                    <span className="font-semibold text-white text-sm">{language === 'ar' ? user.name_ar : user.name_en}</span>
+                                </motion.div>
+                            ))
+                        ) : (
+                            <div className="col-span-full text-center text-gray-500 py-6">
+                                {t.noSearchResults}
+                            </div>
+                        )}
+                    </div>
+                </motion.div>
+            )}
+        </div>
     );
     
     return (
-      <AdminSectionLayout
-        mainServiceId={17}
-        hasUnsavedChanges={hasChanges}
-        onNavigateWithPrompt={handleNavigationWithPrompt}
-      >
-        <div className="space-y-4">
-          <AnimatePresence>
-            {isConfirming && (
-              <motion.div
-                className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-              />
-            )}
-          </AnimatePresence>
-          
-          <motion.div
-            key={`sticky-header-${language}`}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="sticky top-0 z-20 bg-gray-900/80 backdrop-blur-sm shadow-lg rounded-lg"
-            style={{ top: `${mainHeaderHeight}px`, transition: 'top 0.3s ease-in-out' }}
-          >
-              {jobTitleElement}
-              {selectedJobId && path.length > 0 && (
-                <MemoizedBreadcrumb 
-                    path={path} 
-                    setPath={setPath} 
-                    language={language} 
-                    translations={translations} 
-                    isRTL={isRTL} 
-                />
-              )}
-          </motion.div>
-          
-          {selectedJobId && (
-            <motion.div
-                key={`permissions-content-${language}`}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-                className="bg-gray-800/50 border border-gray-700 rounded-lg p-6 overflow-hidden relative"
-            >
-              
-              <div className="mb-4 p-3 bg-gray-900/50 rounded-lg border border-gray-700/50">
-                <h3 className="text-sm font-semibold text-gray-400 mb-2">{t.controlElementsTitle}</h3>
-                <p className="text-xs text-gray-500 mb-4">{t.visibleActionsDescription}</p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={handleConfirmSelectAll}
-                    disabled={allVisibleNodesSelected}
-                    className={`flex items-center gap-1 justify-center h-8 text-xs px-2 rounded-md text-white bg-gradient-to-r from-green-500 to-green-600 transition-all hover:scale-105 active:scale-95 disabled:from-gray-700 disabled:to-gray-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100`}
-                  >
-                    <Check size={16} /> {t.selectAll}
-                  </button>
-                  <button
-                    onClick={handleConfirmDeselectAll}
-                    disabled={noVisibleNodesSelected}
-                    className={`flex items-center gap-1 justify-center h-8 text-xs px-2 rounded-md text-white bg-gradient-to-r from-red-500 to-red-600 transition-all hover:scale-105 active:scale-95 disabled:from-gray-700 disabled:to-gray-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100`}
-                  >
-                    { <X size={16} /> } {t.deselectAll}
-                  </button>
-                  <button
-                    onClick={handleConfirmResetVisible}
-                    disabled={!hasVisibleChanges}
-                    className={`flex items-center gap-1 justify-center h-8 text-xs px-2 rounded-md text-white bg-gradient-to-r from-yellow-500 to-yellow-600 transition-all hover:scale-105 active:scale-95 disabled:from-gray-700 disabled:to-gray-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100`}
-                  >
-                    <RotateCcw size={16} /> {t.resetVisible}
-                  </button>
-                </div>
-              </div>
-              
-              <AnimatePresence mode="wait">
-                  <motion.div
-                    key={containerKey}
-                    initial={{ x: isRTL ? '100%' : '-100%', opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    exit={{ x: isRTL ? '-100%' : '100%', opacity: 0 }}
-                    transition={{ type: "tween", duration: 0.3 }}
-                  >
-                    <PermissionsList
-                        nodes={filteredNodes}
-                        onNavigate={handleNavigate}
-                        onToggle={handlePermissionToggle}
-                        jobPermissions={jobPermissions}
-                    />
-                  </motion.div>
-              </AnimatePresence>
-              
-              <AnimatePresence>
-                  <motion.div
+        <AdminSectionLayout
+            mainServiceId={17}
+            hasUnsavedChanges={hasChanges}
+            onNavigateWithPrompt={handleNavigationWithPrompt}
+        >
+            <div className="space-y-4">
+                <AnimatePresence>
+                    {isConfirming && (
+                        <motion.div
+                            className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                        />
+                    )}
+                </AnimatePresence>
+                
+                <motion.div
+                    key={`sticky-header-${language}`}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 20 }}
-                    className="mt-6 flex flex-col md:flex-row md:justify-end gap-4"
-                  >
-                    <button
-                        onClick={handleConfirmSave}
-                        disabled={isSaving || !hasChanges}
-                        className={`flex items-center gap-2 px-6 py-3 font-bold bg-[#FFD700] text-black rounded-lg transition-all hover:scale-105 active:scale-95 disabled:bg-gray-700 disabled:text-gray-400 disabled:opacity-50 disabled:hover:bg-gray-700 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100`}
+                    transition={{ duration: 0.3 }}
+                    className="sticky top-0 z-20 bg-gray-900/80 backdrop-blur-sm shadow-lg rounded-lg"
+                    style={{ top: `${mainHeaderHeight}px`, transition: 'top 0.3s ease-in-out' }}
+                >
+                    {userTitleElement}
+                    {selectedUserId && path.length > 0 && (
+                        <MemoizedBreadcrumb
+                            path={path}
+                            setPath={setPath}
+                            language={language}
+                            translations={translations}
+                            isRTL={isRTL}
+                        />
+                    )}
+                </motion.div>
+                
+                {selectedUserId && (
+                    <motion.div
+                        key={`permissions-content-${language}`}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="bg-gray-800/50 border border-gray-700 rounded-lg p-6 overflow-hidden relative"
                     >
-                        {isSaving ? <LoaderCircle className="animate-spin" /> : <Save />}
-                        {isSaving ? t.saving : t.saveChanges}
-                    </button>
-                  </motion.div>
-              </AnimatePresence>
-            </motion.div>
-          )}
-        </div>
-        <Toaster />
-      </AdminSectionLayout>
+                        
+                        <div className="mb-4 p-3 bg-gray-900/50 rounded-lg border border-gray-700/50">
+                            <h3 className="text-sm font-semibold text-gray-400 mb-2">{t.controlElementsTitle}</h3>
+                            <p className="text-xs text-gray-500 mb-4">{t.visibleActionsDescription}</p>
+                            <div className="flex flex-wrap gap-2">
+                                <button
+                                    onClick={handleConfirmSelectAll}
+                                    disabled={allVisibleNodesSelected}
+                                    className={`flex items-center gap-1 justify-center h-8 text-xs px-2 rounded-md text-white bg-gradient-to-r from-green-500 to-green-600 transition-all hover:scale-105 active:scale-95 disabled:from-gray-700 disabled:to-gray-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100`}
+                                >
+                                    <Check size={16} /> {t.selectAll}
+                                </button>
+                                <button
+                                    onClick={handleConfirmDeselectAll}
+                                    disabled={noVisibleNodesSelected}
+                                    className={`flex items-center gap-1 justify-center h-8 text-xs px-2 rounded-md text-white bg-gradient-to-r from-red-500 to-red-600 transition-all hover:scale-105 active:scale-95 disabled:from-gray-700 disabled:to-gray-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100`}
+                                >
+                                    { <X size={16} /> } {t.deselectAll}
+                                </button>
+                                <button
+                                    onClick={handleConfirmResetVisible}
+                                    disabled={!hasVisibleChanges}
+                                    className={`flex items-center gap-1 justify-center h-8 text-xs px-2 rounded-md text-white bg-gradient-to-r from-yellow-500 to-yellow-600 transition-all hover:scale-105 active:scale-95 disabled:from-gray-700 disabled:to-gray-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100`}
+                                >
+                                    <RotateCcw size={16} /> {t.resetVisible}
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <AnimatePresence mode="wait">
+                            <motion.div
+                                key={containerKey}
+                                initial={{ x: isRTL ? '100%' : '-100%', opacity: 0 }}
+                                animate={{ x: 0, opacity: 1 }}
+                                exit={{ x: isRTL ? '-100%' : '100%', opacity: 0 }}
+                                transition={{ type: "tween", duration: 0.3 }}
+                            >
+                                <PermissionsList
+                                    nodes={filteredNodes}
+                                    onNavigate={handleNavigate}
+                                    onToggle={handlePermissionToggle}
+                                    userPermissions={userPermissions}
+                                    jobPermissions={jobPermissions}
+                                />
+                            </motion.div>
+                        </AnimatePresence>
+                        
+                        <AnimatePresence>
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: 20 }}
+                                className="mt-6 flex flex-col md:flex-row md:justify-end gap-4"
+                            >
+                                <button
+                                    onClick={handleConfirmSave}
+                                    disabled={isSaving || !hasChanges}
+                                    className={`flex items-center gap-2 px-6 py-3 font-bold bg-[#FFD700] text-black rounded-lg transition-all hover:scale-105 active:scale-95 disabled:bg-gray-700 disabled:text-gray-400 disabled:opacity-50 disabled:hover:bg-gray-700 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:active:scale-100`}
+                                >
+                                    {isSaving ? <LoaderCircle className="animate-spin" /> : <Save />}
+                                    {isSaving ? t.saving : t.saveChanges}
+                                </button>
+                            </motion.div>
+                        </AnimatePresence>
+                    </motion.div>
+                )}
+            </div>
+            <Toaster />
+        </AdminSectionLayout>
     );
 };
 
-export default JobPermissionsPage;
+export default UserExceptionsPage;
