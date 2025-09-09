@@ -3,17 +3,16 @@ import { supabase } from '../../lib/supabaseClient';
 import { useAuth } from '../../components/contexts/UserContext';
 import { useLanguage } from '../../components/contexts/LanguageContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Save, LoaderCircle, ChevronRight, Check, X, Search, ChevronLeft, RotateCcw, Edit, Folder, FolderOpen } from 'lucide-react';
+import { Save, LoaderCircle, ChevronRight, Check, X, Search, RotateCcw, Edit, Folder, FolderOpen } from 'lucide-react';
 import AdminSectionLayout from '../../layouts/AdminSectionLayout';
 import { Tooltip } from 'react-tooltip';
 import 'react-tooltip/dist/react-tooltip.css';
 import { usePrompt } from '../../hooks/usePrompt';
 import toast, { Toaster } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-
-// 👈 هنا قمنا باستيراد مكون شاشة التحميل
 import LoadingScreen from '../../components/LoadingScreen';
 
+// تعريف أنواع البيانات
 type Job = { id: number; name_ar: string; name_en: string; };
 type ServiceNode = {
     id: string;
@@ -24,6 +23,12 @@ type ServiceNode = {
 type PathItem = {
     id: string;
     label: string;
+};
+type PermissionChangeItem = {
+    service_id: number | null;
+    sub_service_id: number | null;
+    sub_sub_service_id: number | null;
+    is_allowed: boolean;
 };
 
 const confirmToast = (message: string, onConfirm: () => void, onCancel: () => void, t: any) => {
@@ -634,93 +639,71 @@ const JobPermissionsPage = () => {
             const permissionsToRemove = new Set(
                 Array.from(initialJobPermissions).filter(p => !jobPermissions.has(p))
             );
-
-            const operations = [];
-
-            // تحضير عمليات الإضافة
-            if (permissionsToAdd.size > 0) {
-                const newPermissions = Array.from(permissionsToAdd).map(perm => {
-                    const [type, id] = perm.split(':');
-                    const node = findNode(servicesTree, perm);
-                    let serviceId = null;
-                    let subServiceId = null;
-                    let subSubServiceId = null;
-
-                    if (type === 's') {
-                        serviceId = Number(id);
-                    } else if (type === 'ss') {
-                        const parentNode = findNode(servicesTree, node?.parentId || '');
-                        serviceId = Number(parentNode?.id.split(':')[1]);
-                        subServiceId = Number(id);
-                    } else if (type === 'sss') {
-                        const parentNode = findNode(servicesTree, node?.parentId || '');
-                        const grandparent = findNode(servicesTree, parentNode?.parentId || '');
-                        serviceId = Number(grandparent?.id.split(':')[1]);
-                        subServiceId = Number(parentNode?.id.split(':')[1]);
-                        subSubServiceId = Number(id);
-                    }
-
-                    return {
-                        job_id: selectedJobId,
-                        service_id: serviceId,
-                        sub_service_id: subServiceId,
-                        sub_sub_service_id: subSubServiceId
-                    };
-                });
-                operations.push(supabase.from('job_permissions').insert(newPermissions));
-            }
-
-            // تحضير عمليات الحذف
-            if (permissionsToRemove.size > 0) {
-                const permsToDelete = Array.from(permissionsToRemove).map(perm => {
-                    const [type, id] = perm.split(':');
-                    const node = findNode(servicesTree, perm);
-                    let serviceId = null;
-                    let subServiceId = null;
-                    let subSubServiceId = null;
-
-                    if (type === 's') {
-                        serviceId = Number(id);
-                    } else if (type === 'ss') {
-                        const parentNode = findNode(servicesTree, node?.parentId || '');
-                        serviceId = Number(parentNode?.id.split(':')[1]);
-                        subServiceId = Number(id);
-                    } else if (type === 'sss') {
-                        const parentNode = findNode(servicesTree, node?.parentId || '');
-                        const grandparent = findNode(servicesTree, parentNode?.parentId || '');
-                        serviceId = Number(grandparent?.id.split(':')[1]);
-                        subServiceId = Number(parentNode?.id.split(':')[1]);
-                        subSubServiceId = Number(id);
-                    }
-
-                    return {
-                        job_id: selectedJobId,
-                        service_id: serviceId,
-                        sub_service_id: subServiceId,
-                        sub_sub_service_id: subSubServiceId
-                    };
-                });
-                for (const perm of permsToDelete) {
-                    operations.push(
-                        supabase
-                            .from('job_permissions')
-                            .delete()
-                            .eq('job_id', perm.job_id)
-                            .eq('service_id', perm.service_id)
-                            .eq('sub_service_id', perm.sub_service_id)
-                            .eq('sub_sub_service_id', perm.sub_sub_service_id)
-                    );
-                }
-            }
-
-            // تنفيذ جميع العمليات بشكل متزامن
-            await Promise.all(operations);
             
-            // تشغيل دالة تنظيف المستخدمين
-            const { error: rpcError } = await supabase.rpc('manage_job_permissions_from_list', {
+            const permissionChanges: PermissionChangeItem[] = [];
+
+            Array.from(permissionsToAdd).forEach(perm => {
+                const [type, id] = perm.split(':');
+                const node = findNode(servicesTree, perm);
+                let service_id = null;
+                let sub_service_id = null;
+                let sub_sub_service_id = null;
+
+                if (type === 's') {
+                    service_id = Number(id);
+                } else if (type === 'ss') {
+                    const parentNode = findNode(servicesTree, node?.parentId || '');
+                    service_id = parentNode ? Number(parentNode.id.split(':')[1]) : null;
+                    sub_service_id = Number(id);
+                } else if (type === 'sss') {
+                    const parentNode = findNode(servicesTree, node?.parentId || '');
+                    const grandparent = findNode(servicesTree, parentNode?.parentId || '');
+                    service_id = grandparent ? Number(grandparent.id.split(':')[1]) : null;
+                    sub_service_id = parentNode ? Number(parentNode.id.split(':')[1]) : null;
+                    sub_sub_service_id = Number(id);
+                }
+                
+                permissionChanges.push({
+                    service_id: service_id,
+                    sub_service_id: sub_service_id,
+                    sub_sub_service_id: sub_sub_service_id,
+                    is_allowed: true,
+                });
+            });
+
+            Array.from(permissionsToRemove).forEach(perm => {
+                const [type, id] = perm.split(':');
+                const node = findNode(servicesTree, perm);
+                let service_id = null;
+                let sub_service_id = null;
+                let sub_sub_service_id = null;
+
+                if (type === 's') {
+                    service_id = Number(id);
+                } else if (type === 'ss') {
+                    const parentNode = findNode(servicesTree, node?.parentId || '');
+                    service_id = parentNode ? Number(parentNode.id.split(':')[1]) : null;
+                    sub_service_id = Number(id);
+                } else if (type === 'sss') {
+                    const parentNode = findNode(servicesTree, node?.parentId || '');
+                    const grandparent = findNode(servicesTree, parentNode?.parentId || '');
+                    service_id = grandparent ? Number(grandparent.id.split(':')[1]) : null;
+                    sub_service_id = parentNode ? Number(parentNode.id.split(':')[1]) : null;
+                    sub_sub_service_id = Number(id);
+                }
+
+                permissionChanges.push({
+                    service_id: service_id,
+                    sub_service_id: sub_service_id,
+                    sub_sub_service_id: sub_sub_service_id,
+                    is_allowed: false,
+                });
+            });
+
+            const { error: rpcError } = await supabase.rpc('update_job_permissions_and_cascade', {
                 p_job_id: selectedJobId,
-                p_permissions_to_add: Array.from(permissionsToAdd),
-                p_permissions_to_remove: Array.from(permissionsToRemove),
+                p_permissions_array: permissionChanges,
+                p_actor_id: user.id
             });
 
             if (rpcError) throw rpcError;
@@ -890,7 +873,6 @@ const JobPermissionsPage = () => {
         );
     }
 
-    // 👈 هنا استبدلنا شاشة التحميل القديمة بشاشة التحميل الاحترافية
     if (isLoading) {
         return (
             <AdminSectionLayout mainServiceId={17}>

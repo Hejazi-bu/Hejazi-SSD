@@ -16,26 +16,26 @@ export interface User {
   name_en?: string | null;
   job_id?: number | null;
   company_id?: string | null;
-  email?: string;
+  email?: string | null;
   avatar_url?: string | null;
   is_super_admin?: boolean;
   favorite_services?: number[];
-  app_metadata: SupabaseUser['app_metadata'];
-  user_metadata: SupabaseUser['user_metadata'];
-  aud: SupabaseUser['aud'];
-  created_at: SupabaseUser['created_at'];
 }
 
 export type Permissions = { [key: string]: boolean };
 
+// --- ✅ تعديل: تعريف نوع مخصص لمفاتيح الأخطاء ---
 export type AuthErrorKey = 'errorCredentials' | 'errorPermission' | 'errorProfileNotFound' | 'errorGeneric';
 
+// --- الخصائص التي سيوفرها الـ Context ---
 interface UserContextProps {
   user: User | null;
-  permissions: Permissions;
+  // صلاحيات الخدمات لم تعد موجودة مؤقتاً
+  permissions: Permissions; 
   isLoading: boolean;
   hasPermission: (key: string) => boolean;
   updateFavorites: (newFavorites: number[]) => Promise<void>;
+  // --- ✅ تعديل: استخدام النوع الجديد في تعريف الدالة ---
   signInAndCheckPermissions: (credentials: SignInWithPasswordCredentials) => Promise<{ success: boolean; errorKey?: AuthErrorKey }>;
   signOut: () => Promise<void>;
 }
@@ -59,53 +59,40 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }
     return data as User;
   };
-  
-  const fetchPermissions = useCallback(async () => {
-    const { data: permissionsResult, error: permissionsError } = await supabase.rpc('get_user_effective_permissions');
-    if (permissionsError) {
-      console.error("خطأ في جلب صلاحيات الخدمات:", permissionsError);
-    }
-    setPermissions(permissionsResult || {});
-  }, []);
 
   const manageSession = useCallback(async (supaUser: SupabaseUser | null, preloadedUserData?: User) => {
     if (supaUser) {
-      const userData = preloadedUserData || await fetchFullUserData(supaUser);
-      if (userData) {
-        setUser(userData);
-        await fetchPermissions();
-      } else {
-        await supabase.auth.signOut();
+        const userData = preloadedUserData || await fetchFullUserData(supaUser);
+        if (userData) {
+            setUser(userData);
+        } else {
+            await supabase.auth.signOut();
+            setUser(null);
+            setPermissions({});
+        }
+    } else {
         setUser(null);
         setPermissions({});
-      }
-    } else {
-      setUser(null);
-      setPermissions({});
     }
     setIsLoading(false);
-  }, [fetchPermissions]);
+  }, []);
 
   const signInAndCheckPermissions = async (credentials: SignInWithPasswordCredentials): Promise<{ success: boolean; errorKey?: AuthErrorKey }> => {
+    // 1. المصادقة
     const { data: sessionData, error: signInError } = await supabase.auth.signInWithPassword(credentials);
     if (signInError) return { success: false, errorKey: 'errorCredentials' };
 
     if (sessionData.user) {
-      const { data: hasAccess, error: permissionError } = await supabase.rpc('check_permission', { p_user_id: sessionData.user.id, p_permission_id: 'general_access' });
-      if (permissionError) {
-        console.error("خطأ في دالة check_permission:", permissionError);
-        await supabase.auth.signOut();
-        return { success: false, errorKey: 'errorGeneric' };
-      }
-      if (hasAccess !== true) {
-        await supabase.auth.signOut();
-        return { success: false, errorKey: 'errorPermission' };
-      }
+      // 2. تم إزالة التحقق من الصلاحيات العامة مؤقتاً
+      
+      // 3. جلب ملف المستخدم
       const userData = await fetchFullUserData(sessionData.user);
       if (!userData) {
         await supabase.auth.signOut();
         return { success: false, errorKey: 'errorProfileNotFound' };
       }
+
+      // 4. كل شيء ناجح
       await manageSession(sessionData.user, userData);
       return { success: true };
     }
@@ -113,73 +100,43 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   };
   
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setPermissions({});
+      await supabase.auth.signOut();
+      setUser(null);
+      setPermissions({});
   };
   
   useEffect(() => {
-    const setupUserAndPermissions = async (supaUser: SupabaseUser | null) => {
-      setIsLoading(true);
-      if (supaUser) {
-        const userData = await fetchFullUserData(supaUser);
-        if (userData) {
-          setUser(userData);
-          await fetchPermissions();
-        } else {
-          await supabase.auth.signOut();
-          setUser(null);
-          setPermissions({});
-        }
-      } else {
-        setUser(null);
-        setPermissions({});
-      }
-      setIsLoading(false);
-    };
-
+    setIsLoading(true);
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setupUserAndPermissions(session?.user ?? null);
+      manageSession(session?.user ?? null);
     });
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setupUserAndPermissions(session?.user ?? null);
+      manageSession(session?.user ?? null);
     });
-    
-    const realtimeChannel = supabase.channel('permission_changes_channel');
-    const handleRealtimeUpdate = () => {
-      console.log('Realtime update detected. Re-fetching permissions.');
-      fetchPermissions();
-    };
 
-    realtimeChannel
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'job_permissions' }, handleRealtimeUpdate)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_permissions' }, handleRealtimeUpdate)
-      .subscribe();
-    
     return () => {
       authListener.subscription.unsubscribe();
-      realtimeChannel.unsubscribe();
     };
-  }, [fetchPermissions]);
-  
+  }, [manageSession]);
+
   const hasPermission = useCallback((key: string): boolean => {
-    if (user?.is_super_admin) return true;
-    if (isLoading || !permissions) return false;
-    return permissions[key] === true;
-  }, [user, permissions, isLoading]);
+      if (user?.is_super_admin) return true;
+      // تم تعطيل فحص الصلاحيات مؤقتاً
+      return true;
+  }, [user]);
   
   const updateFavorites = async (newFavorites: number[]) => {
-    if (!user) return;
-    setUser(currentUser => currentUser ? { ...currentUser, favorite_services: newFavorites } : null);
-    const { error } = await supabase
-      .from('users')
-      .update({ favorite_services: newFavorites })
-      .eq('id', user.id);
-    if (error) console.error("Error updating favorites:", error);
+      if (!user) return;
+      setUser(currentUser => currentUser ? { ...currentUser, favorite_services: newFavorites } : null);
+      const { error } = await supabase
+        .from('users')
+        .update({ favorite_services: newFavorites })
+        .eq('id', user.id);
+      if (error) console.error("Error updating favorites:", error);
   };
 
-  const value = { user, permissions, isLoading, hasPermission, updateFavorites, signInAndCheckPermissions, signOut };
+  const value = { user, permissions: {}, isLoading, hasPermission, updateFavorites, signInAndCheckPermissions, signOut };
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
 };

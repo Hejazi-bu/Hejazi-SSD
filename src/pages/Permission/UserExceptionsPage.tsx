@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 // 👈 هنا قمنا باستيراد مكون شاشة التحميل
 import LoadingScreen from '../../components/LoadingScreen';
 
+// تعريف أنواع البيانات
 type User = { id: string; name_ar: string; name_en: string; job_id: number | null; };
 type Job = { id: number; name_ar: string; name_en: string; };
 type ServiceNode = {
@@ -26,6 +27,14 @@ type PathItem = {
     id: string;
     label: string;
 };
+type PermissionChangeItem = {
+    user_id: string;
+    service_id: number | null;
+    sub_service_id: number | null;
+    sub_sub_service_id: number | null;
+    is_allowed: boolean;
+};
+
 
 const confirmToast = (message: string, onConfirm: () => void, onCancel: () => void, t: any) => {
     toast((toastInstance) => (
@@ -701,7 +710,9 @@ const UserExceptionsPage = () => {
         }
         setIsSaving(true);
         try {
-            const permissionsToProcess = Array.from(userPermissions.entries()).map(([permId, isAllowed]) => {
+            const operations: Promise<any>[] = [];
+
+            const processChange = async (permId: string, isAllowed: boolean) => {
                 const [type, id] = permId.split(':');
                 const node = findNode(servicesTree, permId);
                 let serviceId = null;
@@ -722,22 +733,38 @@ const UserExceptionsPage = () => {
                     subSubServiceId = Number(id);
                 }
 
-                return {
-                    user_id: selectedUserId,
-                    service_id: serviceId,
-                    sub_service_id: subServiceId,
-                    sub_sub_service_id: subSubServiceId,
-                    is_allowed: isAllowed
-                };
+                return supabase.rpc('update_user_permissions_exception', {
+                    p_user_id: selectedUserId,
+                    p_service_id: serviceId,
+                    p_sub_service_id: subServiceId,
+                    p_sub_sub_service_id: subSubServiceId,
+                    p_is_allowed: isAllowed,
+                    p_actor_id: user.id
+                });
+            };
+            
+            // تحديد التغييرات الجديدة أو المحدثة
+            userPermissions.forEach((isAllowed, permId) => {
+                const initialIsAllowed = initialUserPermissions.get(permId);
+                if (initialIsAllowed === undefined || initialIsAllowed !== isAllowed) {
+                    operations.push(processChange(permId, isAllowed));
+                }
             });
 
-            const { error } = await supabase.rpc('manage_user_permissions_from_list', {
-                p_user_id: selectedUserId,
-                p_permissions_to_process: permissionsToProcess,
-                p_changed_by_user_id: user.id
+            // تحديد الصلاحيات المحذوفة (التي تم إعادتها إلى صلاحية المسمى الوظيفي)
+            initialUserPermissions.forEach((isAllowed, permId) => {
+                if (!userPermissions.has(permId)) {
+                    // إذا كانت الصلاحية موجودة في الحالة الأولية ولكن ليست في الحالة الجديدة،
+                    // هذا يعني أنه تم إعادتها إلى صلاحية المسمى الوظيفي
+                    const finalIsAllowed = jobPermissions.has(permId);
+                    if (finalIsAllowed !== isAllowed) {
+                        operations.push(processChange(permId, finalIsAllowed));
+                    }
+                }
             });
+            
+            await Promise.all(operations);
 
-            if (error) throw error;
             toast.success(t.saveSuccess);
             setInitialUserPermissions(new Map(userPermissions));
             const newVisiblePerms = getInitialVisiblePermissions(filteredNodes, userPermissions);
