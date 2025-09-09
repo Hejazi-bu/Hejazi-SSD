@@ -622,44 +622,109 @@ const JobPermissionsPage = () => {
     }, [servicesTree, findNode]);
     
     const handleSave = async () => {
-        if (!selectedJobId || !user) return;
+        if (!selectedJobId || !user) {
+            toast.error(t.saveError);
+            return;
+        }
         setIsSaving(true);
         try {
-            const permissionsToInsert = Array.from(jobPermissions).map(perm => {
-                const [type, id] = perm.split(':');
-                let serviceId = null;
-                let subServiceId = null;
-                let subSubServiceId = null;
+            const permissionsToAdd = new Set(
+                Array.from(jobPermissions).filter(p => !initialJobPermissions.has(p))
+            );
+            const permissionsToRemove = new Set(
+                Array.from(initialJobPermissions).filter(p => !jobPermissions.has(p))
+            );
 
-                if (type === 's') {
-                    serviceId = Number(id);
-                } else if (type === 'ss') {
+            const operations = [];
+
+            // تحضير عمليات الإضافة
+            if (permissionsToAdd.size > 0) {
+                const newPermissions = Array.from(permissionsToAdd).map(perm => {
+                    const [type, id] = perm.split(':');
                     const node = findNode(servicesTree, perm);
-                    serviceId = Number(node?.parentId?.split(':')[1]);
-                    subServiceId = Number(id);
-                } else if (type === 'sss') {
+                    let serviceId = null;
+                    let subServiceId = null;
+                    let subSubServiceId = null;
+
+                    if (type === 's') {
+                        serviceId = Number(id);
+                    } else if (type === 'ss') {
+                        const parentNode = findNode(servicesTree, node?.parentId || '');
+                        serviceId = Number(parentNode?.id.split(':')[1]);
+                        subServiceId = Number(id);
+                    } else if (type === 'sss') {
+                        const parentNode = findNode(servicesTree, node?.parentId || '');
+                        const grandparent = findNode(servicesTree, parentNode?.parentId || '');
+                        serviceId = Number(grandparent?.id.split(':')[1]);
+                        subServiceId = Number(parentNode?.id.split(':')[1]);
+                        subSubServiceId = Number(id);
+                    }
+
+                    return {
+                        job_id: selectedJobId,
+                        service_id: serviceId,
+                        sub_service_id: subServiceId,
+                        sub_sub_service_id: subSubServiceId
+                    };
+                });
+                operations.push(supabase.from('job_permissions').insert(newPermissions));
+            }
+
+            // تحضير عمليات الحذف
+            if (permissionsToRemove.size > 0) {
+                const permsToDelete = Array.from(permissionsToRemove).map(perm => {
+                    const [type, id] = perm.split(':');
                     const node = findNode(servicesTree, perm);
-                    const parentNode = findNode(servicesTree, node?.parentId || '');
-                    serviceId = parentNode ? Number(parentNode.parentId?.split(':')[1]) : null;
-                    subServiceId = Number(node?.parentId?.split(':')[1]);
-                    subSubServiceId = Number(id);
+                    let serviceId = null;
+                    let subServiceId = null;
+                    let subSubServiceId = null;
+
+                    if (type === 's') {
+                        serviceId = Number(id);
+                    } else if (type === 'ss') {
+                        const parentNode = findNode(servicesTree, node?.parentId || '');
+                        serviceId = Number(parentNode?.id.split(':')[1]);
+                        subServiceId = Number(id);
+                    } else if (type === 'sss') {
+                        const parentNode = findNode(servicesTree, node?.parentId || '');
+                        const grandparent = findNode(servicesTree, parentNode?.parentId || '');
+                        serviceId = Number(grandparent?.id.split(':')[1]);
+                        subServiceId = Number(parentNode?.id.split(':')[1]);
+                        subSubServiceId = Number(id);
+                    }
+
+                    return {
+                        job_id: selectedJobId,
+                        service_id: serviceId,
+                        sub_service_id: subServiceId,
+                        sub_sub_service_id: subSubServiceId
+                    };
+                });
+                for (const perm of permsToDelete) {
+                    operations.push(
+                        supabase
+                            .from('job_permissions')
+                            .delete()
+                            .eq('job_id', perm.job_id)
+                            .eq('service_id', perm.service_id)
+                            .eq('sub_service_id', perm.sub_service_id)
+                            .eq('sub_sub_service_id', perm.sub_sub_service_id)
+                    );
                 }
+            }
 
-                return {
-                    job_id: selectedJobId,
-                    service_id: serviceId,
-                    sub_service_id: subServiceId,
-                    sub_sub_service_id: subSubServiceId,
-                };
-            });
-
-            const { error } = await supabase.rpc('update_job_permissions_and_cleanup_users', {
+            // تنفيذ جميع العمليات بشكل متزامن
+            await Promise.all(operations);
+            
+            // تشغيل دالة تنظيف المستخدمين
+            const { error: rpcError } = await supabase.rpc('manage_job_permissions_from_list', {
                 p_job_id: selectedJobId,
-                p_permissions: permissionsToInsert,
-                p_changed_by_user_id: user.id
+                p_permissions_to_add: Array.from(permissionsToAdd),
+                p_permissions_to_remove: Array.from(permissionsToRemove),
             });
 
-            if (error) throw error;
+            if (rpcError) throw rpcError;
+
             toast.success(t.saveSuccess);
             setInitialJobPermissions(new Set(jobPermissions));
             const newVisiblePerms = getInitialVisiblePermissions(filteredNodes, jobPermissions);

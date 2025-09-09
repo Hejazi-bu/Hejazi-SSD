@@ -695,11 +695,15 @@ const UserExceptionsPage = () => {
     }, [servicesTree, jobPermissions]);
     
     const handleSave = async () => {
-        if (!selectedUserId || !user) return;
+        if (!selectedUserId || !user) {
+            toast.error(t.saveError);
+            return;
+        }
         setIsSaving(true);
         try {
-            const permissionsToInsert = Array.from(userPermissions.entries()).map(([perm, is_allowed]) => {
-                const [type, id] = perm.split(':');
+            const permissionsToProcess = Array.from(userPermissions.entries()).map(([permId, isAllowed]) => {
+                const [type, id] = permId.split(':');
+                const node = findNode(servicesTree, permId);
                 let serviceId = null;
                 let subServiceId = null;
                 let subSubServiceId = null;
@@ -707,14 +711,14 @@ const UserExceptionsPage = () => {
                 if (type === 's') {
                     serviceId = Number(id);
                 } else if (type === 'ss') {
-                    const node = findNode(servicesTree, perm);
-                    serviceId = Number(node?.parentId?.split(':')[1]);
+                    const parentNode = findNode(servicesTree, node?.parentId || '');
+                    serviceId = parentNode ? Number(parentNode.id.split(':')[1]) : null;
                     subServiceId = Number(id);
                 } else if (type === 'sss') {
-                    const node = findNode(servicesTree, perm);
                     const parentNode = findNode(servicesTree, node?.parentId || '');
-                    serviceId = parentNode ? Number(parentNode.parentId?.split(':')[1]) : null;
-                    subServiceId = Number(node?.parentId?.split(':')[1]);
+                    const grandparent = findNode(servicesTree, parentNode?.parentId || '');
+                    serviceId = grandparent ? Number(grandparent.id.split(':')[1]) : null;
+                    subServiceId = parentNode ? Number(parentNode.id.split(':')[1]) : null;
                     subSubServiceId = Number(id);
                 }
 
@@ -723,13 +727,13 @@ const UserExceptionsPage = () => {
                     service_id: serviceId,
                     sub_service_id: subServiceId,
                     sub_sub_service_id: subSubServiceId,
-                    is_allowed: is_allowed
+                    is_allowed: isAllowed
                 };
             });
 
-            const { error } = await supabase.rpc('update_user_permissions_and_cleanup', {
+            const { error } = await supabase.rpc('manage_user_permissions_from_list', {
                 p_user_id: selectedUserId,
-                p_permissions: permissionsToInsert,
+                p_permissions_to_process: permissionsToProcess,
                 p_changed_by_user_id: user.id
             });
 
@@ -738,14 +742,15 @@ const UserExceptionsPage = () => {
             setInitialUserPermissions(new Map(userPermissions));
             const newVisiblePerms = getInitialVisiblePermissions(filteredNodes, userPermissions);
             setInitialVisiblePermissions(newVisiblePerms);
+
         } catch (error) {
-            console.error("Error saving permissions:", error);
+            console.error("Error saving user exceptions:", error);
             toast.error(t.saveError);
         } finally {
             setIsSaving(false);
         }
     };
-        
+            
     const handleResetVisible = useCallback(() => {
         setUserPermissions(prev => {
             const newPerms = new Map(prev);
