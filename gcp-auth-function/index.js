@@ -2,7 +2,7 @@ const { Client } = require('pg');
 
 exports.handleLogin = async (req, res) => {
   // إعدادات CORS للسماح بالوصول من تطبيقك الأمامي
-  res.set('Access-Control-Allow-Origin', '*'); // يمكنك تغيير * إلى عنوان URL لتطبيقك
+  res.set('Access-Control-Allow-Origin', req.get('origin') || '*');
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.set('Access-Control-Allow-Headers', 'Content-Type');
 
