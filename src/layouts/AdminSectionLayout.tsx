@@ -1,8 +1,8 @@
-// src/layouts/AdminSectionLayout.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../components/contexts/LanguageContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { db } from '../lib/supabaseClient'; // تعديل: استبدال supabase بـ db
+// تم حذف db
+// import { db } from '../lib/supabaseClient';
 import { useAuth } from '../components/contexts/UserContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Home, ChevronDown, Languages } from 'lucide-react';
@@ -22,8 +22,8 @@ interface AdminSectionLayoutProps {
   onNavigateWithPrompt?: () => void;
 }
 
-const AdminSectionLayout: React.FC<AdminSectionLayoutProps> = ({ 
-  children, 
+const AdminSectionLayout: React.FC<AdminSectionLayoutProps> = ({
+  children,
   mainServiceId,
   hasUnsavedChanges,
   onNavigateWithPrompt,
@@ -55,22 +55,17 @@ const AdminSectionLayout: React.FC<AdminSectionLayoutProps> = ({
   useEffect(() => {
     const fetchHeaderData = async () => {
       try {
-        // تعديل: استبدال استعلام Supabase بـ db.query
-        const serviceQuery = 'SELECT label_ar, label_en FROM services WHERE id = $1';
-        const serviceRes = await db.query(serviceQuery, [mainServiceId]);
-        const serviceData = serviceRes.rows[0];
+        // ✅ استبدال الاستعلامات المباشرة باستدعاء نقطة النهاية في الخادم
+        const response = await fetch(`http://localhost:3001/api/admin/services/${mainServiceId}/header-data`);
+        const data = await response.json();
 
-        if (serviceData) {
-          setMainServiceTitle(language === 'ar' ? serviceData.label_ar : serviceData.label_en);
+        if (data.success) {
+          setMainServiceTitle(language === 'ar' ? data.mainService.label_ar : data.mainService.label_en);
+          const permittedSubServices = (data.subServices || []).filter((ss: any) => hasPermission(`ss:${ss.id}`));
+          setSubServices(permittedSubServices);
+        } else {
+          console.error("Error fetching header data:", data.message);
         }
-        
-        // تعديل: استبدال استعلام Supabase بـ db.query
-        const subServicesQuery = 'SELECT id, label_ar, label_en, page FROM sub_services WHERE service_id = $1 ORDER BY "order" ASC';
-        const subServicesRes = await db.query(subServicesQuery, [mainServiceId]);
-        const allSubServices = subServicesRes.rows;
-
-        const permittedSubServices = (allSubServices || []).filter(ss => hasPermission(`ss:${ss.id}`));
-        setSubServices(permittedSubServices);
       } catch (error) {
         console.error("Error fetching header data:", error);
       }
@@ -94,17 +89,17 @@ const AdminSectionLayout: React.FC<AdminSectionLayoutProps> = ({
       <header className="sticky top-0 z-40 bg-gray-900/80 backdrop-blur-sm shadow-lg">
         <div className="flex items-center justify-between px-4 sm:px-6 py-3">
           <div className="flex items-center gap-2">
-            <button 
-              onClick={handleHomeNavigation} 
+            <button
+              onClick={handleHomeNavigation}
               className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-700/50"
             >
               <Home size={20} />
               <span className="hidden sm:inline font-semibold">{t.backToDash}</span>
             </button>
           </div>
-          
+
           <div className="relative" ref={menuRef}>
-            <button 
+            <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="flex items-center gap-2 px-4 py-2 bg-gray-800/50 rounded-md hover:bg-gray-700/50 transition-colors"
             >
@@ -136,7 +131,7 @@ const AdminSectionLayout: React.FC<AdminSectionLayoutProps> = ({
               )}
             </AnimatePresence>
           </div>
-          
+
           <div className="flex items-center gap-2">
             <button onClick={toggleLanguage} className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-700/50">
               <Languages size={20} />
@@ -145,7 +140,7 @@ const AdminSectionLayout: React.FC<AdminSectionLayoutProps> = ({
           </div>
         </div>
       </header>
-      
+
       <main className="p-4 sm:p-6">
         {children}
       </main>

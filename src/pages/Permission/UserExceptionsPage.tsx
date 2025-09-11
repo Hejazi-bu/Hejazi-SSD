@@ -1,6 +1,7 @@
 // src/pages/Permission/UserExceptionsPage.tsx
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { db } from '../../lib/supabaseClient'; // تعديل: استبدال supabase بـ db
+// تم حذف db
+// import { db } from '../../lib/supabaseClient';
 import { useAuth } from '../../components/contexts/UserContext';
 import { useLanguage } from '../../components/contexts/LanguageContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,8 +12,6 @@ import 'react-tooltip/dist/react-tooltip.css';
 import { usePrompt } from '../../hooks/usePrompt';
 import toast, { Toaster } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-
-// 👈 هنا قمنا باستيراد مكون شاشة التحميل
 import LoadingScreen from '../../components/LoadingScreen';
 
 // تعريف أنواع البيانات
@@ -294,7 +293,7 @@ const MemoizedBreadcrumb = React.memo(({ path, setPath, language, translations, 
                     <ChevronRight size={18} className={`mx-1 text-gray-500 ${isRTL ? 'rotate-180' : ''}`} />
                     <motion.button
                         onClick={() => setPath(path.slice(0, index + 1))}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all cursor-pointer ${
+                        className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
                             index === path.length - 1
                                 ? 'bg-gradient-to-r from-gray-700 to-gray-800 text-white shadow-lg'
                                 : 'text-gray-400 hover:text-white hover:bg-gray-700'
@@ -334,9 +333,9 @@ const UserExceptionsPage = () => {
     const [jobPermissions, setJobPermissions] = useState<Set<string>>(new Set());
     const [initialUserPermissions, setInitialUserPermissions] = useState<Map<string, boolean>>(new Map());
     const [initialVisiblePermissions, setInitialVisiblePermissions] = useState<Map<string, boolean>>(new Map());
-    
+
     const [userSearchFilter, setUserSearchFilter] = useState('');
-    
+
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [isConfirming, setIsConfirming] = useState(false);
@@ -348,29 +347,29 @@ const UserExceptionsPage = () => {
         }
         let current = { id: 'root', label: 'Root', children: servicesTree };
         for (const item of path) {
-                const found = current.children.find(node => node.id === item.id);
-                if (found) {
-                    current = found;
-                } else {
-                    return { id: 'root', label: 'Root', children: servicesTree };
-                }
+            const found = current.children.find(node => node.id === item.id);
+            if (found) {
+                current = found;
+            } else {
+                return { id: 'root', label: 'Root', children: servicesTree };
+            }
         }
         return current;
     }, [path, servicesTree]);
-    
+
     const t = translations[language];
 
     const findNode = useCallback((nodes: ServiceNode[], id: string): ServiceNode | null => {
         for (const node of nodes) {
-                if (node.id === id) {
-                    return node;
+            if (node.id === id) {
+                return node;
+            }
+            if (node.children) {
+                const foundChild = findNode(node.children, id);
+                if (foundChild) {
+                    return foundChild;
                 }
-                if (node.children) {
-                    const foundChild = findNode(node.children, id);
-                    if (foundChild) {
-                        return foundChild;
-                    }
-                }
+            }
         }
         return null;
     }, []);
@@ -379,7 +378,7 @@ const UserExceptionsPage = () => {
         const currentNodes = currentNode.children;
         return currentNodes;
     }, [currentNode]);
-    
+
     const getInitialVisiblePermissions = useCallback((nodes: ServiceNode[], allInitialPermissions: Map<string, boolean>): Map<string, boolean> => {
         const initialPerms = new Map<string, boolean>();
         const traverseAndCheck = (currentNodes: ServiceNode[]) => {
@@ -394,7 +393,7 @@ const UserExceptionsPage = () => {
         traverseAndCheck(nodes);
         return initialPerms;
     }, []);
-    
+
     const getVisibleNodeIds = useCallback((nodes: ServiceNode[]): Set<string> => {
         const visibleIds = new Set<string>();
         const traverse = (currentNodes: ServiceNode[]) => {
@@ -422,7 +421,7 @@ const UserExceptionsPage = () => {
             return !isAllowed;
         });
     }, [filteredNodes, userPermissions, jobPermissions]);
-    
+
     const hasVisibleChanges = useMemo(() => {
         const currentVisiblePerms = new Map<string, boolean>();
         const traverseAndCheck = (nodes: ServiceNode[]) => {
@@ -457,7 +456,7 @@ const UserExceptionsPage = () => {
         const traverse = (nodes: ServiceNode[]) => {
             nodes.forEach(n => {
                 const isAllowed = userPermissions.has(n.id) ? userPermissions.get(n.id) : jobPermissions.has(n.id);
-                if(isAllowed) {
+                if (isAllowed) {
                     count++;
                 }
                 traverse(n.children);
@@ -478,7 +477,7 @@ const UserExceptionsPage = () => {
         traverse(servicesTree);
         return count;
     }, [servicesTree]);
-    
+
     const disabledPermissionsCount = totalPermissionsCount - enabledPermissionsCount;
 
 
@@ -489,7 +488,7 @@ const UserExceptionsPage = () => {
         }
         return false;
     }, [userPermissions, initialUserPermissions]);
-    
+
     const handleNavigationWithPrompt = useCallback(() => {
         if (hasChanges) {
             setIsConfirming(true);
@@ -524,12 +523,12 @@ const UserExceptionsPage = () => {
             window.removeEventListener('beforeunload', handleBeforeUnload);
         };
     }, [hasChanges]);
-    
+
     useEffect(() => {
         const updatePathLabels = () => {
             setPath(prevPath => {
                 if (prevPath.length === 0) return prevPath;
-    
+
                 return prevPath.map(item => {
                     const node = findNode(servicesTree, item.id);
                     if (node) {
@@ -539,92 +538,94 @@ const UserExceptionsPage = () => {
                 });
             });
         };
-    
+
         updatePathLabels();
     }, [language, servicesTree, findNode]);
 
     useEffect(() => {
         const fetchInitialData = async () => {
             try {
-                // تعديل: استبدال استعلامات Supabase بـ db.query
-                const [usersRes, jobsRes, servicesRes, subServicesRes, subSubServicesRes] = await Promise.all([
-                    db.query('SELECT id, name_ar, name_en, job_id FROM users ORDER BY name_ar ASC'),
-                    db.query('SELECT id, name_ar, name_en FROM jobs ORDER BY id ASC'),
-                    db.query('SELECT id, label_ar, label_en FROM services ORDER BY "order" ASC'),
-                    db.query('SELECT id, service_id, label_ar, label_en FROM sub_services ORDER BY "order" ASC'),
-                    db.query('SELECT id, sub_service_id, label_ar, label_en FROM sub_sub_services ORDER BY "order" ASC')
-                ]);
-
-                setUsers(usersRes.rows || []);
-                setJobs(jobsRes.rows || []);
-
-                const tree = (servicesRes.rows || []).map(s => {
-                    const subServices = (subServicesRes.rows || [])
-                        .filter(ss => ss.service_id === s.id)
-                        .map(ss => {
-                            const subSubServices = (subSubServicesRes.rows || [])
-                                .filter(sss => sss.sub_service_id === ss.id)
-                                .map(sss => ({
-                                    id: `sss:${sss.id}`,
-                                    label: language === 'ar' ? sss.label_ar : sss.label_en,
-                                    children: [],
-                                    parentId: `ss:${ss.id}`
-                                }));
-                            return {
-                                id: `ss:${ss.id}`,
-                                label: language === 'ar' ? ss.label_ar : ss.label_en,
-                                children: subSubServices,
-                                parentId: `s:${s.id}`
-                            };
-                        });
-                    return {
-                        id: `s:${s.id}`,
-                        label: language === 'ar' ? s.label_ar : s.label_en,
-                        children: subServices,
-                    };
-                });
-                setServicesTree(tree);
+                // ✅ استبدال استعلامات Supabase بـ fetch إلى الخادم
+                const response = await fetch(`http://localhost:3001/api/user-permissions/initial-data`);
+                const data = await response.json();
+                
+                if(data.success){
+                    setUsers(data.users || []);
+                    setJobs(data.jobs || []);
+    
+                    const tree = (data.servicesRes || []).map((s: any) => {
+                        const subServices = (data.subServicesRes || [])
+                            .filter((ss: any) => ss.service_id === s.id)
+                            .map((ss: any) => {
+                                const subSubServices = (data.subSubServicesRes || [])
+                                    .filter((sss: any) => sss.sub_service_id === ss.id)
+                                    .map((sss: any) => ({
+                                        id: `sss:${sss.id}`,
+                                        label: language === 'ar' ? sss.label_ar : sss.label_en,
+                                        children: [],
+                                        parentId: `ss:${ss.id}`
+                                    }));
+                                return {
+                                    id: `ss:${ss.id}`,
+                                    label: language === 'ar' ? ss.label_ar : ss.label_en,
+                                    children: subSubServices,
+                                    parentId: `s:${s.id}`
+                                };
+                            });
+                        return {
+                            id: `s:${s.id}`,
+                            label: language === 'ar' ? s.label_ar : s.label_en,
+                            children: subServices,
+                        };
+                    });
+                    setServicesTree(tree);
+                } else {
+                    console.error("Error fetching initial data:", data.message);
+                }
             } catch (error) {
                 console.error("Error fetching initial data:", error);
             } finally {
                 setIsLoading(false);
             }
         };
-        if(hasPermission('ss:10')) fetchInitialData(); else setIsLoading(false);
+        if (hasPermission('ss:10')) fetchInitialData(); else setIsLoading(false);
     }, [language, hasPermission]);
-    
+
     const fetchUserAndJobPermissions = useCallback(async (userId: string) => {
         try {
-            // تعديل: استبدال استعلامات Supabase بـ db.query
-            const [userRes, jobRes] = await Promise.all([
-                db.query('SELECT up.sub_service_id, up.sub_sub_service_id, up.is_allowed, up.service_id FROM user_permissions up WHERE up.user_id = $1', [userId]),
-                db.query('SELECT jp.sub_service_id, jp.sub_sub_service_id, jp.service_id FROM job_permissions jp LEFT JOIN users u ON jp.job_id = u.job_id WHERE u.id = $1', [userId]),
-            ]);
+            // ✅ استبدال استعلامات Supabase بـ fetch إلى الخادم
+            const response = await fetch(`http://localhost:3001/api/user-permissions/${userId}`);
+            const data = await response.json();
 
-            const userPermsMap = new Map<string, boolean>();
-            (userRes.rows || []).forEach(p => {
-                if (p.sub_sub_service_id) userPermsMap.set(`sss:${p.sub_sub_service_id}`, p.is_allowed);
-                else if (p.sub_service_id) userPermsMap.set(`ss:${p.sub_service_id}`, p.is_allowed);
-                else userPermsMap.set(`s:${p.service_id}`, p.is_allowed);
-            });
-            setUserPermissions(userPermsMap);
-            setInitialUserPermissions(new Map(userPermsMap));
+            if (data.success) {
+                const userPermsMap = new Map<string, boolean>();
+                (data.userPermissions || []).forEach((p: any) => {
+                    if (p.sub_sub_service_id) userPermsMap.set(`sss:${p.sub_sub_service_id}`, p.is_allowed);
+                    else if (p.sub_service_id) userPermsMap.set(`ss:${p.sub_service_id}`, p.is_allowed);
+                    else userPermsMap.set(`s:${p.service_id}`, p.is_allowed);
+                });
+                setUserPermissions(userPermsMap);
+                setInitialUserPermissions(new Map(userPermsMap));
 
-            const jobPermsSet = new Set<string>();
-            (jobRes.rows || []).forEach(p => {
-                if (p.sub_sub_service_id) jobPermsSet.add(`sss:${p.sub_sub_service_id}`);
-                else if (p.sub_service_id) jobPermsSet.add(`ss:${p.sub_service_id}`);
-                else jobPermsSet.add(`s:${p.service_id}`);
-            });
-            setJobPermissions(jobPermsSet);
+                const jobPermsSet = new Set<string>();
+                (data.jobPermissions || []).forEach((p: any) => {
+                    if (p.sub_sub_service_id) jobPermsSet.add(`sss:${p.sub_sub_service_id}`);
+                    else if (p.sub_service_id) jobPermsSet.add(`ss:${p.sub_service_id}`);
+                    else jobPermsSet.add(`s:${p.service_id}`);
+                });
+                setJobPermissions(jobPermsSet);
 
-            const initialVisiblePerms = getInitialVisiblePermissions(servicesTree, userPermsMap);
-            setInitialVisiblePermissions(initialVisiblePerms);
-            setPath([]);
+                const initialVisiblePerms = getInitialVisiblePermissions(servicesTree, userPermsMap);
+                setInitialVisiblePermissions(initialVisiblePerms);
+                setPath([]);
+            } else {
+                console.error("Error fetching user and job permissions:", data.message);
+            }
+
         } catch (error) {
             console.error("Error fetching user and job permissions:", error);
         }
-    }, [users, servicesTree, getInitialVisiblePermissions]);
+    }, [servicesTree, getInitialVisiblePermissions]);
 
     useEffect(() => {
         if (selectedUserId !== null) {
@@ -637,10 +638,21 @@ const UserExceptionsPage = () => {
     }, [language, selectedUserId, users, fetchUserAndJobPermissions]);
 
     const handleSelectUser = useCallback(async (user: User) => {
+        if (hasChanges) {
+            confirmToast(t.unsavedChangesWarning, async () => {
+                setSelectedUserId(user.id);
+                setSelectedUserName(language === 'ar' ? user.name_ar : user.name_en);
+                setUserSearchFilter('');
+                fetchUserAndJobPermissions(user.id);
+            }, () => {
+                // do nothing on cancel
+            }, t);
+            return;
+        }
         setSelectedUserId(user.id);
         setSelectedUserName(language === 'ar' ? user.name_ar : user.name_en);
         setUserSearchFilter('');
-    }, [language]);
+    }, [language, hasChanges, t, fetchUserAndJobPermissions]);
 
     const handleChangeUser = () => {
         if (hasChanges) {
@@ -749,10 +761,10 @@ const UserExceptionsPage = () => {
                     if (type === 's') service_id = Number(id);
                     else if (type === 'ss') sub_service_id = Number(id);
                     else if (type === 'sss') sub_sub_service_id = Number(id);
-
+    
                     // سنقوم بحذفه ثم إضافته مجدداً
                     changesToDelete.push({user_id: selectedUserId, service_id, sub_service_id, sub_sub_service_id});
-                    changesToInsert.push({user_id: selectedUserId, service_id, sub_service_id, sub_sub_service_id, isAllowed , actor_id: user.id});
+                    changesToInsert.push({user_id: selectedUserId, service_id, sub_service_id, sub_sub_service_id, is_allowed: isAllowed , actor_id: user.id});
                 }
             });
 
@@ -766,26 +778,33 @@ const UserExceptionsPage = () => {
                     if (type === 's') service_id = Number(id);
                     else if (type === 'ss') sub_service_id = Number(id);
                     else if (type === 'sss') sub_sub_service_id = Number(id);
-
+    
                     changesToDelete.push({user_id: selectedUserId, service_id, sub_service_id, sub_sub_service_id});
                 }
             });
 
-            if (changesToDelete.length > 0) {
-              const deleteQueries = changesToDelete.map(c => `(user_id='${c.user_id}' AND service_id${c.service_id ? `=${c.service_id}` : ' IS NULL'} AND sub_service_id${c.sub_service_id ? `=${c.sub_service_id}` : ' IS NULL'} AND sub_sub_service_id${c.sub_sub_service_id ? `=${c.sub_sub_service_id}` : ' IS NULL'})`).join(' OR ');
-              await db.query(`DELETE FROM user_permissions WHERE ${deleteQueries}`);
+            const payload = {
+                userId: selectedUserId,
+                changesToInsert,
+                changesToDelete
             }
+            
+            const response = await fetch('http://localhost:3001/api/user-exceptions/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            
+            const result = await response.json();
 
-            if (changesToInsert.length > 0) {
-              const insertQuery = 'INSERT INTO user_permissions (user_id, service_id, sub_service_id, sub_sub_service_id, is_allowed, actor_id) VALUES ' + changesToInsert.map((_, i) => `($${i*6 + 1}, $${i*6 + 2}, $${i*6 + 3}, $${i*6 + 4}, $${i*6 + 5}, $${i*6 + 6})`).join(', ');
-              const insertValues = changesToInsert.flatMap(p => [p.user_id, p.service_id, p.sub_service_id, p.sub_sub_service_id, p.is_allowed, p.actor_id]);
-              await db.query(insertQuery, insertValues);
+            if (result.success) {
+                toast.success(t.saveSuccess);
+                setInitialUserPermissions(new Map(userPermissions));
+                const newVisiblePerms = getInitialVisiblePermissions(filteredNodes, userPermissions);
+                setInitialVisiblePermissions(newVisiblePerms);
+            } else {
+                toast.error(t.saveError);
             }
-
-            toast.success(t.saveSuccess);
-            setInitialUserPermissions(new Map(userPermissions));
-            const newVisiblePerms = getInitialVisiblePermissions(filteredNodes, userPermissions);
-            setInitialVisiblePermissions(newVisiblePerms);
 
         } catch (error) {
             console.error("Error saving user exceptions:", error);
@@ -815,7 +834,7 @@ const UserExceptionsPage = () => {
         setUserPermissions(prev => {
             const newPerms = new Map(prev);
             const visibleNodesIds = getVisibleNodeIds(filteredNodes);
-
+    
             visibleNodesIds.forEach(nodeId => {
                 const isJobAllowed = jobPermissions.has(nodeId);
                 if (select === isJobAllowed) {
