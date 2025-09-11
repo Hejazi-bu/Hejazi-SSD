@@ -1,5 +1,6 @@
+// src/pages/Permission/JobPermissionsPage.tsx
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { supabase } from '../../lib/supabaseClient';
+import { db } from '../../lib/supabaseClient'; // تعديل: استبدال supabase بـ db
 import { useAuth } from '../../components/contexts/UserContext';
 import { useLanguage } from '../../components/contexts/LanguageContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -312,7 +313,7 @@ const JobPermissionsPage = () => {
     const { language } = useLanguage();
     const { hasPermission, user } = useAuth();
     const isRTL = language === 'ar';
-    const navigate = useNavigate(); 
+    const navigate = useNavigate();
     
     const headerRef = useRef<HTMLElement>(null);
     const [mainHeaderHeight, setMainHeaderHeight] = useState(0);
@@ -352,15 +353,15 @@ const JobPermissionsPage = () => {
 
     const findNode = useCallback((nodes: ServiceNode[], id: string): ServiceNode | null => {
         for (const node of nodes) {
-            if (node.id === id) {
-                return node;
-            }
-            if (node.children) {
-                const foundChild = findNode(node.children, id);
-                if (foundChild) {
-                    return foundChild;
+                if (node.id === id) {
+                    return node;
                 }
-            }
+                if (node.children) {
+                    const foundChild = findNode(node.children, id);
+                    if (foundChild) {
+                        return foundChild;
+                    }
+                }
         }
         return null;
     }, []);
@@ -490,38 +491,39 @@ const JobPermissionsPage = () => {
     }, [hasChanges]);
     
     useEffect(() => {
-      const updatePathLabels = () => {
-          setPath(prevPath => {
-              if (prevPath.length === 0) return prevPath;
+        const updatePathLabels = () => {
+            setPath(prevPath => {
+                if (prevPath.length === 0) return prevPath;
  
-              return prevPath.map(item => {
-                  const node = findNode(servicesTree, item.id);
-                  if (node) {
-                      return { ...item, label: node.label };
-                  }
-                  return item;
-              });
-          });
-      };
+                return prevPath.map(item => {
+                    const node = findNode(servicesTree, item.id);
+                    if (node) {
+                        return { ...item, label: node.label };
+                    }
+                    return item;
+                });
+            });
+        };
  
-      updatePathLabels();
+        updatePathLabels();
     }, [language, servicesTree, findNode]);
 
     useEffect(() => {
         const fetchInitialData = async () => {
+            // تعديل: استبدال استعلامات Supabase بـ db.query
             const [jobsRes, servicesRes, subServicesRes, subSubServicesRes] = await Promise.all([
-                supabase.from('jobs').select('id, name_ar, name_en').order('id'),
-                supabase.from('services').select('id, label_ar, label_en').order('order'),
-                supabase.from('sub_services').select('id, service_id, label_ar, label_en').order('order'),
-                supabase.from('sub_sub_services').select('id, sub_service_id, label_ar, label_en').order('order')
+                db.query('SELECT id, name_ar, name_en FROM jobs ORDER BY id ASC'),
+                db.query('SELECT id, label_ar, label_en FROM services ORDER BY "order" ASC'),
+                db.query('SELECT id, service_id, label_ar, label_en FROM sub_services ORDER BY "order" ASC'),
+                db.query('SELECT id, sub_service_id, label_ar, label_en FROM sub_sub_services ORDER BY "order" ASC')
             ]);
 
-            setJobs(jobsRes.data || []);
-            const tree = (servicesRes.data || []).map(s => {
-                const subServices = (subServicesRes.data || [])
+            setJobs(jobsRes.rows || []);
+            const tree = (servicesRes.rows || []).map(s => {
+                const subServices = (subServicesRes.rows || [])
                     .filter(ss => ss.service_id === s.id)
                     .map(ss => {
-                        const subSubServices = (subSubServicesRes.data || [])
+                        const subSubServices = (subSubServicesRes.rows || [])
                             .filter(sss => sss.sub_service_id === ss.id)
                             .map(sss => ({
                                 id: `sss:${sss.id}`,
@@ -562,8 +564,9 @@ const JobPermissionsPage = () => {
         setSelectedJobName(language === 'ar' ? job.name_ar : job.name_en);
         setJobSearchFilter('');
 
-        const { data } = await supabase.from('job_permissions').select('*').eq('job_id', job.id);
-        const perms = new Set((data || []).map(p => {
+        // تعديل: استبدال استعلام Supabase بـ db.query
+        const res = await db.query('SELECT * FROM job_permissions WHERE job_id = $1', [job.id]);
+        const perms = new Set((res.rows || []).map(p => {
             if (p.sub_sub_service_id) return `sss:${p.sub_sub_service_id}`;
             if (p.sub_service_id) return `ss:${p.sub_service_id}`;
             return `s:${p.service_id}`;
@@ -640,74 +643,59 @@ const JobPermissionsPage = () => {
                 Array.from(initialJobPermissions).filter(p => !jobPermissions.has(p))
             );
             
-            const permissionChanges: PermissionChangeItem[] = [];
-
-            Array.from(permissionsToAdd).forEach(perm => {
-                const [type, id] = perm.split(':');
-                const node = findNode(servicesTree, perm);
-                let service_id = null;
-                let sub_service_id = null;
-                let sub_sub_service_id = null;
-
-                if (type === 's') {
-                    service_id = Number(id);
-                } else if (type === 'ss') {
-                    const parentNode = findNode(servicesTree, node?.parentId || '');
-                    service_id = parentNode ? Number(parentNode.id.split(':')[1]) : null;
-                    sub_service_id = Number(id);
-                } else if (type === 'sss') {
-                    const parentNode = findNode(servicesTree, node?.parentId || '');
-                    const grandparent = findNode(servicesTree, parentNode?.parentId || '');
-                    service_id = grandparent ? Number(grandparent.id.split(':')[1]) : null;
-                    sub_service_id = parentNode ? Number(parentNode.id.split(':')[1]) : null;
-                    sub_sub_service_id = Number(id);
-                }
+            // تعديل: استبدال rpc بمنطق SQL
+            if (permissionsToRemove.size > 0) {
+                const deleteIds = Array.from(permissionsToRemove).map(perm => {
+                    const [type, id] = perm.split(':');
+                    return { type, id: Number(id) };
+                });
+                const deleteServiceIds = deleteIds.filter(d => d.type === 's').map(d => d.id);
+                const deleteSubServiceIds = deleteIds.filter(d => d.type === 'ss').map(d => d.id);
+                const deleteSubSubServiceIds = deleteIds.filter(d => d.type === 'sss').map(d => d.id);
                 
-                permissionChanges.push({
-                    service_id: service_id,
-                    sub_service_id: sub_service_id,
-                    sub_sub_service_id: sub_sub_service_id,
-                    is_allowed: true,
-                });
-            });
-
-            Array.from(permissionsToRemove).forEach(perm => {
-                const [type, id] = perm.split(':');
-                const node = findNode(servicesTree, perm);
-                let service_id = null;
-                let sub_service_id = null;
-                let sub_sub_service_id = null;
-
-                if (type === 's') {
-                    service_id = Number(id);
-                } else if (type === 'ss') {
-                    const parentNode = findNode(servicesTree, node?.parentId || '');
-                    service_id = parentNode ? Number(parentNode.id.split(':')[1]) : null;
-                    sub_service_id = Number(id);
-                } else if (type === 'sss') {
-                    const parentNode = findNode(servicesTree, node?.parentId || '');
-                    const grandparent = findNode(servicesTree, parentNode?.parentId || '');
-                    service_id = grandparent ? Number(grandparent.id.split(':')[1]) : null;
-                    sub_service_id = parentNode ? Number(parentNode.id.split(':')[1]) : null;
-                    sub_sub_service_id = Number(id);
+                if (deleteServiceIds.length > 0) {
+                    await db.query('DELETE FROM job_permissions WHERE job_id = $1 AND service_id = ANY($2)', [selectedJobId, deleteServiceIds]);
                 }
-
-                permissionChanges.push({
-                    service_id: service_id,
-                    sub_service_id: sub_service_id,
-                    sub_sub_service_id: sub_sub_service_id,
-                    is_allowed: false,
+                if (deleteSubServiceIds.length > 0) {
+                    await db.query('DELETE FROM job_permissions WHERE job_id = $1 AND sub_service_id = ANY($2)', [selectedJobId, deleteSubServiceIds]);
+                }
+                if (deleteSubSubServiceIds.length > 0) {
+                    await db.query('DELETE FROM job_permissions WHERE job_id = $1 AND sub_sub_service_id = ANY($2)', [selectedJobId, deleteSubSubServiceIds]);
+                }
+            }
+            
+            if (permissionsToAdd.size > 0) {
+                const permissionsToInsert = Array.from(permissionsToAdd).map(perm => {
+                    const [type, id] = perm.split(':');
+                    const node = findNode(servicesTree, perm);
+                    
+                    let service_id: number | null = null;
+                    let sub_service_id: number | null = null;
+                    let sub_sub_service_id: number | null = null;
+                    
+                    if (type === 's') {
+                        service_id = Number(id);
+                    } else if (type === 'ss') {
+                        const parentNode = findNode(servicesTree, node?.parentId || '');
+                        service_id = parentNode ? Number(parentNode.id.split(':')[1]) : null;
+                        sub_service_id = Number(id);
+                    } else if (type === 'sss') {
+                        const parentNode = findNode(servicesTree, node?.parentId || '');
+                        const grandparent = findNode(servicesTree, parentNode?.parentId || '');
+                        service_id = grandparent ? Number(grandparent.id.split(':')[1]) : null;
+                        sub_service_id = parentNode ? Number(parentNode.id.split(':')[1]) : null;
+                        sub_sub_service_id = Number(id);
+                    }
+                    
+                    return { service_id, sub_service_id, sub_sub_service_id, job_id: selectedJobId, actor_id: user?.id, is_allowed: true };
                 });
-            });
 
-            const { error: rpcError } = await supabase.rpc('update_job_permissions_and_cascade', {
-                p_job_id: selectedJobId,
-                p_permissions_array: permissionChanges,
-                p_actor_id: user.id
-            });
+                const insertQuery = 'INSERT INTO job_permissions (service_id, sub_service_id, sub_sub_service_id, job_id, actor_id, is_allowed) VALUES ' + permissionsToInsert.map((_, i) => `($${i*6 + 1}, $${i*6 + 2}, $${i*6 + 3}, $${i*6 + 4}, $${i*6 + 5}, $${i*6 + 6})`).join(', ');
+                const insertValues = permissionsToInsert.flatMap(p => [p.service_id, p.sub_service_id, p.sub_sub_service_id, p.job_id, p.actor_id, p.is_allowed]);
 
-            if (rpcError) throw rpcError;
-
+                await db.query(insertQuery, insertValues);
+            }
+            
             toast.success(t.saveSuccess);
             setInitialJobPermissions(new Set(jobPermissions));
             const newVisiblePerms = getInitialVisiblePermissions(filteredNodes, jobPermissions);
@@ -822,13 +810,13 @@ const JobPermissionsPage = () => {
     const handleGoBack = useCallback(() => {
         setPath(prevPath => {
             const newPath = prevPath.slice(0, -1);
-            let targetNode;
+            let targetNode: any;
             if (newPath.length === 0) {
                 targetNode = { children: servicesTree };
             } else {
-                let current = { children: servicesTree };
+                let current: any = { children: servicesTree };
                 for (const item of newPath) {
-                    const found = current.children.find(node => node.id === item.id);
+                    const found = current.children.find((node: ServiceNode) => node.id === item.id);
                     if (found) {
                         current = found;
                     } else {

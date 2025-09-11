@@ -5,7 +5,7 @@ import { ServicesOverlay } from './home/ServicesOverlay';
 import { Header } from './dashboard/Header';
 import { DashboardCard } from './dashboard/DashboardCard';
 import { AnimatePresence, motion, Variants } from 'framer-motion';
-import { supabase } from '../lib/supabaseClient';
+import { db  } from '../lib/supabaseClient';
 import { Navigate } from 'react-router-dom';
 
 const PlaceholderChart = ({ color = '#FFD700' }) => (
@@ -31,31 +31,36 @@ const HomePage = () => {
     return <Navigate to="/login" replace />;
   }
 
-  useEffect(() => {
-    const fetchCompanyName = async () => {
-      if (!user?.company_id) {
-        setIsLoadingCompany(false);
-        return;
-      }
-      setIsLoadingCompany(true);
-      const { data, error } = await supabase
-        .from('companies')
-        .select('name_ar, name_en')
-        .eq('id', user.company_id)
-        .single();
-      
-      if (error) {
-        console.error("Error fetching company name:", error);
-      } else if (data) {
-        setCompanyName(language === 'ar' ? data.name_ar : data.name_en);
-      }
-      setIsLoadingCompany(false);
-    };
+  useEffect(() => {
+    const fetchCompanyName = async () => {
+      if (!user?.company_id) {
+        setIsLoadingCompany(false);
+        return;
+      }
+      setIsLoadingCompany(true);
+      
+      try {
+        const res = await db.query('SELECT name_ar, name_en FROM companies WHERE id = $1', [user.company_id]);
+        const data = res.rows[0];
 
-    if (user) {
-      fetchCompanyName();
-    }
-  }, [user, language]);
+        if (data) {
+          setCompanyName(language === 'ar' ? data.name_ar : data.name_en);
+        } else {
+          console.error("لم يتم العثور على اسم الشركة.");
+          setCompanyName(null);
+        }
+      } catch (error) {
+        console.error("خطأ في جلب اسم الشركة:", error);
+        setCompanyName(null);
+      } finally {
+        setIsLoadingCompany(false);
+      }
+    };
+
+    if (user) {
+      fetchCompanyName();
+    }
+  }, [user, language]);
 
   const welcomeName = language === 'ar' ? user?.name_ar : user?.name_en;
 

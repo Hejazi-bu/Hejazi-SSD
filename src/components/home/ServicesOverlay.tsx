@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
-import { supabase } from '../../lib/supabaseClient';
+import { db  } from '../../lib/supabaseClient';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/UserContext';
 import { ServiceCard, Service } from './ServiceCard';
@@ -41,44 +41,42 @@ export const ServicesOverlay: React.FC<ServicesOverlayProps> = ({ isOpen, onClos
   const [activeTab, setActiveTab] = useState<'all' | 'favorites'>('all');
   const t = translations[language];
 
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-      setIsLoading(true);
-      
-      const fetchAndStructureServices = async () => {
-        // 1. جلب كل البيانات اللازمة
-        const [groupsRes, servicesRes] = await Promise.all([
-          supabase.from('service_groups').select('*').order('order'),
-          supabase.from('services').select('*').order('order'),
-        ]);
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+      setIsLoading(true);
+      
+      const fetchAndStructureServices = async () => {
+        try {
+          // 1. جلب كل البيانات اللازمة باستخدام استعلامات SQL
+          const [groupsRes, servicesRes] = await Promise.all([
+            db.query('SELECT * FROM service_groups ORDER BY "order"'),
+            db.query('SELECT * FROM services ORDER BY "order"'),
+          ]);
 
-        if (groupsRes.error || servicesRes.error) {
-          console.error("Error fetching data:", groupsRes.error || servicesRes.error);
-          setIsLoading(false);
-          return;
-        }
+          // 2. فلترة الخدمات الرئيسية التي يملك المستخدم صلاحيتها
+          const permittedServices = servicesRes.rows.filter(service => hasPermission(`s:${service.id}`));
 
-        // 2. فلترة الخدمات الرئيسية التي يملك المستخدم صلاحيتها
-        const permittedServices = servicesRes.data.filter(service => hasPermission(`s:${service.id}`));
+          // 3. بناء الهيكل للعرض
+          const structuredData = groupsRes.rows.map(group => ({
+              ...group,
+              services: permittedServices.filter(service => service.group_id === group.id)
+          })).filter(group => group.services.length > 0);
 
-        // 3. بناء الهيكل للعرض
-        const structuredData = groupsRes.data.map(group => ({
-            ...group,
-            services: permittedServices.filter(service => service.group_id === group.id)
-        })).filter(group => group.services.length > 0);
+          setGroupedServices(structuredData);
+        } catch (error) {
+          console.error("Error fetching data:", error);
+        } finally {
+          setIsLoading(false);
+        }
+      };
 
-        setGroupedServices(structuredData);
-        setIsLoading(false);
-      };
-
-      fetchAndStructureServices();
-    } else {
-      document.body.style.overflow = 'auto';
-    }
-    return () => { document.body.style.overflow = 'auto'; };
-  }, [isOpen, hasPermission]);
-
+      fetchAndStructureServices();
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+    return () => { document.body.style.overflow = 'auto'; };
+  }, [isOpen, hasPermission])
 
   const handleToggleFavorite = (serviceId: number) => {
     if (!user || !user.favorite_services) return;

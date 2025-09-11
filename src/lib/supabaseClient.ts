@@ -1,12 +1,11 @@
-  import { createClient } from "@supabase/supabase-js";
+import { Client } from 'pg';
 
-  export const supabase = createClient(
-    import.meta.env.VITE_SUPABASE_URL,
-    import.meta.env.VITE_SUPABASE_ANON_KEY,
-    {
-      auth: {
-        persistSession: true,
-        detectSessionInUrl: true
-      }
-    }
-  );
+export const db = new Client({
+  user: import.meta.env.VITE_DB_USER,
+  host: import.meta.env.VITE_DB_HOST,
+  database: import.meta.env.VITE_DB_NAME,
+  password: import.meta.env.VITE_DB_PASSWORD,
+  port: 5432,
+});
+
+db.connect();

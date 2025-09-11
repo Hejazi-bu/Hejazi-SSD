@@ -1,5 +1,6 @@
+// src/pages/admin/AppSecurityPage.tsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { supabase } from '../../lib/supabaseClient';
+import { db } from '../../lib/supabaseClient'; // تعديل: استبدال supabase بـ db
 import { useAuth } from '../../components/contexts/UserContext';
 import { useLanguage } from '../../components/contexts/LanguageContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -55,7 +56,7 @@ const UserCard = ({ user, isException, onToggle, language, jobs }: { user: UserF
                 onClick={() => onToggle(user.id)}
                 className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors ${isException ? 'bg-green-500' : 'bg-gray-600'}`}
             >
-                <motion.span layout className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${isException ? 'translate-x-6' : 'translate-x-1'}`} />
+                <motion.span layout className={`inline-block w-4 h-4 transform bg-white rounded-full ${isException ? 'translate-x-6' : 'translate-x-1'}`} />
             </button>
         </motion.div>
     );
@@ -92,25 +93,32 @@ const AppSecurityPage = () => {
     useEffect(() => {
         const fetchData = async () => {
             setIsLoading(true);
-            const [appStatusRes, usersRes, jobsRes] = await Promise.all([
-                supabase.from('app').select('is_allowed').single(),
-                supabase.from('users').select('id, name_ar, name_en, job_id, app_exception').neq('id', user?.id),
-                supabase.from('jobs').select('id, name_ar, name_en')
-            ]);
+            try {
+                // تعديل: استبدال استعلامات Supabase بـ db.query
+                const [appStatusRes, usersRes, jobsRes] = await Promise.all([
+                    db.query('SELECT is_allowed FROM app LIMIT 1'),
+                    db.query('SELECT id, name_ar, name_en, job_id, app_exception FROM users WHERE id <> $1', [user?.id]),
+                    db.query('SELECT id, name_ar, name_en FROM jobs'),
+                ]);
 
-            if (appStatusRes.data) {
-                setInitialSystemStatus(appStatusRes.data.is_allowed);
-                setIsSystemActive(appStatusRes.data.is_allowed);
+                if (appStatusRes.rows.length > 0) {
+                    setInitialSystemStatus(appStatusRes.rows[0].is_allowed);
+                    setIsSystemActive(appStatusRes.rows[0].is_allowed);
+                }
+                
+                if (usersRes.rows.length > 0) {
+                    setAllUsers(usersRes.rows);
+                    const exceptions = new Set(usersRes.rows.filter(u => u.app_exception).map(u => u.id));
+                    setInitialExceptionIds(exceptions);
+                    setExceptionUserIds(exceptions);
+                }
+                if (jobsRes.rows.length > 0) setJobs(jobsRes.rows);
+                
+            } catch (error) {
+                console.error("Error fetching data:", error);
+            } finally {
+                setIsLoading(false);
             }
-            if (usersRes.data) {
-                setAllUsers(usersRes.data);
-                const exceptions = new Set(usersRes.data.filter(u => u.app_exception).map(u => u.id));
-                setInitialExceptionIds(exceptions);
-                setExceptionUserIds(exceptions);
-            }
-            if (jobsRes.data) setJobs(jobsRes.data);
-            
-            setIsLoading(false);
         };
         if(hasPermission('sss:90101')) fetchData(); else setIsLoading(false);
     }, [hasPermission, user?.id]);
@@ -145,20 +153,21 @@ const AppSecurityPage = () => {
     const handleSave = async () => {
         setIsSaving(true);
         try {
+            // تعديل: استبدال استعلامات Supabase بـ db.query
             const usersToEnableException = Array.from(exceptionUserIds).filter(id => !initialExceptionIds.has(id));
             const usersToDisableException = Array.from(initialExceptionIds).filter(id => !exceptionUserIds.has(id));
 
             const updates = [];
-            if (usersToEnableException.length > 0) updates.push(supabase.from('users').update({ app_exception: true }).in('id', usersToEnableException));
-            if (usersToDisableException.length > 0) updates.push(supabase.from('users').update({ app_exception: false }).in('id', usersToDisableException));
+            if (usersToEnableException.length > 0) updates.push(db.query('UPDATE users SET app_exception = TRUE WHERE id = ANY($1::uuid[])', [usersToEnableException]));
+            if (usersToDisableException.length > 0) updates.push(db.query('UPDATE users SET app_exception = FALSE WHERE id = ANY($1::uuid[])', [usersToDisableException]));
             
             const results = await Promise.all(updates);
-            const userUpdateError = results.find(res => res.error);
-            if (userUpdateError) throw userUpdateError.error;
+            
+            const hasError = results.some(res => res.rowCount === 0 && (res as any).error);
+            if (hasError) throw new Error("Failed to update users");
 
             if (initialSystemStatus !== isSystemActive) {
-                const { error: appError } = await supabase.from('app').update({ is_allowed: isSystemActive }).eq('is_allowed', !isSystemActive);
-                if (appError) throw appError;
+                await db.query('UPDATE app SET is_allowed = $1', [isSystemActive]);
             }
 
             alert(t.saveSuccess);
@@ -181,7 +190,7 @@ const AppSecurityPage = () => {
     }, [isSystemActive, exceptionUserIds, initialSystemStatus, initialExceptionIds]);
 
     if (!hasPermission('sss:90101')) {
-         return <div className="text-center text-red-500 p-10">{t.noPermission}</div>;
+        return <div className="text-center text-red-500 p-10">{t.noPermission}</div>;
     }
 
     if (isLoading) {

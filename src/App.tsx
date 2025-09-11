@@ -8,7 +8,6 @@ import AppSecurityPage from "./pages/admin/AppSecurityPage";
 import NewEvaluationPage from "./components/GuardsRating/NewEvaluationPage";
 import EvaluationRecordsPage from "./components/GuardsRating/EvaluationRecordsPage";
 import JobPermissionsPage from "./pages/Permission/JobPermissionsPage";
-// 👈 استيراد المكون الجديد هنا
 import UserExceptionsPage from "./pages/Permission/UserExceptionsPage"; 
 import LoadingScreen from "./components/LoadingScreen";
 

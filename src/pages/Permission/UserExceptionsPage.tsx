@@ -1,5 +1,6 @@
+// src/pages/Permission/UserExceptionsPage.tsx
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { supabase } from '../../lib/supabaseClient';
+import { db } from '../../lib/supabaseClient'; // تعديل: استبدال supabase بـ db
 import { useAuth } from '../../components/contexts/UserContext';
 import { useLanguage } from '../../components/contexts/LanguageContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -34,7 +35,6 @@ type PermissionChangeItem = {
     sub_sub_service_id: number | null;
     is_allowed: boolean;
 };
-
 
 const confirmToast = (message: string, onConfirm: () => void, onCancel: () => void, t: any) => {
     toast((toastInstance) => (
@@ -362,15 +362,15 @@ const UserExceptionsPage = () => {
 
     const findNode = useCallback((nodes: ServiceNode[], id: string): ServiceNode | null => {
         for (const node of nodes) {
-            if (node.id === id) {
-                return node;
-            }
-            if (node.children) {
-                const foundChild = findNode(node.children, id);
-                if (foundChild) {
-                    return foundChild;
+                if (node.id === id) {
+                    return node;
                 }
-            }
+                if (node.children) {
+                    const foundChild = findNode(node.children, id);
+                    if (foundChild) {
+                        return foundChild;
+                    }
+                }
         }
         return null;
     }, []);
@@ -529,7 +529,7 @@ const UserExceptionsPage = () => {
         const updatePathLabels = () => {
             setPath(prevPath => {
                 if (prevPath.length === 0) return prevPath;
-   
+    
                 return prevPath.map(item => {
                     const node = findNode(servicesTree, item.id);
                     if (node) {
@@ -539,84 +539,91 @@ const UserExceptionsPage = () => {
                 });
             });
         };
-   
+    
         updatePathLabels();
     }, [language, servicesTree, findNode]);
 
     useEffect(() => {
         const fetchInitialData = async () => {
-            const [usersRes, jobsRes, servicesRes, subServicesRes, subSubServicesRes] = await Promise.all([
-                supabase.from('users').select('id, name_ar, name_en, job_id').order('name_ar'),
-                supabase.from('jobs').select('id, name_ar, name_en').order('id'),
-                supabase.from('services').select('id, label_ar, label_en').order('order'),
-                supabase.from('sub_services').select('id, service_id, label_ar, label_en').order('order'),
-                supabase.from('sub_sub_services').select('id, sub_service_id, label_ar, label_en').order('order')
-            ]);
+            try {
+                // تعديل: استبدال استعلامات Supabase بـ db.query
+                const [usersRes, jobsRes, servicesRes, subServicesRes, subSubServicesRes] = await Promise.all([
+                    db.query('SELECT id, name_ar, name_en, job_id FROM users ORDER BY name_ar ASC'),
+                    db.query('SELECT id, name_ar, name_en FROM jobs ORDER BY id ASC'),
+                    db.query('SELECT id, label_ar, label_en FROM services ORDER BY "order" ASC'),
+                    db.query('SELECT id, service_id, label_ar, label_en FROM sub_services ORDER BY "order" ASC'),
+                    db.query('SELECT id, sub_service_id, label_ar, label_en FROM sub_sub_services ORDER BY "order" ASC')
+                ]);
 
-            setUsers(usersRes.data || []);
-            setJobs(jobsRes.data || []);
+                setUsers(usersRes.rows || []);
+                setJobs(jobsRes.rows || []);
 
-            const tree = (servicesRes.data || []).map(s => {
-                const subServices = (subServicesRes.data || [])
-                    .filter(ss => ss.service_id === s.id)
-                    .map(ss => {
-                        const subSubServices = (subSubServicesRes.data || [])
-                            .filter(sss => sss.sub_service_id === ss.id)
-                            .map(sss => ({
-                                id: `sss:${sss.id}`,
-                                label: language === 'ar' ? sss.label_ar : sss.label_en,
-                                children: [],
-                                parentId: `ss:${ss.id}`
-                            }));
-                        return {
-                            id: `ss:${ss.id}`,
-                            label: language === 'ar' ? ss.label_ar : ss.label_en,
-                            children: subSubServices,
-                            parentId: `s:${s.id}`
-                        };
-                    });
-                return {
-                    id: `s:${s.id}`,
-                    label: language === 'ar' ? s.label_ar : s.label_en,
-                    children: subServices,
-                };
-            });
-            setServicesTree(tree);
-            setIsLoading(false);
+                const tree = (servicesRes.rows || []).map(s => {
+                    const subServices = (subServicesRes.rows || [])
+                        .filter(ss => ss.service_id === s.id)
+                        .map(ss => {
+                            const subSubServices = (subSubServicesRes.rows || [])
+                                .filter(sss => sss.sub_service_id === ss.id)
+                                .map(sss => ({
+                                    id: `sss:${sss.id}`,
+                                    label: language === 'ar' ? sss.label_ar : sss.label_en,
+                                    children: [],
+                                    parentId: `ss:${ss.id}`
+                                }));
+                            return {
+                                id: `ss:${ss.id}`,
+                                label: language === 'ar' ? ss.label_ar : ss.label_en,
+                                children: subSubServices,
+                                parentId: `s:${s.id}`
+                            };
+                        });
+                    return {
+                        id: `s:${s.id}`,
+                        label: language === 'ar' ? s.label_ar : s.label_en,
+                        children: subServices,
+                    };
+                });
+                setServicesTree(tree);
+            } catch (error) {
+                console.error("Error fetching initial data:", error);
+            } finally {
+                setIsLoading(false);
+            }
         };
         if(hasPermission('ss:10')) fetchInitialData(); else setIsLoading(false);
     }, [language, hasPermission]);
     
     const fetchUserAndJobPermissions = useCallback(async (userId: string) => {
-        // جلب صلاحيات المستخدم
-        const { data: userData } = await supabase.from('user_permissions').select('*').eq('user_id', userId);
-        const userPermsMap = new Map<string, boolean>();
-        (userData || []).forEach(p => {
-            if (p.sub_sub_service_id) userPermsMap.set(`sss:${p.sub_sub_service_id}`, p.is_allowed);
-            else if (p.sub_service_id) userPermsMap.set(`ss:${p.sub_service_id}`, p.is_allowed);
-            else userPermsMap.set(`s:${p.service_id}`, p.is_allowed);
-        });
-        setUserPermissions(userPermsMap);
-        setInitialUserPermissions(new Map(userPermsMap));
+        try {
+            // تعديل: استبدال استعلامات Supabase بـ db.query
+            const [userRes, jobRes] = await Promise.all([
+                db.query('SELECT up.sub_service_id, up.sub_sub_service_id, up.is_allowed, up.service_id FROM user_permissions up WHERE up.user_id = $1', [userId]),
+                db.query('SELECT jp.sub_service_id, jp.sub_sub_service_id, jp.service_id FROM job_permissions jp LEFT JOIN users u ON jp.job_id = u.job_id WHERE u.id = $1', [userId]),
+            ]);
 
-        // جلب صلاحيات الوظيفة
-        const userDetails = users.find(u => u.id === userId);
-        if (userDetails && userDetails.job_id) {
-            const { data: jobData } = await supabase.from('job_permissions').select('*').eq('job_id', userDetails.job_id);
+            const userPermsMap = new Map<string, boolean>();
+            (userRes.rows || []).forEach(p => {
+                if (p.sub_sub_service_id) userPermsMap.set(`sss:${p.sub_sub_service_id}`, p.is_allowed);
+                else if (p.sub_service_id) userPermsMap.set(`ss:${p.sub_service_id}`, p.is_allowed);
+                else userPermsMap.set(`s:${p.service_id}`, p.is_allowed);
+            });
+            setUserPermissions(userPermsMap);
+            setInitialUserPermissions(new Map(userPermsMap));
+
             const jobPermsSet = new Set<string>();
-            (jobData || []).forEach(p => {
+            (jobRes.rows || []).forEach(p => {
                 if (p.sub_sub_service_id) jobPermsSet.add(`sss:${p.sub_sub_service_id}`);
                 else if (p.sub_service_id) jobPermsSet.add(`ss:${p.sub_service_id}`);
                 else jobPermsSet.add(`s:${p.service_id}`);
             });
             setJobPermissions(jobPermsSet);
-        } else {
-            setJobPermissions(new Set());
-        }
 
-        const initialVisiblePerms = getInitialVisiblePermissions(servicesTree, userPermsMap);
-        setInitialVisiblePermissions(initialVisiblePerms);
-        setPath([]);
+            const initialVisiblePerms = getInitialVisiblePermissions(servicesTree, userPermsMap);
+            setInitialVisiblePermissions(initialVisiblePerms);
+            setPath([]);
+        } catch (error) {
+            console.error("Error fetching user and job permissions:", error);
+        }
     }, [users, servicesTree, getInitialVisiblePermissions]);
 
     useEffect(() => {
@@ -710,60 +717,70 @@ const UserExceptionsPage = () => {
         }
         setIsSaving(true);
         try {
-            const operations: Promise<any>[] = [];
-
-            const processChange = async (permId: string, isAllowed: boolean) => {
-                const [type, id] = permId.split(':');
-                const node = findNode(servicesTree, permId);
-                let serviceId = null;
-                let subServiceId = null;
-                let subSubServiceId = null;
-
-                if (type === 's') {
-                    serviceId = Number(id);
-                } else if (type === 'ss') {
-                    const parentNode = findNode(servicesTree, node?.parentId || '');
-                    serviceId = parentNode ? Number(parentNode.id.split(':')[1]) : null;
-                    subServiceId = Number(id);
-                } else if (type === 'sss') {
-                    const parentNode = findNode(servicesTree, node?.parentId || '');
-                    const grandparent = findNode(servicesTree, parentNode?.parentId || '');
-                    serviceId = grandparent ? Number(grandparent.id.split(':')[1]) : null;
-                    subServiceId = parentNode ? Number(parentNode.id.split(':')[1]) : null;
-                    subSubServiceId = Number(id);
-                }
-
-                return supabase.rpc('update_user_permissions_exception', {
-                    p_user_id: selectedUserId,
-                    p_service_id: serviceId,
-                    p_sub_service_id: subServiceId,
-                    p_sub_sub_service_id: subSubServiceId,
-                    p_is_allowed: isAllowed,
-                    p_actor_id: user.id
-                });
-            };
+            const changesToInsert: any[] = [];
+            const changesToDelete: any[] = [];
             
-            // تحديد التغييرات الجديدة أو المحدثة
             userPermissions.forEach((isAllowed, permId) => {
                 const initialIsAllowed = initialUserPermissions.get(permId);
-                if (initialIsAllowed === undefined || initialIsAllowed !== isAllowed) {
-                    operations.push(processChange(permId, isAllowed));
+                const isJobPermitted = jobPermissions.has(permId);
+                
+                if (initialIsAllowed === undefined && isAllowed !== isJobPermitted) {
+                    // إضافة استثناء جديد
+                    const [type, id] = permId.split(':');
+                    let service_id = null;
+                    let sub_service_id = null;
+                    let sub_sub_service_id = null;
+                    if (type === 's') service_id = Number(id);
+                    else if (type === 'ss') sub_service_id = Number(id);
+                    else if (type === 'sss') sub_sub_service_id = Number(id);
+                    
+                    changesToInsert.push({
+                        user_id: selectedUserId,
+                        service_id, sub_service_id, sub_sub_service_id,
+                        is_allowed: isAllowed,
+                        actor_id: user.id
+                    });
+                } else if (initialIsAllowed !== undefined && initialIsAllowed !== isAllowed) {
+                    // تعديل استثناء موجود
+                    const [type, id] = permId.split(':');
+                    let service_id = null;
+                    let sub_service_id = null;
+                    let sub_sub_service_id = null;
+                    if (type === 's') service_id = Number(id);
+                    else if (type === 'ss') sub_service_id = Number(id);
+                    else if (type === 'sss') sub_sub_service_id = Number(id);
+
+                    // سنقوم بحذفه ثم إضافته مجدداً
+                    changesToDelete.push({user_id: selectedUserId, service_id, sub_service_id, sub_sub_service_id});
+                    changesToInsert.push({user_id: selectedUserId, service_id, sub_service_id, sub_sub_service_id, isAllowed , actor_id: user.id});
                 }
             });
 
-            // تحديد الصلاحيات المحذوفة (التي تم إعادتها إلى صلاحية المسمى الوظيفي)
             initialUserPermissions.forEach((isAllowed, permId) => {
-                if (!userPermissions.has(permId)) {
-                    // إذا كانت الصلاحية موجودة في الحالة الأولية ولكن ليست في الحالة الجديدة،
-                    // هذا يعني أنه تم إعادتها إلى صلاحية المسمى الوظيفي
-                    const finalIsAllowed = jobPermissions.has(permId);
-                    if (finalIsAllowed !== isAllowed) {
-                        operations.push(processChange(permId, finalIsAllowed));
-                    }
+                if (!userPermissions.has(permId) && isAllowed !== jobPermissions.has(permId)) {
+                    // حذف استثناء (إعادته إلى صلاحية الوظيفة)
+                    const [type, id] = permId.split(':');
+                    let service_id = null;
+                    let sub_service_id = null;
+                    let sub_sub_service_id = null;
+                    if (type === 's') service_id = Number(id);
+                    else if (type === 'ss') sub_service_id = Number(id);
+                    else if (type === 'sss') sub_sub_service_id = Number(id);
+
+                    changesToDelete.push({user_id: selectedUserId, service_id, sub_service_id, sub_sub_service_id});
                 }
             });
-            
-            await Promise.all(operations);
+
+            if (changesToDelete.length > 0) {
+              const deleteQueries = changesToDelete.map(c => `(user_id='${c.user_id}' AND service_id${c.service_id ? `=${c.service_id}` : ' IS NULL'} AND sub_service_id${c.sub_service_id ? `=${c.sub_service_id}` : ' IS NULL'} AND sub_sub_service_id${c.sub_sub_service_id ? `=${c.sub_sub_service_id}` : ' IS NULL'})`).join(' OR ');
+              await db.query(`DELETE FROM user_permissions WHERE ${deleteQueries}`);
+            }
+
+            if (changesToInsert.length > 0) {
+              const insertQuery = 'INSERT INTO user_permissions (user_id, service_id, sub_service_id, sub_sub_service_id, is_allowed, actor_id) VALUES ' + changesToInsert.map((_, i) => `($${i*6 + 1}, $${i*6 + 2}, $${i*6 + 3}, $${i*6 + 4}, $${i*6 + 5}, $${i*6 + 6})`).join(', ');
+              const insertValues = changesToInsert.flatMap(p => [p.user_id, p.service_id, p.sub_service_id, p.sub_sub_service_id, p.is_allowed, p.actor_id]);
+              await db.query(insertQuery, insertValues);
+            }
 
             toast.success(t.saveSuccess);
             setInitialUserPermissions(new Map(userPermissions));
@@ -777,7 +794,7 @@ const UserExceptionsPage = () => {
             setIsSaving(false);
         }
     };
-            
+    
     const handleResetVisible = useCallback(() => {
         setUserPermissions(prev => {
             const newPerms = new Map(prev);

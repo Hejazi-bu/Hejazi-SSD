@@ -1,7 +1,6 @@
 // src/pages/LoginPage.tsx
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { SplashScreen } from '../components/LogIn/SplashScreen';
 import { LoginForm } from '../components/LogIn/LoginForm';
 
 export const LoginPage = () => {
@@ -19,7 +18,7 @@ export const LoginPage = () => {
   return (
     <div className="relative min-h-screen w-full bg-[#0D1B2A] overflow-hidden">
       <AnimatePresence>
-        {showSplash ? <SplashScreen key="splash" /> : <LoginForm key="login" />}
+        <LoginForm key="login" />
       </AnimatePresence>
     </div>
   );
