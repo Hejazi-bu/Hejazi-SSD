@@ -24,7 +24,7 @@ export interface User {
     favorite_services?: number[];
     is_allowed?: boolean;
     job?: { 
-        id: number;
+        id: string; // 🆕 تم تعديل النوع إلى string
         name_ar: string;
         name_en: string;
     } | null;
@@ -90,7 +90,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
     };
     
-    // 🆕 دالة جديدة لجلب بيانات الشركة
     const fetchCompanyData = async (companyId: string | null): Promise<any> => {
         if (!companyId) return null;
         try {
@@ -135,7 +134,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 return { success: false, errorKey: 'errorPermission' };
             }
             
-            // 🆕 جلب بيانات الوظيفة والشركة بعد الحصول على بيانات المستخدم
             const jobData = await fetchJobData(userData.job_id || null);
             const companyData = await fetchCompanyData(userData.company_id || null);
             const userPermissions = await fetchUserPermissions(userData.job_id || null, userData.id);
