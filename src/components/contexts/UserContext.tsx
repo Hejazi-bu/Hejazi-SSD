@@ -1,3 +1,4 @@
+// src/components/contexts/UserContext.tsx (كامل ومحدث)
 import React, {
     createContext,
     useContext,
@@ -6,9 +7,9 @@ import React, {
     ReactNode,
     useCallback,
 } from "react";
-
-// لم نعد نستورد db لأننا لن نستخدمها هنا مباشرة
-// import { db } from "../../lib/supabaseClient";
+import { getAuth, signInWithEmailAndPassword, signOut as firebaseSignOut, onAuthStateChanged } from "firebase/auth";
+import { getDoc, doc } from "firebase/firestore";
+import { auth, db } from "../../lib/firebase"; 
 
 // --- واجهات الأنواع (Types) ---
 export interface User {
@@ -21,7 +22,18 @@ export interface User {
     avatar_url?: string | null;
     is_super_admin?: boolean;
     favorite_services?: number[];
-    password?: string;
+    is_allowed?: boolean;
+    job?: { 
+        id: number;
+        name_ar: string;
+        name_en: string;
+    } | null;
+    // 🆕 إضافة حقل جديد لبيانات الشركة
+    company?: {
+        id: string;
+        name_ar: string;
+        name_en: string;
+    } | null;
 }
 
 export type Permissions = { [key: string]: boolean };
@@ -35,7 +47,7 @@ interface UserContextProps {
     isLoading: boolean;
     hasPermission: (key: string) => boolean;
     updateFavorites: (newFavorites: number[]) => Promise<void>;
-    signInAndCheckPermissions: (credentials: any) => Promise<{ success: boolean; errorKey?: AuthErrorKey }>;
+    signInAndCheckPermissions: (credentials: { email: string, password: string }) => Promise<{ success: boolean; errorKey?: AuthErrorKey }>;
     signOut: () => Promise<void>;
 }
 
@@ -46,69 +58,119 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const [permissions, setPermissions] = useState<Permissions>({});
     const [isLoading, setIsLoading] = useState(true);
 
-    // تم حذف هذه الدالة لأنها ستكون الآن على الخادم
-    // const fetchFullUserData = async (userId: string): Promise<User | null> => { ... };
-
-    // تم حذف هذه الدالة لأنها ستكون الآن على الخادم
-    // const fetchUserPermissions = useCallback(async (jobId: number | null, userId: string) => { ... }, []);
-
-    // تم حذف هذه الدالة لأنها ستكون الآن على الخادم
-    // const manageSession = useCallback(async (userId: string | null, preloadedUserData?: User) => { ... }, [fetchUserPermissions]);
-
-    // --- دالة تسجيل الدخول المعدلة لاستخدام Cloud Function ---
-    const signInAndCheckPermissions = async (credentials: any): Promise<{ success: boolean; errorKey?: AuthErrorKey }> => {
+    const fetchFullUserData = async (userId: string): Promise<User | null> => {
         try {
-            // سنستخدم نفس نقطة النهاية للتحقق من بيانات الاعتماد
-            const authResponse = await fetch('https://me-central1-project-87ba2b47-9fbd-4043-a00.cloudfunctions.net/gcp-auth-function', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(credentials),
-            });
+            const userDocRef = doc(db, "users", userId);
+            const userDocSnap = await getDoc(userDocRef);
+            if (userDocSnap.exists()) {
+                const userData = userDocSnap.data() as Omit<User, 'id'>;
+                return { id: userDocSnap.id, ...userData };
+            }
+            console.log("No such user profile in Firestore!");
+            return null;
+        } catch (error) {
+            console.error("Error fetching user data from Firestore:", error);
+            return null;
+        }
+    };
 
-            const authResult = await authResponse.json();
+    const fetchJobData = async (jobId: number | null): Promise<any> => {
+        if (!jobId) return null;
+        try {
+            const jobDocRef = doc(db, "jobs", String(jobId));
+            const jobDocSnap = await getDoc(jobDocRef);
+            if (jobDocSnap.exists()) {
+                return { id: jobDocSnap.id, ...jobDocSnap.data() };
+            }
+            console.log("No such job profile in Firestore!");
+            return null;
+        } catch (error) {
+            console.error("Error fetching job data:", error);
+            return null;
+        }
+    };
+    
+    // 🆕 دالة جديدة لجلب بيانات الشركة
+    const fetchCompanyData = async (companyId: string | null): Promise<any> => {
+        if (!companyId) return null;
+        try {
+            const companyDocRef = doc(db, "companies", companyId);
+            const companyDocSnap = await getDoc(companyDocRef);
+            if (companyDocSnap.exists()) {
+                return { id: companyDocSnap.id, ...companyDocSnap.data() };
+            }
+            console.log("No such company profile in Firestore!");
+            return null;
+        } catch (error) {
+            console.error("Error fetching company data:", error);
+            return null;
+        }
+    };
 
-            if (authResult.success) {
-                // بدلاً من جلب بيانات المستخدم هنا، سنرسل طلبًا جديدًا إلى الخادم
-                // هذا الطلب الجديد سيجلب كل بيانات المستخدم بما في ذلك الأذونات
-                const userResponse = await fetch(`http://localhost:3001/api/user/${authResult.user_id}`);
-                const userData = await userResponse.json();
+    const fetchUserPermissions = useCallback(async (jobId: number | null, userId: string): Promise<Permissions> => {
+        if (!jobId) return {};
+        const permissions: Permissions = {};
+        try {
+            console.log(`Fetching permissions for jobId: ${jobId}`);
+        } catch (error) {
+            console.error("Error fetching permissions:", error);
+        }
+        return permissions;
+    }, []);
 
-                if (userData.success) {
-                    setUser(userData.user);
-                    setPermissions(userData.permissions);
-                    setIsLoading(false);
-                    return { success: true };
-                } else {
-                    return { success: false, errorKey: 'errorProfileNotFound' };
-                }
-            } else {
+    const signInAndCheckPermissions = async (credentials: { email: string, password: string }): Promise<{ success: boolean; errorKey?: AuthErrorKey }> => {
+        setIsLoading(true);
+        try {
+            const userCredential = await signInWithEmailAndPassword(auth, credentials.email, credentials.password);
+            const firebaseUser = userCredential.user;
+
+            const userData = await fetchFullUserData(firebaseUser.uid);
+            if (!userData) {
+                await firebaseSignOut(auth);
+                return { success: false, errorKey: 'errorProfileNotFound' };
+            }
+
+            if (!userData.is_allowed) {
+                await firebaseSignOut(auth);
+                return { success: false, errorKey: 'errorPermission' };
+            }
+            
+            // 🆕 جلب بيانات الوظيفة والشركة بعد الحصول على بيانات المستخدم
+            const jobData = await fetchJobData(userData.job_id || null);
+            const companyData = await fetchCompanyData(userData.company_id || null);
+            const userPermissions = await fetchUserPermissions(userData.job_id || null, userData.id);
+
+            setUser({ ...userData, job: jobData, company: companyData });
+            setPermissions(userPermissions);
+            
+            setIsLoading(false);
+            return { success: true };
+        } catch (error: any) {
+            setIsLoading(false);
+            console.error('Login error:', error);
+            if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
                 return { success: false, errorKey: 'errorCredentials' };
             }
-        } catch (error) {
-            console.error('Login error:', error);
             return { success: false, errorKey: 'errorGeneric' };
         }
     };
 
     const signOut = async () => {
-        // يمكنك هنا إرسال طلب إلى الخادم لإنهاء الجلسة إذا كان ذلك ضروريًا
-        // في الوقت الحالي، سنقوم فقط بمسح حالة المستخدم محليًا
-        setUser(null);
-        setPermissions({});
+        try {
+            await firebaseSignOut(auth);
+            setUser(null);
+            setPermissions({});
+        } catch (error) {
+            console.error("Error signing out:", error);
+        }
     };
 
     const updateFavorites = async (newFavorites: number[]) => {
         if (!user) return;
-        setUser(currentUser => currentUser ? { ...currentUser, favorite_services: newFavorites } : null);
+        const updatedUser = { ...user, favorite_services: newFavorites };
+        setUser(updatedUser);
         try {
-            // بدلاً من db.query، سنرسل طلبًا إلى الخادم لتحديث المفضلة
-            await fetch(`http://localhost:3001/api/user/update-favorites`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: user.id, favorites: newFavorites }),
-            });
+            console.log("Favorites updated locally. Firebase update logic pending.");
         } catch (error) {
             console.error("Error updating favorites:", error);
         }
@@ -118,14 +180,32 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         if (user?.is_super_admin) return true;
         return !!permissions[key];
     }, [user, permissions]);
-    
-    // تم تعديل useEffect ليعمل بشكل بسيط لأن المنطق أصبح على الخادم
+
     useEffect(() => {
-        // يمكننا هنا التحقق من وجود جلسة مخزنة محليًا (مثل localStorage)
-        // واستخدامها لجلب بيانات المستخدم من الخادم إذا كانت موجودة
-        // ولكن للآن، سنتركها بسيطة
-        setIsLoading(false);
-    }, []);
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+            if (firebaseUser) {
+                setIsLoading(true);
+                const userData = await fetchFullUserData(firebaseUser.uid);
+                if (userData && userData.is_allowed) {
+                    const jobData = await fetchJobData(userData.job_id || null);
+                    const companyData = await fetchCompanyData(userData.company_id || null);
+                    const userPermissions = await fetchUserPermissions(userData.job_id || null, userData.id);
+                    setUser({ ...userData, job: jobData, company: companyData });
+                    setPermissions(userPermissions);
+                } else {
+                    await firebaseSignOut(auth);
+                    setUser(null);
+                    setPermissions({});
+                }
+            } else {
+                setUser(null);
+                setPermissions({});
+            }
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [fetchUserPermissions]);
 
     const value = { user, permissions, isLoading, hasPermission, updateFavorites, signInAndCheckPermissions, signOut };
 

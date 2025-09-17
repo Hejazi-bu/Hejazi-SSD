@@ -1,10 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../contexts/UserContext';
 import { useLanguage } from '../contexts/LanguageContext';
-// تم حذف db
-// import { db } from '../../lib/supabaseClient';
 import { AnimatePresence, motion } from 'framer-motion';
-import { LogOut, User as UserIcon, Menu, Edit2, Settings } from 'lucide-react';
+import { LogOut, Edit2, Settings, Menu } from 'lucide-react';
 
 const translations = {
     ar: {
@@ -22,41 +20,8 @@ const translations = {
 // --- بطاقة المستخدم المحدثة ---
 const UserMenu = ({ onLogout }: { onLogout: () => void }) => {
     const { language } = useLanguage();
-    const { user } = useAuth();
+    const { user } = useAuth(); // بيانات المستخدم كاملة، بما في ذلك المسمى الوظيفي
     const t = translations[language];
-
-    // --- إضافة جديدة: حالة لتخزين المسمى الوظيفي ---
-    const [jobTitle, setJobTitle] = useState<string | null>(null);
-
-    useEffect(() => {
-        // دالة لجلب المسمى الوظيفي من الخادم
-        const fetchJobTitle = async () => {
-            if (!user?.job_id) {
-                setJobTitle(language === 'ar' ? 'غير محدد' : 'Not Assigned');
-                return;
-            }
-
-            try {
-                // ✅ استبدال الاستعلام المباشر باستدعاء نقطة النهاية في الخادم
-                const response = await fetch(`http://localhost:3001/api/job/${user.job_id}`);
-                const data = await response.json();
-
-                if (data.success) {
-                    setJobTitle(language === 'ar' ? data.name_ar : data.name_en);
-                } else {
-                    console.error("لم يتم العثور على المسمى الوظيفي.");
-                    setJobTitle(null);
-                }
-            } catch (error) {
-                console.error("Error fetching job title:", error);
-                setJobTitle(null);
-            }
-        };
-
-        if (user) {
-            fetchJobTitle();
-        }
-    }, [user, language]);
 
     const getInitials = (nameAr?: string | null, nameEn?: string | null, email?: string | null) => {
         if (language === 'ar' && nameAr) return nameAr.charAt(0);
@@ -83,7 +48,10 @@ const UserMenu = ({ onLogout }: { onLogout: () => void }) => {
                 </div>
                 <div className="flex-1 min-w-0">
                     <h4 className="font-semibold text-white truncate">{language === 'ar' ? user?.name_ar : user?.name_en}</h4>
-                    <p className="text-sm text-gray-400 truncate">{jobTitle || '...'}</p>
+                    {/* 🆕 استخدام المسمى الوظيفي مباشرة من كائن المستخدم */}
+                    <p className="text-sm text-gray-400 truncate">
+                        {user?.job ? (language === 'ar' ? user.job.name_ar : user.job.name_en) : '...'}
+                    </p>
                 </div>
             </div>
             <ul className="p-2 text-white">
@@ -106,7 +74,7 @@ const UserMenu = ({ onLogout }: { onLogout: () => void }) => {
     );
 };
 
-// مكون الترويسة الرئيسي (بدون تغيير)
+// مكون الترويسة الرئيسي
 export const Header = ({ onToggleServices }: { onToggleServices: () => void }) => {
     const { user, signOut } = useAuth();
     const { language, toggleLanguage } = useLanguage();

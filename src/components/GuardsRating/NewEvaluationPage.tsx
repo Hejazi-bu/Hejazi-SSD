@@ -1,11 +1,13 @@
 // src/components/GuardsRating/NewEvaluationPage.tsx
 import React, { useEffect, useState, useMemo } from "react";
-// تم حذف db
-// import { db } from "../../lib/supabaseClient";
 import { cleanText } from "../../utils/textUtils";
 import { useAuth } from "../contexts/UserContext";
 import { useLanguage } from "../contexts/LanguageContext";
 import LoadingScreen from "../LoadingScreen";
+
+// 🆕 إضافة الاستيرادات اللازمة من Firestore
+import { getDocs, collection, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
+import { db } from '../../lib/firebase'; // تأكد من المسار الصحيح
 
 // --- أيقونات ومكتبات إضافية ---
 import { CalendarIcon, UsersIcon, ExclamationTriangleIcon, BriefcaseIcon } from "@heroicons/react/24/solid";
@@ -27,7 +29,7 @@ type CompanyForEvaluation = {
     isDone?: boolean;
 };
 type Question = {
-    id: number;
+    id: string; // 🆕 تم تعديل النوع إلى string ليتوافق مع معرفات Firestore
     text: string;
     textAr: string;
     textEn: string;
@@ -128,20 +130,25 @@ function NewEvaluationContent() {
         };
 
         try {
-            const response = await fetch('http://localhost:3001/api/evaluations', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(evaluationData),
+            // 🆕 استخدام addDoc لإضافة مستند جديد إلى Firestore
+            const newEvaluationDoc = await addDoc(collection(db, "security_evaluations"), {
+                ...evaluationData,
+                created_at: serverTimestamp(),
+                updated_at: serverTimestamp(),
             });
 
-            const result = await response.json();
+            // 🆕 إضافة التفاصيل في مجموعة فرعية (subcollection)
+            const detailsCollectionRef = collection(db, "security_evaluation_details");
+            evaluationData.details.forEach(async detail => {
+                await addDoc(detailsCollectionRef, {
+                    ...detail,
+                    evaluation_id: newEvaluationDoc.id,
+                    inserted_at: serverTimestamp()
+                });
+            });
 
-            if (result.success) {
-                alert(language === "ar" ? "تم حفظ التقييم وإرساله للاعتماد بنجاح." : "Evaluation saved and submitted for approval successfully.");
-                window.location.reload();
-            } else {
-                alert(language === "ar" ? `حدث خطأ: ${result.message}` : `An error occurred: ${result.message}`);
-            }
+            alert(language === "ar" ? "تم حفظ التقييم وإرساله للاعتماد بنجاح." : "Evaluation saved and submitted for approval successfully.");
+            window.location.reload();
 
         } catch (error: any) {
             console.error("Error saving evaluation:", error);
@@ -155,38 +162,41 @@ function NewEvaluationContent() {
         const fetchAndProcessData = async () => {
             setIsLoading(true);
             try {
-                const response = await fetch('http://localhost:3001/api/evaluations/companies-and-questions');
-                const data = await response.json();
+                // 🆕 جلب الشركات من Firestore
+                const companiesSnapshot = await getDocs(collection(db, "companies"));
+                const companiesData = companiesSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as CompanyForEvaluation[];
 
-                if (data.success) {
-                    const companiesData = data.companies;
-                    const questionsData = data.questions;
+                // 🆕 جلب الأسئلة من Firestore
+                const questionsSnapshot = await getDocs(collection(db, "security_questions"));
+                const questionsData = questionsSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as any[];
 
-                    if (questionsData) {
-                        const initialQuestions = questionsData.map((q: any) => ({
-                            id: q.id,
-                            text: language === "ar" ? q.question_text_ar : q.question_text_en,
-                            textAr: q.question_text_ar,
-                            textEn: q.question_text_en,
-                            ratingValue: 0,
-                            note: ""
-                        }));
-                        setQuestions(initialQuestions);
+                if (questionsData) {
+                    const initialQuestions = questionsData.map((q: any) => ({
+                        id: q.id,
+                        text: language === "ar" ? q.question_text_ar : q.question_text_en,
+                        textAr: q.question_text_ar,
+                        textEn: q.question_text_en,
+                        ratingValue: 0,
+                        note: ""
+                    }));
+                    setQuestions(initialQuestions);
+                }
+
+                if (companiesData) {
+                    setCompaniesForEval(companiesData);
+                    if (companiesData.length > 0) {
+                        setSelectedCompany(companiesData[0]);
                     }
-
-                    if (companiesData) {
-                        setCompaniesForEval(companiesData);
-                        if (companiesData.length > 0) {
-                            setSelectedCompany(companiesData[0]);
-                        }
-                    }
-
-                } else {
-                    console.error("Error fetching initial data:", data.message);
                 }
 
             } catch (error) {
-                console.error("Error fetching data:", error);
+                console.error("Error fetching initial data:", error);
             } finally {
                 setIsLoading(false);
             }

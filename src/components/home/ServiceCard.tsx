@@ -4,24 +4,38 @@ import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { Star, LoaderCircle } from 'lucide-react';
 import DynamicIcon from './DynamicIcon';
 import { useNavigate } from 'react-router-dom';
-// تم حذف db
-// import { db } from '../../lib/supabaseClient';
 import { useAuth } from '../contexts/UserContext';
 import { useLanguage } from '../contexts/LanguageContext';
 
+// 🆕 إضافة الاستيرادات اللازمة من Firestore
+import { getDocs, collection, query, where } from 'firebase/firestore';
+import { db } from '../../lib/firebase'; // تأكد من المسار الصحيح
+
 export interface Service {
-    id: number;
+    id: string; // 🆕 تم تعديل النوع إلى string
     label_ar: string;
     label_en: string;
     icon: string | null;
     is_allowed: boolean; // خاصية مهمة لفحص الخدمة الرئيسية
 }
 
+// 🆕 نوع جديد لتمثيل بيانات المستند في Firestore
+interface SubServiceDoc {
+    id: string; // 🆕 تم تعديل النوع إلى string
+    service_id: string; // 🆕 تم تعديل النوع إلى string
+    label_ar: string;
+    label_en: string;
+    page: string | null;
+    is_allowed: boolean;
+    order: number;
+    created_by: string | null;
+}
+
 interface ServiceCardProps {
     service: Service;
     language: 'ar' | 'en';
     isFavorite: boolean;
-    onToggleFavorite: (id: number) => void;
+    onToggleFavorite: (id: string) => void; // 🆕 تم تعديل النوع إلى string
 }
 
 export const ServiceCard: React.FC<ServiceCardProps> = ({ service, language, isFavorite, onToggleFavorite }) => {
@@ -69,17 +83,10 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service, language, isF
         }
 
         try {
-            // ✅ استبدال الاستعلام المباشر باستدعاء نقطة النهاية في الخادم
-            const response = await fetch(`http://localhost:3001/api/services/${service.id}/sub-services`);
-            const data = await response.json();
+            const subServicesQuery = query(collection(db, "sub_services"), where("service_id", "==", service.id));
+            const subServicesSnapshot = await getDocs(subServicesQuery);
 
-            if (!data.success) {
-                alert(t.error_fetching);
-                setIsLoading(false);
-                return;
-            }
-
-            const subServices = data.subServices;
+            const subServices = subServicesSnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as Omit<SubServiceDoc, 'id'>) }));
 
             if (!subServices || subServices.length === 0) {
                 alert(t.no_sub_services);
@@ -87,14 +94,14 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service, language, isF
                 return;
             }
 
-            const activeSubServices = subServices.filter((ss: any) => ss.is_allowed);
+            const activeSubServices = subServices.filter((ss: SubServiceDoc) => ss.is_allowed);
             if (activeSubServices.length === 0) {
                 alert(t.all_sub_services_disabled);
                 setIsLoading(false);
                 return;
             }
 
-            const permittedSubServices = activeSubServices.filter((ss: any) => hasPermission(`ss:${ss.id}`));
+            const permittedSubServices = activeSubServices.filter((ss: SubServiceDoc) => hasPermission(`ss:${ss.id}`));
             if (permittedSubServices.length === 0) {
                 alert(t.no_permission_sub_service);
                 setIsLoading(false);

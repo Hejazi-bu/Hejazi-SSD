@@ -1,15 +1,17 @@
 // src/components/home/ServicesOverlay.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
-// تم حذف db
-// import { db } from '../../lib/supabaseClient';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/UserContext';
 import { ServiceCard, Service } from './ServiceCard';
 import { X, Search } from 'lucide-react';
 
+// 🆕 إضافة الاستيرادات اللازمة من Firestore
+import { getDocs, collection, query, where, orderBy } from 'firebase/firestore';
+import { db } from '../../lib/firebase'; // تأكد من المسار الصحيح
+
 interface ServiceGroup {
-    id: number;
+    id: string; // 🆕 تم تعديل النوع إلى string
     name_ar: string;
     name_en: string;
     services: Service[];
@@ -50,26 +52,23 @@ export const ServicesOverlay: React.FC<ServicesOverlayProps> = ({ isOpen, onClos
 
             const fetchAndStructureServices = async () => {
                 try {
-                    // ✅ استبدال الاستعلامات المباشرة باستدعاء نقطة النهاية في الخادم
-                    const response = await fetch(`http://localhost:3001/api/services-groups`);
-                    const data = await response.json();
+                    // 🆕 جلب مجموعات الخدمات من Firestore
+                    const groupsSnapshot = await getDocs(query(collection(db, "service_groups"), orderBy("order")));
+                    const allGroups = groupsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-                    if (data.success) {
-                        const allServices = data.services;
-                        const allGroups = data.groups;
+                    // 🆕 جلب جميع الخدمات من Firestore
+                    const servicesSnapshot = await getDocs(query(collection(db, "services"), orderBy("order")));
+                    const allServices = servicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-                        // بناء الهيكل للعرض
-                        const structuredData = allGroups.map((group: any) => ({
-                            ...group,
-                            services: allServices.filter((service: any) =>
-                                service.group_id === group.id && hasPermission(`s:${service.id}`)
-                            )
-                        })).filter((group: any) => group.services.length > 0);
+                    // بناء الهيكل للعرض
+                    const structuredData = allGroups.map((group: any) => ({
+                        ...group,
+                        services: allServices.filter((service: any) =>
+                            String(service.group_id) === String(group.id) && hasPermission(`s:${service.id}`) // 🆕 التأكد من تطابق الأنواع
+                        )
+                    })).filter((group: any) => group.services.length > 0);
 
-                        setGroupedServices(structuredData);
-                    } else {
-                        console.error("Error fetching data:", data.message);
-                    }
+                    setGroupedServices(structuredData);
                 } catch (error) {
                     console.error("Error fetching data:", error);
                 } finally {
@@ -84,12 +83,13 @@ export const ServicesOverlay: React.FC<ServicesOverlayProps> = ({ isOpen, onClos
         return () => { document.body.style.overflow = 'auto'; };
     }, [isOpen, hasPermission])
 
-    const handleToggleFavorite = (serviceId: number) => {
+    const handleToggleFavorite = (serviceId: string) => { // 🆕 تم تعديل نوع serviceId إلى string
         if (!user || !user.favorite_services) return;
         const currentFavorites = user.favorite_services;
-        const newFavorites = currentFavorites.includes(serviceId)
-            ? currentFavorites.filter(id => id !== serviceId)
-            : [...currentFavorites, serviceId];
+        const serviceIdAsNumber = Number(serviceId); // 🆕 تحويل الـ ID إلى رقم
+        const newFavorites = currentFavorites.includes(serviceIdAsNumber)
+            ? currentFavorites.filter(id => id !== serviceIdAsNumber)
+            : [...currentFavorites, serviceIdAsNumber];
         updateFavorites(newFavorites);
     };
 
@@ -101,7 +101,7 @@ export const ServicesOverlay: React.FC<ServicesOverlayProps> = ({ isOpen, onClos
             (service.label_en?.toLowerCase() || '').includes(searchTerm.toLowerCase())
         );
         if (activeTab === 'favorites') {
-            servicesToShow = servicesToShow.filter(s => favorites.includes(s.id));
+            servicesToShow = servicesToShow.filter(s => favorites.includes(Number(s.id))); // 🆕 تحويل الـ ID إلى رقم
         }
         return groupedServices.map(group => ({
             ...group,
@@ -150,7 +150,7 @@ export const ServicesOverlay: React.FC<ServicesOverlayProps> = ({ isOpen, onClos
                                                     <h3 className="text-lg font-semibold text-gray-400 mb-2">{language === 'ar' ? group.name_ar : group.name_en}</h3>
                                                     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                                                         {group.services.map(service => (
-                                                            <ServiceCard key={service.id} service={service} language={language} isFavorite={(user?.favorite_services || []).includes(service.id)} onToggleFavorite={handleToggleFavorite} />
+                                                            <ServiceCard key={service.id} service={service} language={language} isFavorite={(user?.favorite_services || []).includes(Number(service.id))} onToggleFavorite={handleToggleFavorite} />
                                                         ))}
                                                     </motion.div>
                                                 </div>

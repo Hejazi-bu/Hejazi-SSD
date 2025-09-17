@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from 'react';
+// src/components/HomePage.tsx (كامل ومحدث)
+import React, { useState } from 'react';
 import { useAuth } from './contexts/UserContext';
 import { useLanguage } from './contexts/LanguageContext';
 import { ServicesOverlay } from './home/ServicesOverlay';
 import { Header } from './dashboard/Header';
 import { DashboardCard } from './dashboard/DashboardCard';
 import { AnimatePresence, motion, Variants } from 'framer-motion';
-// تم حذف db
-// import { db } from '../lib/supabaseClient'; 
 import { Navigate } from 'react-router-dom';
 
 const PlaceholderChart = ({ color = '#FFD700' }) => (
@@ -21,53 +20,21 @@ const HomePage = () => {
     const { user, hasPermission, permissions, signOut } = useAuth();
     const { language } = useLanguage();
     const [isServicesOpen, setIsServicesOpen] = useState(false);
-    const [companyName, setCompanyName] = useState<string | null>(null);
-    const [isLoadingCompany, setIsLoadingCompany] = useState(true);
 
     if (permissions.general_access === false) {
         console.warn("User lacks general_access permission. Signing out and redirecting.");
         signOut();
         return <Navigate to="/login" replace />;
     }
-
-    useEffect(() => {
-        const fetchCompanyName = async () => {
-            if (!user?.company_id) {
-                setIsLoadingCompany(false);
-                return;
-            }
-            setIsLoadingCompany(true);
-
-            try {
-                // ✅ استبدال استعلام قاعدة البيانات المباشر باستدعاء نقطة النهاية في الخادم
-                const response = await fetch(`http://localhost:3001/api/company/${user.company_id}`);
-                const data = await response.json();
-
-                if (data.success) {
-                    setCompanyName(language === 'ar' ? data.name_ar : data.name_en);
-                } else {
-                    console.error("لم يتم العثور على اسم الشركة:", data.message);
-                    setCompanyName(null);
-                }
-            } catch (error) {
-                console.error("خطأ في جلب اسم الشركة:", error);
-                setCompanyName(null);
-            } finally {
-                setIsLoadingCompany(false);
-            }
-        };
-
-        if (user) {
-            fetchCompanyName();
-        }
-    }, [user, language]);
-
+    
+    // 🆕 الحصول على اسم الشركة مباشرة من كائن المستخدم
+    const companyName = language === 'ar' ? user?.company?.name_ar : user?.company?.name_en;
     const welcomeName = language === 'ar' ? user?.name_ar : user?.name_en;
 
     const translations = {
         ar: {
             welcome: `أهلاً بعودتك، ${welcomeName || ''}`,
-            company: `شركة: ${isLoadingCompany ? '...' : companyName || 'غير محدد'}`,
+            company: `شركة: ${companyName || 'غير محدد'}`,
             overview: "نظرة عامة",
             overviewDesc: "ملخص سريع لأهم الإحصائيات.",
             violationsReport: "تقرير المخالفات",
@@ -75,7 +42,7 @@ const HomePage = () => {
         },
         en: {
             welcome: `Welcome back, ${welcomeName || ''}`,
-            company: `Company: ${isLoadingCompany ? '...' : companyName || 'Not Assigned'}`,
+            company: `Company: ${companyName || 'Not Assigned'}`,
             overview: "Overview",
             overviewDesc: "A quick summary of the most important stats.",
             violationsReport: "Violations Report",

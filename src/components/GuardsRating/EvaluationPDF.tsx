@@ -1,3 +1,4 @@
+// src/components/GuardsRating/EvaluationPDF.tsx
 import React from 'react';
 import { Page, Text, View, Document, StyleSheet, Font } from '@react-pdf/renderer';
 
@@ -7,12 +8,26 @@ Font.register({
     fonts: [{ src: '/fonts/majalla.ttf' }, { src: '/fonts/majallab.ttf', fontWeight: 'bold' }]
 });
 
-// --- الأنواع ---
+// --- الأنواع المحدثة ---
 type EvaluationFull = {
-    id: string; created_at: string; summary: string | null; historical_contract_no: string | null; evaluation_year: number; evaluation_month: number; overall_score: number;
-    companies: { name_ar: string; name_en: string; } | null; users: { name_ar: string; name_en: string; } | null; jobs: { name_ar: string; name_en: string; } | null;
+    id: string; 
+    created_at: string; 
+    summary: string | null; 
+    historical_contract_no: string | null; 
+    evaluation_year: number; 
+    evaluation_month: number; 
+    overall_score: number;
+    companies: { name_ar: string; name_en: string; } | null; 
+    users: { name_ar: string; name_en: string; } | null; 
+    jobs: { name_ar: string; name_en: string; } | null;
 };
-type EvaluationDetail = { id: number; selected_rating: number; note: string | null; security_questions: { question_text_ar: string; question_text_en: string; } | null; };
+// 🆕 تم تعديل id ليكون من نوع string
+type EvaluationDetail = { 
+    id: string; 
+    selected_rating: number; 
+    note: string | null; 
+    security_questions: { question_text_ar: string; question_text_en: string; } | null; 
+};
 
 interface EvaluationPDFProps {
     evaluation: EvaluationFull;
@@ -85,8 +100,8 @@ export const EvaluationPDF: React.FC<EvaluationPDFProps> = ({ evaluation, detail
                 
                 {evaluation.summary && (
                     <View style={styles.section}>
-                         <Text style={[styles.sectionTitle, isRTL ? styles.rtlAlign : {}]}>{isRTL ? 'ملخص التقييم' : 'Evaluation Summary'}</Text>
-                         <Text style={[{paddingHorizontal: 5}, isRTL ? styles.rtlAlign : {}]}>{evaluation.summary}</Text>
+                           <Text style={[styles.sectionTitle, isRTL ? styles.rtlAlign : {}]}>{isRTL ? 'ملخص التقييم' : 'Evaluation Summary'}</Text>
+                           <Text style={[{paddingHorizontal: 5}, isRTL ? styles.rtlAlign : {}]}>{evaluation.summary}</Text>
                     </View>
                 )}
 
@@ -99,18 +114,18 @@ export const EvaluationPDF: React.FC<EvaluationPDFProps> = ({ evaluation, detail
                             <View style={[styles.tableColNotes, styles.colHeader]}><Text>{isRTL ? 'الملاحظات' : 'Notes'}</Text></View>
                         </View>
                       {details.map((detail) => (
-                          <View key={detail.id} style={[styles.tableRow, isRTL ? styles.rtl : {}]} wrap={false}>
-                              <View style={[styles.tableColQuestion, styles.cell, isRTL ? styles.borderLeft : styles.borderRight, isRTL ? styles.rtlAlign : {}]}>
-                                  <Text>{isRTL ? detail.security_questions?.question_text_ar : detail.security_questions?.question_text_en || ''}</Text>
-                              </View>
-                              <View style={[styles.tableColRating, styles.cell, isRTL ? styles.borderLeft : styles.borderRight]}>
-                                  <Text>{`${detail.selected_rating} / 5 (${getRatingDescription(detail.selected_rating)})`}</Text>
-                              </View>
-                              <View style={[styles.tableColNotes, styles.cell, isRTL ? styles.rtlAlign : {}]}>
-                                  <Text>{detail.note || (isRTL ? 'لا يوجد' : 'N/A')}</Text>
-                              </View>
-                          </View>
-                      ))}
+                            <View key={detail.id} style={[styles.tableRow, isRTL ? styles.rtl : {}]} wrap={false}>
+                                <View style={[styles.tableColQuestion, styles.cell, isRTL ? styles.borderLeft : styles.borderRight, isRTL ? styles.rtlAlign : {}]}>
+                                    <Text>{isRTL ? detail.security_questions?.question_text_ar : detail.security_questions?.question_text_en || ''}</Text>
+                                </View>
+                                <View style={[styles.tableColRating, styles.cell, isRTL ? styles.borderLeft : styles.borderRight]}>
+                                    <Text>{`${detail.selected_rating} / 5 (${getRatingDescription(detail.selected_rating)})`}</Text>
+                                </View>
+                                <View style={[styles.tableColNotes, styles.cell, isRTL ? styles.rtlAlign : {}]}>
+                                    <Text>{detail.note || (isRTL ? 'لا يوجد' : 'N/A')}</Text>
+                                </View>
+                            </View>
+                        ))}
                     </View>
                 </View>
 
