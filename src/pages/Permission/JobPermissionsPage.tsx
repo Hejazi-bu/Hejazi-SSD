@@ -11,9 +11,13 @@ import { usePrompt } from '../../hooks/usePrompt';
 import toast, { Toaster } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import LoadingScreen from '../../components/LoadingScreen';
+// إضافة استيراد Firebase Functions
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { getFirestore, collection, getDocs, where, query } from "firebase/firestore";
 
 // تعريف أنواع البيانات
-type Job = { id: number; name_ar: string; name_en: string; };
+// تم تعديل نوع id ليصبح string ليتوافق مع معرفات Firestore
+type Job = { id: string; name_ar: string; name_en: string; };
 type ServiceNode = {
     id: string;
     label: string;
@@ -30,6 +34,13 @@ type PermissionChangeItem = {
     sub_sub_service_id: number | null;
     is_allowed: boolean;
 };
+
+// تهيئة Firebase
+const functions = getFunctions();
+const firestore = getFirestore();
+
+// الدوال التي قمنا بإنشائها
+const manageJobPermissionsCallable = httpsCallable<{ p_job_id: string; p_permissions_to_add: string[]; p_permissions_to_remove: string[]; p_changed_by_user_id: string; }, { success: boolean }>(functions, 'manageJobPermissions');
 
 const confirmToast = (message: string, onConfirm: () => void, onCancel: () => void, t: any) => {
     toast((toastInstance) => (
@@ -318,7 +329,7 @@ const JobPermissionsPage = () => {
     const [mainHeaderHeight, setMainHeaderHeight] = useState(0);
 
     const [jobs, setJobs] = useState<Job[]>([]);
-    const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+    const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
     const [selectedJobName, setSelectedJobName] = useState<string>('');
     const [servicesTree, setServicesTree] = useState<ServiceNode[]>([]);
     const [jobPermissions, setJobPermissions] = useState<Set<string>>(new Set());
@@ -510,48 +521,57 @@ const JobPermissionsPage = () => {
     useEffect(() => {
         const fetchInitialData = async () => {
             try {
-                const response = await fetch(`http://localhost:3001/api/job-permissions/initial-data`);
-                const data = await response.json();
+                // Fetching from Firestore
+                const jobsSnap = await getDocs(collection(firestore, 'jobs'));
+                const servicesSnap = await getDocs(collection(firestore, 'services'));
+                const subServicesSnap = await getDocs(collection(firestore, 'sub_services'));
+                const subSubServicesSnap = await getDocs(collection(firestore, 'sub_sub_services'));
 
-                if (data.success) {
-                    setJobs(data.jobs || []);
-                    const tree = (data.servicesTree || []).map((s: any) => {
-                        const subServices = (data.subServices || [])
-                            .filter((ss: any) => ss.service_id === s.id)
-                            .map((ss: any) => {
-                                const subSubServices = (data.subSubServices || [])
-                                    .filter((sss: any) => sss.sub_service_id === ss.id)
-                                    .map((sss: any) => ({
-                                        id: `sss:${sss.id}`,
-                                        label: language === 'ar' ? sss.label_ar : sss.label_en,
-                                        children: [],
-                                        parentId: `ss:${ss.id}`
-                                    }));
-                                return {
-                                    id: `ss:${ss.id}`,
-                                    label: language === 'ar' ? ss.label_ar : ss.label_en,
-                                    children: subSubServices,
-                                    parentId: `s:${s.id}`
-                                };
-                            });
-                        return {
-                            id: `s:${s.id}`,
-                            label: language === 'ar' ? s.label_ar : s.label_en,
-                            children: subServices,
-                        };
-                    });
-                    setServicesTree(tree);
-                } else {
-                    console.error("Error fetching initial data:", data.message);
-                }
+                const jobsData = jobsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Job[];
+                const servicesData = servicesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                const subServicesData = subServicesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                const subSubServicesData = subSubServicesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                const tree = (servicesData || []).map((s: any) => {
+                    const subServices = (subServicesData || [])
+                        .filter((ss: any) => ss.service_id === s.id)
+                        .map((ss: any) => {
+                            const subSubServices = (subSubServicesData || [])
+                                .filter((sss: any) => sss.sub_service_id === ss.id)
+                                .map((sss: any) => ({
+                                    id: `sss:${sss.id}`,
+                                    label: language === 'ar' ? sss.label_ar : sss.label_en,
+                                    children: [],
+                                    parentId: `ss:${ss.id}`
+                                }));
+                            return {
+                                id: `ss:${ss.id}`,
+                                label: language === 'ar' ? ss.label_ar : ss.label_en,
+                                children: subSubServices,
+                                parentId: `s:${s.id}`
+                            };
+                        });
+                    return {
+                        id: `s:${s.id}`,
+                        label: language === 'ar' ? s.label_ar : s.label_en,
+                        children: subServices,
+                    };
+                });
+                
+                setJobs(jobsData);
+                setServicesTree(tree);
             } catch (error) {
                 console.error("Error fetching initial data:", error);
+                toast.error(t.saveError);
             } finally {
                 setIsLoading(false);
             }
         };
-        if (hasPermission('ss:9')) fetchInitialData(); else setIsLoading(false);
-    }, [language, hasPermission]);
+        
+        // hasPermission("ss:9") is still used to control access
+        if (hasPermission('ss:9')) fetchInitialData();
+        else setIsLoading(false);
+    }, [language, hasPermission, t.saveError]);
 
     useEffect(() => {
         if (selectedJobId !== null) {
@@ -565,33 +585,34 @@ const JobPermissionsPage = () => {
     const fetchJobPermissions = useCallback(async (job: Job) => {
         setIsLoading(true);
         try {
-            const response = await fetch(`http://localhost:3001/api/job-permissions/${job.id}`);
-            const data = await response.json();
-
-            if (data.success) {
-                setSelectedJobId(job.id);
-                setSelectedJobName(language === 'ar' ? job.name_ar : job.name_en);
-                setJobSearchFilter('');
-
-                const perms = new Set<string>((data.permissions || []).map((p: any) => {
-                    if (p.sub_sub_service_id) return `sss:${p.sub_sub_service_id}`;
-                    if (p.sub_service_id) return `ss:${p.sub_service_id}`;
-                    return `s:${p.service_id}`;
-                }));
-                setJobPermissions(perms);
-                setInitialJobPermissions(new Set(perms));
-                setPath([]);
-                const initialPermsForView = getInitialVisiblePermissions(servicesTree, perms);
-                setInitialVisiblePermissions(initialPermsForView);
-            } else {
-                console.error("Error fetching job permissions:", data.message);
-            }
+            // Fetch permissions from Firestore
+            const permissionsQuery = query(collection(firestore, 'job_permissions'), where('job_id', '==', job.id));
+            const permissionsSnap = await getDocs(permissionsQuery);
+            
+            const permissionsData = permissionsSnap.docs.map(doc => doc.data());
+            
+            const perms = new Set<string>((permissionsData || []).map((p: any) => {
+                if (p.sub_sub_service_id) return `sss:${p.sub_sub_service_id}`;
+                if (p.sub_service_id) return `ss:${p.sub_service_id}`;
+                return `s:${p.service_id}`;
+            }));
+            
+            setSelectedJobId(job.id);
+            setSelectedJobName(language === 'ar' ? job.name_ar : job.name_en);
+            setJobSearchFilter('');
+            setJobPermissions(perms);
+            setInitialJobPermissions(new Set(perms));
+            setPath([]);
+            const initialPermsForView = getInitialVisiblePermissions(servicesTree, perms);
+            setInitialVisiblePermissions(initialPermsForView);
+            
         } catch (error) {
             console.error("Error fetching job permissions:", error);
+            toast.error(t.saveError);
         } finally {
             setIsLoading(false);
         }
-    }, [language, servicesTree, getInitialVisiblePermissions]);
+    }, [language, servicesTree, getInitialVisiblePermissions, t.saveError]);
 
     const handleSelectJob = useCallback(async (job: Job) => {
         if (hasChanges) {
@@ -669,23 +690,18 @@ const JobPermissionsPage = () => {
             const permissionsToRemove = new Set(
                 Array.from(initialJobPermissions).filter(p => !jobPermissions.has(p))
             );
-
+            
             const payload = {
-                jobId: selectedJobId,
-                permissionsToAdd: Array.from(permissionsToAdd),
-                permissionsToRemove: Array.from(permissionsToRemove),
-                actorId: user.id
+                p_job_id: selectedJobId,
+                p_permissions_to_add: Array.from(permissionsToAdd),
+                p_permissions_to_remove: Array.from(permissionsToRemove),
+                p_changed_by_user_id: user.id
             };
-
-            const response = await fetch('http://localhost:3001/api/job-permissions/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
+            
+            // استدعاء دالة Firebase Function
+            const result = await manageJobPermissionsCallable(payload);
+            
+            if ((result.data as { success: boolean }).success) {
                 toast.success(t.saveSuccess);
                 setInitialJobPermissions(new Set(jobPermissions));
                 const newVisiblePerms = getInitialVisiblePermissions(filteredNodes, jobPermissions);
