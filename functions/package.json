@@ -8,7 +8,10 @@
     "shell": "npm run build && firebase functions:shell",
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log"
+    "logs": "firebase functions:log",
+    "test": "TS_NODE_PROJECT=tsconfig.test.json mocha --require ts-node/register 'test/**/*.test.ts' --timeout 10000",
+    "test:watch": "TS_NODE_PROJECT=tsconfig.test.json mocha --require ts-node/register 'test/**/*.test.ts' --watch --watch-files src,test",
+    "test:coverage": "TS_NODE_PROJECT=tsconfig.test.json nyc npm test"
   },
   "engines": {
     "node": "22"
@@ -19,12 +22,20 @@
     "firebase-functions": "^6.0.1"
   },
   "devDependencies": {
+    "@types/chai": "^4.3.11",
+    "@types/mocha": "^10.0.6",
+    "@types/sinon": "^17.0.2",
     "@typescript-eslint/eslint-plugin": "^8.44.0",
     "@typescript-eslint/parser": "^8.44.0",
+    "chai": "^4.3.10",
     "eslint": "^8.9.0",
     "eslint-config-google": "^0.14.0",
     "eslint-plugin-import": "^2.25.4",
     "firebase-functions-test": "^3.1.0",
+    "mocha": "^10.2.0",
+    "nyc": "^15.1.0",
+    "sinon": "^17.0.1",
+    "ts-node": "^10.9.2",
     "typescript": "^5.7.3"
   },
   "private": true
