@@ -40,7 +40,7 @@ const componentMap: { [key: string]: React.LazyExoticComponent<any> } = {
     ControlUserScopes: React.lazy(() => import("../components/Permission/Delegation/Control/ControlUserScopes")),
 
     // --- Configuration ---
-    OrgStructureManager: React.lazy(() => import("../components/Administrative structure/OrgStructureManager")),
+    OrgStructureManager: React.lazy(() => import("../components/Administrative/OrgStructureManager")),
     JobDistributionManager: React.lazy(() => import("../components/Jobs/JobDistributionManager")),
     
     // --- Services ---
