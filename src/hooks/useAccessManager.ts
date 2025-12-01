@@ -2,66 +2,34 @@
 import { useState, useCallback } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useDialog } from '../components/contexts/DialogContext';
+import {
+    UnifiedScope,
+    FlexibleScope,
+    DirectPermission,
+    ResourceDefinition,
+    DelegationScopePayload,
+    JobDistribution,
+    CloudFunctionResponse
+} from '../types/permissions.types';
 
 // ============================================================================
-// 1. Interfaces & Types (Updated for "Option 2" Granularity)
+// Re-export types for backward compatibility
 // ============================================================================
 
-interface CloudFunctionResponse {
-    success: boolean;
-    message?: string;
-}
+/** @deprecated استخدم UnifiedScope بدلاً منه */
+export type ScopeDefinition = FlexibleScope;
 
-// 1. واجهة النطاق (Scope Definition)
-// تستخدم داخل الصلاحيات والموارد لتحديد "أين" تطبق القاعدة
-export interface ScopeDefinition {
-    companies?: string[];    // مصفوفة معرفات الشركات
-    departments?: string[];  // مصفوفة معرفات الإدارات
-    sections?: string[];     // مصفوفة معرفات الأقسام
-}
+/** @deprecated استخدم DelegationScopePayload بدلاً منه */
+export type ScopePayload = DelegationScopePayload;
 
-// 2. واجهة النطاق العام (Scope Payload for Delegation Scopes)
-// تستخدم عند تحديد "من" يمكنه التحكم فيهم (Users/Jobs)
-export interface ScopePayload {
-    target_company_id?: string | null;
-    target_job_id?: string | null;
-    target_user_id?: string | null;
-    
-    // النطاق الممنوح
-    scope_company_id?: string | null;
-    scope_department_id?: string | null;
-    scope_section_id?: string | null;
-    
-    restricted_to_company?: boolean;
-    [key: string]: unknown;
-}
+/** @deprecated استخدم ResourceDefinition بدلاً منه */
+export type ResourcePayload = ResourceDefinition;
 
-// 3. واجهة الموارد (Resources Payload)
-// ✅ تم التحديث: أضفنا "scope" هنا لدعم الخيار الثاني في أنظمة التفويض (Access/Control)
-// مثال: تفويض "خدمة الحضور" (resource) مقيدة بـ "فرع الشمال" (scope)
-export interface ResourcePayload {
-    service_id?: string;
-    sub_service_id?: string;
-    sub_sub_service_id?: string;
-    scope?: ScopeDefinition; // 🔥 الإضافة الجديدة لدعم النطاق لكل مورد
-}
+/** @deprecated استخدم DirectPermission بدلاً منه */
+export type JobPermissionInput = DirectPermission;
 
-// 4. واجهة مدخلات صلاحيات الوظيفة (Direct Job Permissions)
-// ✅ تدعم الخيار الثاني: صلاحية + نطاق
-export interface JobPermissionInput {
-    id: string; 
-    is_allowed: boolean; 
-    scope?: ScopeDefinition; // 🔥 النطاق الخاص بهذه الصلاحية
-}
-
-// 5. واجهة هيكل الوظيفة (Job Distribution)
-export interface JobDistributionPayload {
-    job_id: string;
-    company_id: string;
-    sector_id?: string | null;
-    department_id?: string | null;
-    section_id?: string | null;
-}
+/** @deprecated استخدم JobDistribution بدلاً منه */
+export type JobDistributionPayload = JobDistribution;
 
 // ============================================================================
 // 2. The Hook
@@ -106,10 +74,10 @@ export const useAccessManager = () => {
     }, [functions, showDialog]);
 
     // 2. إدارة صلاحيات الوظائف (Job Permissions)
-    // ✅ يدعم إرسال النطاق مع كل صلاحية
+    // ✅ يدعم إرسال النطاق مع كل صلاحية (company + department فقط)
     const updateJobPermissions = useCallback(async (
         targetJobId: string,
-        permissionsToAdd: JobPermissionInput[],
+        permissionsToAdd: DirectPermission[],
         permissionsToRemove: string[]
     ) => {
         setIsSubmitting(true);
@@ -135,10 +103,10 @@ export const useAccessManager = () => {
     // ========================================================================
 
     // 3. موارد الوظائف (Job Access Resources)
-    // ✅ الآن resourceData يمكن أن يحتوي على scope
+    // ✅ يدعم scope موحد (company + department فقط)
     const updateJobAccessResources = useCallback(async (
-        targetJobId: string, 
-        resourceData: ResourcePayload,
+        targetJobId: string,
+        resourceData: ResourceDefinition,
         action: 'add' | 'remove',
         docId?: string
     ) => {
@@ -152,9 +120,10 @@ export const useAccessManager = () => {
     }, [functions]);
 
     // 4. نطاق الوظائف (Job Access Scope - WHO)
+    // ✅ النطاق الموحد: company + department فقط
     const updateJobAccessScope = useCallback(async (
         targetJobId: string,
-        scopeData: ScopePayload,
+        scopeData: DelegationScopePayload,
         action: 'add' | 'remove',
         docId?: string
     ) => {
@@ -168,9 +137,10 @@ export const useAccessManager = () => {
     }, [functions]);
 
     // 5. موارد المستخدمين (User Access Resources)
+    // ✅ يدعم scope موحد (company + department فقط)
     const updateUserAccessResources = useCallback(async (
         targetUserId: string,
-        resourceData: ResourcePayload,
+        resourceData: ResourceDefinition,
         action: 'add' | 'remove',
         docId?: string
     ) => {
@@ -184,9 +154,10 @@ export const useAccessManager = () => {
     }, [functions]);
 
     // 6. نطاق المستخدمين (User Access Scope - WHO)
+    // ✅ النطاق الموحد: company + department فقط
     const updateUserAccessScope = useCallback(async (
         targetUserId: string,
-        scopeData: ScopePayload,
+        scopeData: DelegationScopePayload,
         action: 'add' | 'remove',
         docId?: string
     ) => {
@@ -205,9 +176,10 @@ export const useAccessManager = () => {
     // ========================================================================
 
     // 7. منح تفويض التحكم المباشر
+    // ✅ النطاق الموحد: company + department فقط
     const grantControlDelegation = useCallback(async (
         targetUserId: string,
-        scopeToAdd: ScopePayload
+        scopeToAdd: DelegationScopePayload
     ) => {
         setIsSubmitting(true);
         try {
@@ -224,10 +196,10 @@ export const useAccessManager = () => {
     }, [functions, showDialog]);
 
     // 8. موارد التحكم للوظائف (Job Control Resources)
-    // ✅ يدعم النطاق لكل مورد
+    // ✅ يدعم scope موحد (company + department فقط)
     const updateJobControlResources = useCallback(async (
         targetJobId: string,
-        resourceData: ResourcePayload,
+        resourceData: ResourceDefinition,
         action: 'add' | 'remove',
         docId?: string
     ) => {
@@ -241,9 +213,10 @@ export const useAccessManager = () => {
     }, [functions]);
 
     // 9. نطاق التحكم للوظائف (Control Job Scopes)
+    // ✅ النطاق الموحد: company + department فقط
     const updateJobControlScope = useCallback(async (
         targetJobId: string,
-        scopeData: ScopePayload,
+        scopeData: DelegationScopePayload,
         action: 'add' | 'remove',
         docId?: string
     ) => {
@@ -257,9 +230,10 @@ export const useAccessManager = () => {
     }, [functions]);
 
     // 10. موارد التحكم للمستخدمين
+    // ✅ يدعم scope موحد (company + department فقط)
     const updateUserControlResources = useCallback(async (
         targetUserId: string,
-        resourceData: ResourcePayload,
+        resourceData: ResourceDefinition,
         action: 'add' | 'remove',
         docId?: string
     ) => {
@@ -273,9 +247,10 @@ export const useAccessManager = () => {
     }, [functions]);
 
     // 11. نطاق التحكم للمستخدمين
+    // ✅ النطاق الموحد: company + department فقط
     const updateUserControlScope = useCallback(async (
         targetUserId: string,
-        scopeData: ScopePayload,
+        scopeData: DelegationScopePayload,
         action: 'add' | 'remove',
         docId?: string
     ) => {
@@ -291,10 +266,11 @@ export const useAccessManager = () => {
     // ========================================================================
     // D. إدارة الهيكل (Job Distribution)
     // ========================================================================
-    
+    // ✅ تم التحديث: company + department فقط (بدون sector, section)
+
     const manageJobDistribution = useCallback(async (
         action: 'add' | 'delete',
-        payload: Partial<JobDistributionPayload> | undefined, 
+        payload: Partial<JobDistribution> | undefined,
         docId?: string
     ) => {
         setIsSubmitting(true);

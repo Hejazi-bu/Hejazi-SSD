@@ -9,6 +9,27 @@ import { PubSub } from "@google-cloud/pubsub";
 import sgMail from "@sendgrid/mail";
 import * as crypto from "crypto";
 
+// ✨ استيراد الواجهات الموحدة الجديدة ✨
+import {
+    UnifiedScope,
+    ResourceData,
+    UserData,
+    DelegationProfile,
+    DelegationRule,
+    PermissionData,
+    JobDistribution,
+    CloudFunctionResponse,
+    validateScope,
+    isScopeMatch
+} from "./types/permissions.types";
+
+// ✨ استيراد نظام التنبيهات ✨
+import {
+    sendPermissionChangeNotification,
+    getAffectedUsersByJobId,
+    getAffectedUserById
+} from "./helpers/notificationHelper";
+
 // --- هنا يبدأ الكود ---
 admin.initializeApp();
 const db = admin.firestore();
@@ -17,44 +38,15 @@ const pubsub = new PubSub();
 
 // ============================================================================
 // 0. الواجهات المشتركة (Shared Interfaces)
+// ملاحظة: تم نقل الواجهات إلى ملف منفصل types/permissions.types.ts
+// للحفاظ على backward compatibility، نعيد تصدير بعض الأنواع
 // ============================================================================
 
-interface ResourceData {
-    service_id?: string;
-    sub_service_id?: string;
-    sub_sub_service_id?: string;
-}
+/** @deprecated استخدم UnifiedScope من types/permissions.types.ts */
+type ScopeDefinition = UnifiedScope;
 
-// واجهة الحقول الهيكلية (لإعادة الاستخدام)
-interface ScopeDefinition {
-    scope_company_id?: string | null;    // إذا حدد، يطبق على هذه الشركة فقط
-    scope_sector_id?: string | null;     // إذا حدد، يطبق على هذا القطاع
-    scope_department_id?: string | null; // إذا حدد، يطبق على هذه الإدارة
-    scope_section_id?: string | null;    // إذا حدد، يطبق على هذا القسم
-}
-
-interface UserData {
-    id: string;
-    name_ar?: string;
-    name_en?: string;
-    job_id?: string;
-    company_id?: string;
-    department_id?: string;
-    section_id?: string;
-    is_super_admin?: boolean;
-    avatar_url?: string;
-    [key: string]: unknown;
-}
-
-// واجهة لملف تعريف المفوض (الذي يقوم بالفعل)
-interface ActorDelegationProfile {
-    isSuperAdmin: boolean;
-    resources: string[]; // قائمة الموارد التي يملكها
-    scopes: {
-        access: ScopeDefinition[]; // النطاقات التي يحق له الوصول إليها
-        control: ScopeDefinition[]; // النطاقات التي يحق له التحكم بها
-    };
-}
+/** @deprecated استخدم DelegationProfile من types/permissions.types.ts */
+type ActorDelegationProfile = DelegationProfile;
 
 // تعديل توقيع الدالة لتحديد نوع الإرجاع Promise<DelegationProfile>
 async function _fetchActorDelegationProfile(actorId: string): Promise<DelegationProfile> {
@@ -132,7 +124,7 @@ async function updateUserDelegationCache(userId: string) {
                     target_job_id: d.target_job_id || null,
                     scope_company_id: d.target_company_id || d.scope_company_id || null, // دعمنا الاسمين
                     scope_department_id: d.scope_department_id || null,
-                    scope_section_id: d.scope_section_id || null,
+                    // ✅ تم إزالة: scope_section_id (النطاق الموحد: company + department فقط)
                     restricted_to_company: d.restricted_to_company || false
                 });
             }
@@ -221,12 +213,11 @@ function validateAuthority(
             }
 
             // ج) مطابقة القسم (اختياري)
+            // ✅ النطاق الموحد: company + department فقط
             if (rule.scope_department_id && String(rule.scope_department_id) !== String(targetEntity.department_id)) {
                 return false;
             }
-            if (rule.scope_section_id && String(rule.scope_section_id) !== String(targetEntity.section_id)) {
-                return false;
-            }
+            // ✅ تم إزالة: scope_section_id (النطاق الموحد)
 
             // إذا نجحنا في تجاوز كل الفلاتر، فهذه القاعدة تسمح بالوصول
             return true;
@@ -274,16 +265,21 @@ const parsePermissionString = (perm: string): PermissionData => {
 
 // --- Helper: Scope Matcher (محرك المطابقة) ---
 // يتحقق هل بيانات المستخدم تطابق شروط النطاق في القاعدة
+// ✅ تم التحديث: النطاق الموحد (company + department فقط)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function isScopeMatching(rule: ScopeDefinition, userData: any): boolean {
-    // 1. الشركة
-    if (rule.scope_company_id && rule.scope_company_id !== userData.company_id) return false;
-    // 2. القطاع
-    if (rule.scope_sector_id && rule.scope_sector_id !== userData.sector_id) return false;
-    // 3. الإدارة
-    if (rule.scope_department_id && rule.scope_department_id !== userData.department_id) return false;
-    // 4. القسم
-    if (rule.scope_section_id && rule.scope_section_id !== userData.section_id) return false;
+function isScopeMatching(rule: UnifiedScope, userData: any): boolean {
+    // 1. الشركة (إلزامي)
+    if (rule.scope_company_id && rule.scope_company_id !== userData.company_id) {
+        return false;
+    }
+
+    // 2. القسم (اختياري)
+    if (rule.scope_department_id && rule.scope_department_id !== userData.department_id) {
+        return false;
+    }
+
+    // ✅ تم إزالة: القطاع (sector) والفرع (section)
+    // النطاق الموحد يدعم فقط: company + department
 
     return true; // إذا عبر كل الفلاتر (أو كانت null)، فهو مطابق
 }
