@@ -1,0 +1,13 @@
+[
+  {
+    "origin": [
+      "http://localhost:*",
+      "https://localhost:*",
+      "https://h-ssd.com",
+      "https://hejazissd.com",
+      "https://hejazi-ssd.web.app"
+    ],
+    "method": ["GET"],
+    "maxAgeSeconds": 3600
+  }
+]
