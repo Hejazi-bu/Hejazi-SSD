@@ -1,162 +1,111 @@
-// src/components/home/ServiceCard.tsx
-import React, { useState } from 'react';
-import { motion, AnimatePresence, Variants } from 'framer-motion';
-import { Star, LoaderCircle } from 'lucide-react';
+import React, { useRef } from 'react';
+import { motion, useMotionValue, useTransform, Variants } from 'framer-motion';
+import { Star } from 'lucide-react';
 import DynamicIcon from './DynamicIcon';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/UserContext';
+import { Link } from 'react-router-dom';
+import { useDialog } from '../contexts/DialogContext';
 import { useLanguage } from '../contexts/LanguageContext';
-
-// 🆕 إضافة الاستيرادات اللازمة من Firestore
-import { getDocs, collection, query, where } from 'firebase/firestore';
-import { db } from '../../lib/firebase'; // تأكد من المسار الصحيح
+import { useAuth } from '../contexts/UserContext'; // ✅ 1. استيراد useAuth
 
 export interface Service {
-    id: string; // 🆕 تم تعديل النوع إلى string
+    id: string;
     label_ar: string;
     label_en: string;
     icon: string | null;
-    is_allowed: boolean; // خاصية مهمة لفحص الخدمة الرئيسية
-}
-
-// 🆕 نوع جديد لتمثيل بيانات المستند في Firestore
-interface SubServiceDoc {
-    id: string; // 🆕 تم تعديل النوع إلى string
-    service_id: string; // 🆕 تم تعديل النوع إلى string
-    label_ar: string;
-    label_en: string;
     page: string | null;
-    is_allowed: boolean;
-    order: number;
-    created_by: string | null;
 }
 
 interface ServiceCardProps {
     service: Service;
     language: 'ar' | 'en';
     isFavorite: boolean;
-    onToggleFavorite: (id: string) => void; // 🆕 تم تعديل النوع إلى string
+    onToggleFavorite: (id: string) => void;
+    groupPage: string;
+    onClose: () => void;
 }
 
-export const ServiceCard: React.FC<ServiceCardProps> = ({ service, language, isFavorite, onToggleFavorite }) => {
-    const navigate = useNavigate();
-    const { hasPermission } = useAuth();
-    const [isLoading, setIsLoading] = useState(false);
+const starVariants: Variants = {
+    initial: { scale: 1, rotate: 0 },
+    favorite: {
+        scale: [1, 1.3, 1],
+        rotate: 360,
+        transition: { duration: 0.4, ease: "easeOut" }
+    }
+};
 
+export const ServiceCard: React.FC<ServiceCardProps> = ({ service, language, isFavorite, onToggleFavorite, groupPage, onClose }) => {
+    const { showDialog } = useDialog();
+    const { hasPermission } = useAuth(); // ✅ 2. جلب دالة hasPermission
     const label = language === 'ar' ? service.label_ar : service.label_en;
-    const t = {
-        ar: {
-            opening: "جاري الفحص...",
-            service_disabled: "هذه الخدمة متوقفة حالياً.",
-            no_permission_service: "ليس لديك صلاحية الوصول لهذه الخدمة.",
-            no_sub_services: "لا توجد خدمات فرعية متاحة حالياً.",
-            all_sub_services_disabled: "جميع الخدمات الفرعية لهذه الفئة متوقفة.",
-            no_permission_sub_service: "لا توجد لديك صلاحية للوصول إلى أي من الخدمات هنا.",
-            error_fetching: "حدث خطأ أثناء جلب البيانات."
-        },
-        en: {
-            opening: "Checking...",
-            service_disabled: "This service is currently disabled.",
-            no_permission_service: "You do not have permission to access this service.",
-            no_sub_services: "No sub-services are available at the moment.",
-            all_sub_services_disabled: "All sub-services in this category are currently disabled.",
-            no_permission_sub_service: "You do not have permission to access any services here.",
-            error_fetching: "An error occurred while fetching data."
-        },
-    }[language];
+    const ref = useRef<HTMLAnchorElement>(null);
 
-    const handleCardClick = async () => {
-        setIsLoading(true);
+    const mouseX = useMotionValue(0);
+    const mouseY = useMotionValue(0);
 
-        // 1. فحص الخدمة الرئيسية
-        if (!service.is_allowed) {
-            alert(t.service_disabled);
-            setIsLoading(false);
-            return;
-        }
+    const rotateX = useTransform(mouseY, [-150, 150], [10, -10]);
+    const rotateY = useTransform(mouseX, [-150, 150], [-10, 10]);
+    const itemTranslateX = useTransform(mouseX, [-150, 150], [-5, 5]);
+    const itemTranslateY = useTransform(mouseY, [-150, 150], [-5, 5]);
 
-        // 2. فحص صلاحية المستخدم على الخدمة الرئيسية
-        if (!hasPermission(`s:${service.id}`)) {
-            alert(t.no_permission_service);
-            setIsLoading(false);
-            return;
-        }
-
-        try {
-            const subServicesQuery = query(collection(db, "sub_services"), where("service_id", "==", service.id));
-            const subServicesSnapshot = await getDocs(subServicesQuery);
-
-            const subServices = subServicesSnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as Omit<SubServiceDoc, 'id'>) }));
-
-            if (!subServices || subServices.length === 0) {
-                alert(t.no_sub_services);
-                setIsLoading(false);
-                return;
-            }
-
-            const activeSubServices = subServices.filter((ss: SubServiceDoc) => ss.is_allowed);
-            if (activeSubServices.length === 0) {
-                alert(t.all_sub_services_disabled);
-                setIsLoading(false);
-                return;
-            }
-
-            const permittedSubServices = activeSubServices.filter((ss: SubServiceDoc) => hasPermission(`ss:${ss.id}`));
-            if (permittedSubServices.length === 0) {
-                alert(t.no_permission_sub_service);
-                setIsLoading(false);
-                return;
-            }
-
-            // 5. التوجيه لأول صفحة متاحة
-            const firstPermittedPage = permittedSubServices[0].page;
-            if (firstPermittedPage) {
-                setTimeout(() => navigate(firstPermittedPage), 800);
-            } else {
-                console.error("Permitted sub-service has no page link:", permittedSubServices[0]);
-                setIsLoading(false);
-            }
-        } catch (error) {
-            console.error("Error fetching sub-services:", error);
-            alert(t.error_fetching);
-        } finally {
-            setIsLoading(false);
-        }
+    const handleMouseMove = (e: React.MouseEvent<HTMLAnchorElement, MouseEvent>) => {
+        if (!ref.current) return;
+        const { left, top, width, height } = ref.current.getBoundingClientRect();
+        mouseX.set(e.clientX - (left + width / 2));
+        mouseY.set(e.clientY - (top + height / 2));
     };
 
-    const cardVariants: Variants = {
-        hidden: { opacity: 0, scale: 0.8 },
-        visible: { opacity: 1, scale: 1 },
+    const handleMouseLeave = () => {
+        mouseX.set(0);
+        mouseY.set(0);
     };
 
+    const handleCardClick = (e: React.MouseEvent) => {
+        // ✅ 3. تحديث منطق التحقق من الصلاحية
+        const canAccess = hasPermission(`s:${service.id}`);
+
+        if (!canAccess || !service.page) {
+            e.preventDefault();
+            const dialogTitle = !canAccess ? (language === 'ar' ? "وصول مرفوض" : "Access Denied") : (language === 'ar' ? "خدمة غير متاحة" : "Service Unavailable");
+            const dialogMessage = !canAccess ? (language === 'ar' ? "ليس لديك الصلاحية للوصول لهذه الخدمة." : "You do not have permission to access this service.") : (language === 'ar' ? "هذه الخدمة قيد التطوير حاليًا." : "This service is currently under development.");
+            showDialog({ variant: 'alert', title: dialogTitle, message: dialogMessage });
+            return;
+        }
+        onClose();
+    };
+    
     return (
-        <motion.div variants={cardVariants} layout className="crystalline-card-container" onClick={handleCardClick}>
-            <motion.div className="crystalline-card" whileHover={{ y: -10, scale: 1.03 }} whileTap={{ scale: 0.98 }}>
-                <AnimatePresence>
-                    {!isLoading ? (
-                        <motion.div initial={{ opacity: 1 }} exit={{ opacity: 0 }} className="card-face card-front">
-                            <div className="aurora-bg"></div>
-                            <motion.button onClick={(e) => { e.stopPropagation(); onToggleFavorite(service.id); }} className="absolute top-2 right-2 p-1 z-30" whileTap={{ scale: [1, 0.7, 1.4, 1], rotate: [0, -15, 15, 0] }} whileHover={{ scale: 1.2 }}>
-                                <Star className={`transition-all duration-300 ${isFavorite ? 'text-yellow-400 fill-current' : 'text-gray-500'}`} size={20} />
-                            </motion.button>
-                            <div className="relative z-10 flex flex-col items-center justify-center h-full">
-                                <motion.div className="p-3 bg-black/20 rounded-full mb-3 shadow-lg" whileHover={{ scale: 1.1 }}>
-                                    <DynamicIcon name={service.icon} className="w-10 h-10 text-[#FFD700] drop-shadow-[0_0_8px_rgba(255,215,0,0.5)]" />
-                                </motion.div>
-                                <p className="text-white text-base font-bold text-shadow text-center">{label}</p>
-                            </div>
+        <motion.div layout>
+            <Link 
+                to={service.page ? `/${groupPage}/${service.page}` : '#'}
+                ref={ref}
+                onClick={handleCardClick} 
+                className="crystalline-card-container block"
+                onMouseMove={handleMouseMove}
+                onMouseLeave={handleMouseLeave}
+            >
+                <motion.div 
+                    className="crystalline-card"
+                    style={{ rotateX, rotateY }}
+                    whileTap={{ scale: 0.95 }}
+                    transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+                >
+                    <div className="card-face card-front">
+                        <motion.div className="absolute inset-0 pointer-events-none" style={{ background: useTransform([mouseX, mouseY], (latest: number[]) => `radial-gradient(at ${latest[0] + 150}px ${latest[1] + 150}px, rgba(255, 215, 0, 0.25) 0px, transparent 60%)`), opacity: useTransform(mouseX, [-150, 150], [0, 1]) }} />
+                        <motion.div className="absolute inset-0 opacity-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, rgba(255, 215, 0, 0.15) 0%, transparent 70%)' }} whileHover={{ opacity: 1 }} whileTap={{ opacity: 1, scale: 1.2 }} transition={{ duration: 0.4, ease: 'easeOut' }} />
+                        <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleFavorite(service.id); }} className="absolute top-0 right-0 z-30 h-16 w-16 cursor-pointer">
+                            <motion.div className="flex h-full w-full items-center justify-center" whileHover={{ scale: 1.2 }} whileTap={{ scale: [1, 0.7, 1.4, 1], rotate: [0, -15, 15, 0] }} variants={starVariants} animate={isFavorite ? "favorite" : "initial"}>
+                                <Star size={28} className={`transition-colors duration-200 pointer-events-none ${isFavorite ? 'text-yellow-400 fill-yellow-400' : 'text-gray-500'}`} style={{ filter: isFavorite ? 'drop-shadow(0 0 5px rgba(250, 204, 21, 0.7))' : 'none' }} />
+                            </motion.div>
+                        </div>
+                        <motion.div className="relative z-10 flex flex-col items-center justify-center h-full p-2" style={{ x: itemTranslateX, y: itemTranslateY }} transition={{ type: 'spring', stiffness: 200, damping: 20 }}>
+                            <motion.div className="p-3 bg-black/20 rounded-full mb-3 shadow-lg" whileHover={{ scale: 1.1 }}>
+                                <DynamicIcon name={service.icon} className="w-10 h-10 text-[#FFD700] drop-shadow-[0_0_8px_rgba(255,215,0,0.5)]" />
+                            </motion.div>
+                            <p className="text-white text-sm sm:text-base font-bold text-shadow text-center">{label}</p>
                         </motion.div>
-                    ) : (
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="card-face card-back">
-                            <div className="aurora-bg"></div>
-                            <div className="relative z-10 flex flex-col items-center justify-center h-full text-white">
-                                <LoaderCircle className="animate-spin mb-3" size={40} />
-                                <p className="font-semibold">{t.opening}</p>
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </motion.div>
+                    </div>
+                </motion.div>
+            </Link>
         </motion.div>
     );
 };

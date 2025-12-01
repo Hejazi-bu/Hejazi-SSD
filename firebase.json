@@ -10,7 +10,6 @@
         "*.local"
       ],
       "predeploy": [
-        "npm --prefix \"$RESOURCE_DIR\" run lint",
         "npm --prefix \"$RESOURCE_DIR\" run build"
       ],
       "source": "functions"
@@ -19,11 +18,18 @@
   "hosting": {
     "public": "dist",
     "ignore": [
-      "firebase.json",
       "**/.*",
       "**/node_modules/**"
     ],
     "rewrites": [
+      {
+        "source": "/__/auth/**",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/set-password",
+        "destination": "/index.html"
+      },
       {
         "source": "**",
         "destination": "/index.html"

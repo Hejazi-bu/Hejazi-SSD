@@ -1,143 +1,436 @@
-// src/components/GuardsRating/EvaluationPDF.tsx
 import React from 'react';
-import { Page, Text, View, Document, StyleSheet, Font } from '@react-pdf/renderer';
+import { Page, Text, View, Document, StyleSheet, Font, Image } from '@react-pdf/renderer';
 
-// --- تسجيل الخطوط ---
+// --- Fonts Registration ---
 Font.register({
-    family: 'Sakkal Majalla',
-    fonts: [{ src: '/fonts/majalla.ttf' }, { src: '/fonts/majallab.ttf', fontWeight: 'bold' }]
+  family: 'Amiri',
+  fonts: [
+    { src: '/fonts/Amiri-Regular.ttf' },
+    { src: '/fonts/Amiri-Bold.ttf', fontWeight: 'bold' },
+  ]
 });
 
-// --- الأنواع المحدثة ---
-type EvaluationFull = {
-    id: string; 
-    created_at: string; 
-    summary: string | null; 
-    historical_contract_no: string | null; 
-    evaluation_year: number; 
-    evaluation_month: number; 
-    overall_score: number;
-    companies: { name_ar: string; name_en: string; } | null; 
-    users: { name_ar: string; name_en: string; } | null; 
-    jobs: { name_ar: string; name_en: string; } | null;
-};
-// 🆕 تم تعديل id ليكون من نوع string
-type EvaluationDetail = { 
-    id: string; 
-    selected_rating: number; 
-    note: string | null; 
-    security_questions: { question_text_ar: string; question_text_en: string; } | null; 
+// --- Colors ---
+const colors = {
+    primary: '#0D2D50',
+    secondary: '#4A4A4A',
+    accent: '#B89E48',
+    text: '#1F1F1F',
+    background: '#F4F6F8',
+    border: '#E1E5E8',
 };
 
-interface EvaluationPDFProps {
-    evaluation: EvaluationFull;
-    details: EvaluationDetail[];
-    language: 'ar' | 'en';
+// --- Styles (Final Compact Version) ---
+const styles = StyleSheet.create({
+    page: {
+        fontFamily: 'Amiri',
+        fontSize: 11,
+        paddingTop: 35,
+        paddingBottom: 65,
+        paddingHorizontal: 40,
+        color: colors.text,
+        // ✅ تقليل ارتفاع السطر العام لتوفير مساحة كبيرة
+        lineHeight: 1.4,
+    },
+    header: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderBottom: `2px solid ${colors.accent}`,
+        paddingBottom: 10, 
+        marginBottom: 20, // تقليل المسافة
+    },
+    headerTitleContainer: {
+        flexDirection: 'column',
+        alignItems: 'center',
+    },
+    headerTitleEn: {
+        fontSize: 20, 
+        fontWeight: 'bold',
+        color: colors.primary,
+        fontFamily: 'Helvetica-Bold',
+    },
+    headerTitleAr: {
+        fontSize: 18, 
+        color: colors.primary,
+        marginTop: 5,
+    },
+    footer: {
+        position: 'absolute',
+        bottom: 30,
+        left: 40,
+        right: 40,
+        textAlign: 'center',
+        fontSize: 9,
+        color: colors.secondary,
+        borderTop: `1px solid ${colors.border}`,
+        paddingTop: 8,
+        fontFamily: 'Helvetica',
+    },
+    section: {
+        // ✅ تقليل المسافة بين الأقسام
+        marginBottom: 10,
+    },
+    sectionTitle: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: colors.primary,
+        backgroundColor: colors.background,
+        borderBottom: `2px solid ${colors.accent}`,
+        paddingVertical: 5, // تقليل الحشوة
+        paddingHorizontal: 10,
+        marginBottom: 8, // تقليل المسافة
+        textAlign: 'center',
+    },
+    twoColumnLayout: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        gap: 20,
+    },
+    column: {
+        flex: 1,
+    },
+    bilingualField: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderBottom: `1px solid ${colors.border}`,
+        // ✅ تقليل الحشوة العمودية
+        paddingVertical: 4,
+    },
+    bilingualLabelLeft: {
+        flex: 1.2,
+        textAlign: 'left',
+        fontSize: 10,
+        color: colors.secondary,
+        fontFamily: 'Helvetica',
+        paddingTop: 2, 
+    },
+    bilingualLabelRight: {
+        flex: 1,
+        textAlign: 'right',
+        fontSize: 11,
+        color: colors.secondary,
+    },
+    bilingualValueCenter: {
+        flex: 1.5,
+        textAlign: 'center',
+        fontWeight: 'bold',
+        fontSize: 11, 
+    },
+    companyNameRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'baseline', 
+        borderBottom: `1px solid ${colors.border}`,
+        paddingVertical: 5, // تقليل الحشوة
+    },
+    companyNameItem: {
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        gap: 8,
+    },
+    companyNameValue: {
+        fontWeight: 'bold',
+        fontSize: 11,
+    },
+    mergedScoreRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderBottom: `1px solid ${colors.border}`,
+        paddingVertical: 5, // تقليل الحشوة
+    },
+    ratingText: {
+        flex: 1,
+        fontSize: 11,
+        fontWeight: 'bold',
+        color: colors.primary,
+    },
+    scoreText: {
+        flex: 1,
+        textAlign: 'center',
+        fontWeight: 'bold',
+        fontSize: 11,
+    },
+    questionBlock: {
+        backgroundColor: colors.background,
+        border: `1px solid ${colors.border}`,
+        borderRadius: 4,
+        // ✅ تقليص الحشوة الداخلية والهامش السفلي
+        padding: 8,
+        marginBottom: 6,
+    },
+    questionRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 3, // تقليل الحشوة
+    },
+    questionText: {
+        flex: 1,
+        fontSize: 10,
+        fontFamily: 'Helvetica',
+        color: colors.secondary,
+    },
+    itemRatingText: {
+        flex: 1,
+        fontSize: 10, 
+        fontWeight: 'bold',
+        color: colors.primary,
+    },
+    itemScoreText: {
+        flex: 1,
+        textAlign: 'center',
+        fontWeight: 'bold',
+        fontSize: 10,
+    },
+    notesRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingTop: 5,
+        marginTop: 3,
+        borderTop: `1px dotted ${colors.border}`,
+    },
+    noteText: {
+        flex: 1,
+        fontSize: 10,
+        color: colors.secondary,
+    },
+    approvalsContainer: {
+        marginTop: 15, // هامش علوي بسيط يفصله عن آخر بند
+    },
+    signatoryBlock: {
+        marginBottom: 10,
+    },
+    signatorySectionTitle: {
+        fontSize: 13,
+        fontWeight: 'bold',
+        color: colors.primary,
+        borderBottom: `1px solid ${colors.border}`,
+        paddingBottom: 4,
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    signatoryContent: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 10,
+    },
+    signatoryTextColumn: {
+        flex: 1.5,
+        flexDirection: 'column',
+    },
+    signatoryImageColumn: {
+        flex: 1,
+        height: 60,
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'relative',
+    },
+    signatureImage: {
+        maxWidth: 120,
+        maxHeight: 50,
+        objectFit: 'contain',
+    },
+    sealImage: {
+        position: 'absolute',
+        width: 60,
+        height: 60,
+        objectFit: 'contain',
+        opacity: 0.7,
+    },
+    signatoryNameEn: {
+        fontFamily: 'Helvetica-Bold',
+        fontSize: 11,
+        color: colors.primary,
+        textAlign: 'left',
+    },
+    signatoryJobEn: {
+        fontFamily: 'Helvetica',
+        fontSize: 9,
+        color: colors.secondary,
+        textAlign: 'left',
+        marginTop: 2,
+    },
+    signatoryNameAr: {
+        fontSize: 11,
+        fontWeight: 'bold',
+        color: colors.primary,
+        textAlign: 'right',
+    },
+    signatoryJobAr: {
+        fontSize: 9,
+        color: colors.secondary,
+        textAlign: 'right',
+        marginTop: 2,
+    },
+});
+
+// --- Type Definitions ---
+interface Signatory {
+    name_en?: string;
+    name_ar?: string;
+    job_title_en?: string;
+    job_title_ar?: string;
+    signature_url?: string | null;
+    seal_url?: string | null;
 }
 
-// --- الأنماط ---
-const styles = StyleSheet.create({
-    page: { paddingTop: 35, paddingBottom: 120, paddingHorizontal: 35, fontFamily: 'Sakkal Majalla', fontSize: 10, color: '#333' },
-    header: { fontSize: 12, marginBottom: 20, textAlign: 'center', color: 'grey' },
-    pageNumber: { position: 'absolute', fontSize: 10, bottom: 30, left: 0, right: 0, textAlign: 'center', color: 'grey' },
-    title: { fontSize: 20, textAlign: 'center', fontFamily: 'Sakkal Majalla', fontWeight: 'bold', marginBottom: 15 },
-    section: { marginBottom: 15 },
-    sectionTitle: { fontSize: 14, fontWeight: 'bold', backgroundColor: '#f0f0f0', padding: 5, marginBottom: 10 },
-    detailRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6, paddingHorizontal: 5, fontSize: 11 },
-    detailLabel: { fontWeight: 'bold' },
-    table: { width: '100%', border: '1px solid #e0e0e0', marginBottom: 10 },
-    tableHeader: { flexDirection: 'row', backgroundColor: '#f0f0f0', borderBottom: '1px solid #999' },
-    tableRow: { flexDirection: 'row', borderBottom: '1px solid #e0e0e0' },
-    colHeader: { padding: 6, fontWeight: 'bold', fontSize: 11 },
-    tableColQuestion: { width: '50%' }, tableColRating: { width: '25%', textAlign: 'center' }, tableColNotes: { width: '25%' },
-    cell: { padding: 6 },
-    borderRight: { borderRight: '1px solid #e0e0e0' }, borderLeft: { borderLeft: '1px solid #e0e0e0' },
-    rtl: { flexDirection: 'row-reverse' }, rtlAlign: { textAlign: 'right' },
-    signatureSection: { position: 'absolute', bottom: 60, left: 35, right: 35, fontSize: 11 },
-    signatureBlock: { width: '40%' },
-    signaturePlaceholder: { marginTop: 20, borderBottom: '1px dotted #666', height: 30 }
-});
+interface EvaluationPDFProps {
+    evaluation: any;
+    latestVersion: any;
+    companyNameEn?: string;
+    companyNameAr?: string;
+    creator: Signatory | null;
+    approver: Signatory | null;
+}
 
-// --- المكون ---
-export const EvaluationPDF: React.FC<EvaluationPDFProps> = ({ evaluation, details, language }) => {
-    const isRTL = language === 'ar';
-    const evaluationPeriod = new Date(evaluation.evaluation_year, evaluation.evaluation_month - 1)
-        .toLocaleString(isRTL ? 'ar-EG-u-nu-latn' : 'en-US', { month: 'long', year: 'numeric' });
-        
-    const companyName = isRTL ? evaluation.companies?.name_ar : evaluation.companies?.name_en;
-    const evaluatorName = isRTL ? evaluation.users?.name_ar : evaluation.users?.name_en;
-    const jobTitle = isRTL ? evaluation.jobs?.name_ar : evaluation.jobs?.name_en;
-    const scorePercentage = (evaluation.overall_score * 20).toFixed(0);
-    const generationDate = new Date().toLocaleString(isRTL ? 'ar-EG-u-nu-latn' : 'en-US');
-    
-    const getRatingDescription = (score: number) => { 
-        const tooltips = {
-            ar: ["", "يحتاج إلى تحسين", "مقبول", "جيد", "جيد جداً", "ممتاز"],
-            en: ["", "Need improvement", "Acceptable", "Good", "Very Good", "Excellent"],
-        };
-        return tooltips[language][Math.round(score)] || "";
+// --- Reusable Components ---
+const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+    <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        {children}
+    </View>
+);
+
+const SignatorySection: React.FC<{ title: string; signatory: Signatory | null }> = ({ title, signatory }) => {
+    const cleanUrl = (url: string | null | undefined): string | null => {
+        if (!url) return null;
+        return url.split('?')[0];
     };
-
-    const InfoRow = ({ labelAr, labelEn, value }: { labelAr: string, labelEn: string, value: string | number | null | undefined }) => (
-        <View style={[styles.detailRow, isRTL ? styles.rtl : {}]}><Text style={styles.detailLabel}>{isRTL ? `:${labelAr}` : `${labelEn}:`}</Text><Text>{value || (isRTL ? 'غير متوفر' : 'N/A')}</Text></View>
-    );
+    const signatureUrl = cleanUrl(signatory?.signature_url);
+    const sealUrl = cleanUrl(signatory?.seal_url);
 
     return (
-        <Document>
-            <Page size="A4" style={styles.page}>
-                <Text style={styles.header} fixed>{isRTL ? 'وثيقة رسمية - بلدية مدينة أبوظبي' : 'Official Document - Abu Dhabi City Municipality'}</Text>
-                <Text style={[styles.title, isRTL ? styles.rtlAlign : {}]}>{isRTL ? 'تقرير تقييم أمني' : 'Security Evaluation Report'}</Text>
-                
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, isRTL ? styles.rtlAlign : {}]}>{isRTL ? 'معلومات التقييم' : 'Evaluation Information'}</Text>
-                    <InfoRow labelAr="العميل" labelEn="Client" value="ABU DHABI MUNICIPALITY" />
-                    <InfoRow labelAr="الموقع" labelEn="Location" value="ADM" />
-                    <InfoRow labelAr="فترة التقييم" labelEn="Evaluation Period" value={evaluationPeriod} />
-                    <InfoRow labelAr="اسم الشركة" labelEn="Company Name" value={companyName} />
-                    <InfoRow labelAr="رقم العقد" labelEn="Contract Number" value={evaluation.historical_contract_no} />
-                    <View style={[styles.detailRow, isRTL ? styles.rtl : {}]}><Text style={styles.detailLabel}>{isRTL ? ':النتيجة النهائية' : 'Final Score:'}</Text><Text>{`${scorePercentage}% (${getRatingDescription(evaluation.overall_score)})`}</Text></View>
+        <View style={styles.signatoryBlock}>
+            <Text style={styles.signatorySectionTitle}>{title}</Text>
+            <View style={styles.signatoryContent}>
+                <View style={styles.signatoryTextColumn}>
+                    <Text style={styles.signatoryNameEn}>{signatory?.name_en || ' '}</Text>
+                    <Text style={styles.signatoryJobEn}>{signatory?.job_title_en || ' '}</Text>
                 </View>
-                
-                {evaluation.summary && (
-                    <View style={styles.section}>
-                           <Text style={[styles.sectionTitle, isRTL ? styles.rtlAlign : {}]}>{isRTL ? 'ملخص التقييم' : 'Evaluation Summary'}</Text>
-                           <Text style={[{paddingHorizontal: 5}, isRTL ? styles.rtlAlign : {}]}>{evaluation.summary}</Text>
-                    </View>
-                )}
-
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, isRTL ? styles.rtlAlign : {}]}>{isRTL ? 'تفاصيل التقييم' : 'Evaluation Details'}</Text>
-                    <View style={styles.table}>
-                      <View style={[styles.tableHeader, isRTL ? styles.rtl : {}]} fixed>
-                            <View style={[styles.tableColQuestion, styles.colHeader, isRTL ? styles.borderLeft : styles.borderRight]}><Text>{isRTL ? 'السؤال' : 'Question'}</Text></View>
-                            <View style={[styles.tableColRating, styles.colHeader, isRTL ? styles.borderLeft : styles.borderRight]}><Text>{isRTL ? 'التقييم' : 'Rating'}</Text></View>
-                            <View style={[styles.tableColNotes, styles.colHeader]}><Text>{isRTL ? 'الملاحظات' : 'Notes'}</Text></View>
-                        </View>
-                      {details.map((detail) => (
-                            <View key={detail.id} style={[styles.tableRow, isRTL ? styles.rtl : {}]} wrap={false}>
-                                <View style={[styles.tableColQuestion, styles.cell, isRTL ? styles.borderLeft : styles.borderRight, isRTL ? styles.rtlAlign : {}]}>
-                                    <Text>{isRTL ? detail.security_questions?.question_text_ar : detail.security_questions?.question_text_en || ''}</Text>
-                                </View>
-                                <View style={[styles.tableColRating, styles.cell, isRTL ? styles.borderLeft : styles.borderRight]}>
-                                    <Text>{`${detail.selected_rating} / 5 (${getRatingDescription(detail.selected_rating)})`}</Text>
-                                </View>
-                                <View style={[styles.tableColNotes, styles.cell, isRTL ? styles.rtlAlign : {}]}>
-                                    <Text>{detail.note || (isRTL ? 'لا يوجد' : 'N/A')}</Text>
-                                </View>
-                            </View>
-                        ))}
-                    </View>
+                <View style={styles.signatoryImageColumn}>
+                    {sealUrl && <Image style={styles.sealImage} src={{ uri: sealUrl, method: 'GET', headers: {} }} />}
+                    {signatureUrl && <Image style={styles.signatureImage} src={{ uri: signatureUrl, method: 'GET', headers: {} }} />}
                 </View>
-
-                <View style={styles.signatureSection} fixed>
-                  <View style={[isRTL ? {flexDirection: 'row-reverse', justifyContent: 'space-between', width: '100%'} : {flexDirection: 'row', justifyContent: 'space-between', width: '100%'}]}>
-                      <View style={styles.signatureBlock}><Text>{isRTL ? 'تم التقييم بواسطة' : 'Evaluated By'}</Text><Text>{evaluatorName || 'N/A'}</Text><Text>{jobTitle || 'N/A'}</Text><View style={styles.signaturePlaceholder}></View><Text>{isRTL ? 'التوقيع' : 'Signature'}</Text></View>
-                      <View style={styles.signatureBlock}><Text>{isRTL ? 'الختم الرسمي' : 'Official Stamp'}</Text><View style={{...styles.signaturePlaceholder, height: 60}}></View></View>
-                  </View>
+                <View style={styles.signatoryTextColumn}>
+                    <Text style={styles.signatoryNameAr}>{signatory?.name_ar || ' '}</Text>
+                    <Text style={styles.signatoryJobAr}>{signatory?.job_title_ar || ' '}</Text>
                 </View>
-                
-                <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => (`${isRTL ? 'تاريخ الطباعة' : 'Generated on'}: ${generationDate} | ${isRTL ? `صفحة ${pageNumber} من ${totalPages}` : `Page ${pageNumber} of ${totalPages}`}`)} fixed />
-            </Page>
-        </Document>
+            </View>
+        </View>
     );
 };
+
+const BilingualField = ({ labelEn, labelAr, value }: { labelEn: string, labelAr: string, value?: string | number | null }) => (
+    <View style={styles.bilingualField}>
+        <Text style={styles.bilingualLabelLeft}>{labelEn}:</Text>
+        <Text style={styles.bilingualValueCenter}>
+            {value !== null && value !== undefined ? String(value) : 'N/A'}
+        </Text>
+        <Text style={styles.bilingualLabelRight}>:{labelAr}</Text>
+    </View>
+);
+
+const getRatingDescription = (score: number) => {
+    const descriptions = {
+      en: ["Need Improvement", "Acceptable", "Good", "Very Good", "Excellent"],
+      ar: ["تحتاج إلى تحسين", "مقبول", "جيد", "جيد جدا", "ممتاز"],
+    };
+    if (score < 1.5) return { en: descriptions.en[0], ar: descriptions.ar[0] };
+    if (score < 2.5) return { en: descriptions.en[1], ar: descriptions.ar[1] };
+    if (score < 3.5) return { en: descriptions.en[2], ar: descriptions.ar[2] };
+    if (score < 4.5) return { en: descriptions.en[3], ar: descriptions.ar[3] };
+    return { en: descriptions.en[4], ar: descriptions.ar[4] };
+};
+
+// --- Main PDF Document Component ---
+const EvaluationPDF: React.FC<EvaluationPDFProps> = ({ evaluation, latestVersion, companyNameEn, companyNameAr, creator, approver }) => {
+    
+    const evaluationDate = latestVersion ? new Date(latestVersion.evaluation_year, latestVersion.evaluation_month - 1) : null;
+    const formattedDate = evaluationDate ? `${evaluationDate.toLocaleString('en-US', { month: 'long' })} ${latestVersion.evaluation_year}` : 'N/A';
+    const ratingDescription = latestVersion ? getRatingDescription(latestVersion.overall_score) : null;
+
+    return (
+        <Document author="Hejazi Logic" title={`Evaluation Report #${evaluation?.sequence_number}`}>
+            <Page size="A4" style={styles.page}>
+                <View style={styles.header} fixed>
+                    <View style={styles.headerTitleContainer}>
+                        <Text style={styles.headerTitleEn}>Security Services Evaluation Report</Text>
+                        <Text style={styles.headerTitleAr}>تقرير تقييم الخدمات الأمنية</Text>
+                    </View>
+                </View>
+                
+                <View>
+                    <View style={{ marginBottom: 15 }}>
+                        <View style={styles.companyNameRow}>
+                            <View style={styles.companyNameItem}>
+                                <Text style={{fontSize: 10, color: colors.secondary, fontFamily: 'Helvetica', paddingTop: 2}}>Company Name:</Text>
+                                <Text style={styles.companyNameValue}>{companyNameEn || 'N/A'}</Text>
+                            </View>
+                            <View style={[styles.companyNameItem, { justifyContent: 'flex-end' }]}>
+                                <Text style={[styles.companyNameValue, { textAlign: 'right' }]}>{companyNameAr || 'N/A'}</Text>
+                                <Text style={{fontSize: 11, color: colors.secondary}}>:اسم الشركة</Text>
+                            </View>
+                        </View>
+                        <View style={styles.twoColumnLayout}>
+                            <View style={styles.column}>
+                                <BilingualField labelEn="Contract No." labelAr="رقم العقد" value={evaluation?.historical_contract_no} />
+                                <BilingualField labelEn="Guards Count" labelAr="عدد الحراس" value={evaluation?.historical_guard_count} />
+                            </View>
+                            <View style={styles.column}>
+                                <BilingualField labelEn="Month / Year" labelAr="الشهر / السنة" value={formattedDate} />
+                                <BilingualField labelEn="Violations Count" labelAr="عدد المخالفات" value={evaluation?.historical_violations_count} />
+                            </View>
+                        </View>
+                    </View>
+
+                    <Section title="Evaluation Result / نتيجة التقييم">
+                            {latestVersion && ratingDescription ? (
+                                <View style={styles.mergedScoreRow}>
+                                    <Text style={[styles.ratingText, { textAlign: 'left' }]}>{`${ratingDescription.en}`}</Text>
+                                    <Text style={styles.scoreText}>{`${latestVersion.overall_score.toFixed(2)} / 5.00`}</Text>
+                                    <Text style={[styles.ratingText, { textAlign: 'right' }]}>{`${ratingDescription.ar}`}</Text>
+                                </View>
+                            ) : (
+                                <BilingualField labelEn="Overall Score" labelAr="النتيجة الإجمالية" value={'N/A'} />
+                            )}
+                            <BilingualField labelEn="General Summary" labelAr="الملخص العام" value={latestVersion?.summary || '—'} />
+                    </Section>
+
+                    <Section title="Evaluation Items / تفاصيل البنود">
+                        {(latestVersion?.details || []).map((detail: any, index: number) => (
+                            <View key={detail.question_id || index} style={styles.questionBlock} wrap={false}>
+                                <View style={[styles.questionRow, { borderBottom: `1px solid ${colors.border}`, paddingBottom: 4 }]}>
+                                    <Text style={[styles.questionText, { textAlign: 'left', paddingTop: 2 }]}>{detail.question_text_en}</Text>
+                                    <Text style={[styles.questionText, { textAlign: 'right', fontFamily: 'Amiri', fontSize: 11 }]}>{detail.question_text_ar}</Text>
+                                </View>
+                                <View style={[styles.questionRow, { paddingTop: 4 }]}>
+                                    <Text style={[styles.itemRatingText, { textAlign: 'left' }]}>{getRatingDescription(detail.rating || 0).en}</Text>
+                                    <Text style={styles.itemScoreText}>{`${detail.rating || 0} / 5`}</Text>
+                                    <Text style={[styles.itemRatingText, { textAlign: 'right' }]}>{getRatingDescription(detail.rating || 0).ar}</Text>
+                                </View>
+                                {detail.note ? (
+                                    <View style={styles.notesRow}>
+                                        <Text style={[styles.noteText, { textAlign: 'left', fontFamily: 'Helvetica' }]}>{`Note: ${detail.note}`}</Text>
+                                        <Text style={[styles.noteText, { textAlign: 'right' }]}>{`ملاحظة: ${detail.note_ar || detail.note}`}</Text>
+                                    </View>
+                                ) : null}
+                            </View>
+                        ))}
+                    </Section>
+                </View>
+                
+                <View style={styles.approvalsContainer} wrap={false}>
+                    <SignatorySection title="Prepared by / تم الإعداد بواسطة" signatory={creator} />
+                    <SignatorySection title="Approved by / تم الاعتماد بواسطة" signatory={approver} />
+                </View>
+                
+                <Text style={styles.footer} fixed render={({ pageNumber, totalPages }) => (`Page ${pageNumber} of ${totalPages} | Abu Dhabi City Municipality`)} />
+            </Page>
+        </Document>
+    )
+};
+
+export default EvaluationPDF;

@@ -17,7 +17,8 @@ import {
 } from 'lucide-react';
 import { fadeInVariants, scaleInModalVariants } from '../../lib/animations';
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
-import { auth } from '../../lib/firebase';
+import { doc, getDoc } from "firebase/firestore"; 
+import { auth, db } from '../../lib/firebase';
 import { SmartSignaturePad } from '../common/SmartSignaturePad';
 
 // ✨ ملاحظة: جميع الـ Modals والـ Helpers موجودة الآن في هذا الملف الموحد
@@ -767,11 +768,39 @@ export const UserProfileContent: React.FC<UserProfileContentProps> = ({ isOverla
         return { translatedValue, icon };
     };
 
+    // 1. تعريف المتغيرات الأساسية
     const genderDetails = getGenderDetails(user?.gender);
-    const country = user?.country;
-    const countryName = country ? (language === 'ar' ? country.name_ar : country.name_en) : undefined;
-    const countryFlag = country?.id ? getFlagEmoji(country.id) : null;
+    
+    // 2. حالة لتخزين بيانات الدولة
+    const [countryDetails, setCountryDetails] = useState<{ name_ar: string; name_en: string } | null>(null);
 
+    // 3. جلب بيانات الدولة من قاعدة البيانات
+    useEffect(() => {
+        const fetchCountryDetails = async () => {
+            if (user?.country) {
+                try {
+                    const countryDocRef = doc(db, 'ref_countries', user.country);
+                    const countrySnap = await getDoc(countryDocRef);
+                    if (countrySnap.exists()) {
+                        setCountryDetails(countrySnap.data() as { name_ar: string; name_en: string });
+                    }
+                } catch (error) {
+                    console.error("Failed to fetch country details:", error);
+                }
+            }
+        };
+        fetchCountryDetails();
+    }, [user?.country]);
+
+    // 4. تجهيز اسم الدولة والعلم للعرض
+    const countryName = countryDetails 
+        ? (language === 'ar' ? countryDetails.name_ar : countryDetails.name_en) 
+        : user?.country; // نعرض الرمز مؤقتاً حتى يتم الجلب
+
+    // نمرر user.country مباشرة لأنه نص (string) وهذا ما تطلبه الدالة
+    const countryFlag = user?.country ? getFlagEmoji(user.country) : null;
+
+    // 👆👆 انتهى التعديل 👆👆
     const t = language === 'ar' ? {
         profileTitle: "الملف الشخصي", fullInfo: "المعلومات الكاملة", settings: "الإعدادات", signOut: "خروج", superAdmin: "مسؤول عام (Super Admin)", employeeId: "الرقم الوظيفي", nameAr: "الاسم (عربي)", nameEn: "الاسم (إنجليزي)", email: "البريد الإلكتروني", phone: "رقم الهاتف", gender: "الجنس", company: "الشركة", jobTitle: "المسمى الوظيفي",
         changePassword: 'تغيير كلمة المرور',

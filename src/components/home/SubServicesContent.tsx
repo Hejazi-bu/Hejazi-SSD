@@ -1,8 +1,9 @@
+// src/components/home/SubServicesContent.tsx
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/UserContext';
-import { collection, query, where, orderBy, onSnapshot, Unsubscribe, limit } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, limit } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Search } from 'lucide-react';
 import { SubServiceCard } from './SubServiceCard';
@@ -29,7 +30,7 @@ interface SubServicesContentProps {
 export const SubServicesContent = ({ servicePage, onCardClick }: SubServicesContentProps) => {
     const { subServicePage } = useParams<{ subServicePage: string }>();
     const { language } = useLanguage();
-    const { user, updateFavorites, hasPermission } = useAuth(); // ✅ استخدام hasPermission
+    const { user, updateFavorites, hasPermission } = useAuth();
     const { setPageLoading } = usePageLoading();
     const [subServices, setSubServices] = useState<SubService[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -68,14 +69,19 @@ export const SubServicesContent = ({ servicePage, onCardClick }: SubServicesCont
     const favoritesCount = useMemo(() => user?.favorite_sub_services?.length || 0, [user?.favorite_sub_services]);
     useEffect(() => { if (favoritesCount === 0) setActiveTab('all'); }, [favoritesCount]);
 
+    // ✅ إصلاح 1: تحديد النوع (string[]) صراحةً
     const handleToggleFavorite = (subServiceId: string) => {
         if (!user || !updateFavorites) return;
-        const currentFavorites = user.favorite_sub_services || [];
-        const newFavorites = currentFavorites.includes(subServiceId) ? currentFavorites.filter((id: string) => id !== subServiceId) : [...currentFavorites, subServiceId];
+        
+        const currentFavorites = (user.favorite_sub_services || []) as string[];
+        
+        const newFavorites = currentFavorites.includes(subServiceId) 
+            ? currentFavorites.filter((id) => id !== subServiceId) 
+            : [...currentFavorites, subServiceId];
+            
         updateFavorites(newFavorites, 'favorite_sub_services');
     };
     
-    // ✅ تحديث منطق فلترة الصلاحيات
     const permittedSubServices = useMemo(() => {
         if (!subServices) return [];
         return subServices.filter(ss => hasPermission(`ss:${ss.id}`));
@@ -83,7 +89,11 @@ export const SubServicesContent = ({ servicePage, onCardClick }: SubServicesCont
 
     const filteredSubServices = useMemo(() => {
         let services = permittedSubServices;
-        if (activeTab === 'favorites') services = services.filter(ss => user?.favorite_sub_services?.includes(ss.id));
+        // ✅ إصلاح 2: تحويل النوع عند الفلترة
+        if (activeTab === 'favorites') {
+            services = services.filter(ss => ((user?.favorite_sub_services || []) as string[]).includes(ss.id));
+        }
+        
         if (searchTerm.trim() !== '') services = services.filter(ss => (ss.label_ar?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || (ss.label_en?.toLowerCase() || '').includes(searchTerm.toLowerCase()));
         return services;
     }, [permittedSubServices, activeTab, searchTerm, user?.favorite_sub_services]);
@@ -121,7 +131,8 @@ export const SubServicesContent = ({ servicePage, onCardClick }: SubServicesCont
                                     <motion.div key={ss.id} variants={staggeredItemVariants}>
                                         <SubServiceCard 
                                             subService={ss} 
-                                            isFavorite={user?.favorite_sub_services?.includes(ss.id) || false}
+                                            // ✅ إصلاح 3: تحويل النوع عند التمرير
+                                            isFavorite={((user?.favorite_sub_services || []) as string[]).includes(ss.id)}
                                             onToggleFavorite={() => handleToggleFavorite(ss.id)}
                                             onClick={onCardClick ? () => onCardClick(ss) : undefined}
                                             isActive={ss.page === subServicePage}

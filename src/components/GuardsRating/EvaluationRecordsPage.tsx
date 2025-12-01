@@ -1,355 +1,399 @@
-// src/components/GuardsRating/EvaluationRecordsPage.tsx
+// src/components/GuardsRating/EvaluationReportsPage.tsx
+import React, { useState, useMemo, useCallback } from "react";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useCollectionData } from 'react-firebase-hooks/firestore';
+import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
+import LoadingScreen from "../LoadingScreen";
+import { InformationCircleIcon, ArrowDownIcon, ArrowUpIcon, TrophyIcon, ArrowRightIcon } from "@heroicons/react/24/solid";
+import { DocumentData, FirestoreDataConverter, QueryDocumentSnapshot, SnapshotOptions } from "firebase/firestore";
+import ReportCharts from '../ReportCharts';
+import DetailedReportModal from './DetailedReportModal';
+import { getRatingDescription } from "../../utils/textUtils";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import Select from 'react-select';
 
-import React, { useState, useEffect, useMemo, Fragment } from 'react';
-import { useLanguage } from '../contexts/LanguageContext';
+// --- الأنواع | Types ---
+interface Company extends DocumentData { id: string; name_ar: string; name_en?: string; }
+interface Evaluation extends DocumentData { id: string; company_id: string; evaluation_year: number; evaluation_month: number; overall_score: number; created_at: any; summary: string; }
+interface EvaluationDetails extends DocumentData { evaluation_id: string; question_id: string; selected_rating: number; note: string; }
+interface QuestionDoc extends DocumentData { id: string; question_text_ar: string; question_text_en: string; }
 
-// 🆕 إضافة الاستيرادات اللازمة من Firestore
-import { getDocs, collection, query, doc, getDoc, DocumentData, orderBy, where } from 'firebase/firestore';
-import { db } from '../../lib/firebase'; // تأكد من المسار الصحيح
+// --- محولات البيانات ---
+const createConverter = <T extends DocumentData>(): FirestoreDataConverter<T> => ({
+  toFirestore: (data: T): DocumentData => data,
+  fromFirestore: (snapshot: QueryDocumentSnapshot, options: SnapshotOptions): T => ({ id: snapshot.id, ...snapshot.data(options) } as unknown as T)
+});
 
-// --- أيقونات ومكتبات إضافية (تم تحديث الاستيرادات) ---
-import { motion } from 'framer-motion';
-import { Search, X, Star, Download, ShieldCheck, FileClock, Pencil, CheckCircle, User, Building, Calendar, FileText, UserCheck, AlertOctagon } from 'lucide-react';
-import { Dialog, Transition } from '@headlessui/react';
+const companyConverter = createConverter<Company>();
+const evaluationConverter = createConverter<Evaluation>();
+const evaluationDetailsConverter = createConverter<EvaluationDetails>();
+const questionConverter = createConverter<QuestionDoc>();
 
-// --- استيراد الهيكل العام ---
-import GuardsRatingLayout from '../GuardsRating/GuardsRatingLayout';
-
-// --- الأنواع والتراجم (المحدثة) ---
-type CompanyData = { id: string; name_ar: string; name_en: string; };
-type UserData = { id: string; name_ar: string; name_en: string; };
-type JobData = { id: string; name_ar: string; name_en: string; };
-type QuestionData = { id: string; question_text_ar: string; question_text_en: string; };
-type EvaluationStatus = 'Draft' | 'Awaiting Approval' | 'Approved' | 'Rejected' | 'Archived';
-
-// 🆕 تم تحديث الأنواع لتتطابق مع Firestore
-type Evaluation = { id: string; evaluation_year: number; evaluation_month: number; overall_score: number; created_at: { seconds: number; nanoseconds: number; }; status: EvaluationStatus; company_id: string; evaluator_id: string; companies: CompanyData | null; users: UserData | null; };
-
-type EvaluationFull = {
-    id: string;
-    created_at: { seconds: number; nanoseconds: number; };
-    updated_at?: { seconds: number; nanoseconds: number; };
-    status: EvaluationStatus;
-    summary: string | null;
-    historical_contract_no: string | null;
-    evaluation_year: number;
-    evaluation_month: number;
-    overall_score: number;
-    company_id: string;
-    evaluator_id: string;
-    historical_job_id: number;
-    companies: CompanyData | null;
-    users: UserData | null;
-    jobs: JobData | null;
+// --- ترجمة النصوص ---
+const translations = {
+  ar: {
+    title: "التقارير",
+    filters: "الفلاتر",
+    year: "السنة",
+    month: "الشهر",
+    company: "الشركة",
+    all: "الكل",
+    export: "تصدير",
+    noData: "لا توجد بيانات متاحة لهذا التحديد.",
+    metrics: {
+      overallAverage: "متوسط التقييم الإجمالي",
+      bestPerformer: "الشركة الأفضل أداءً",
+      worstPerformer: "الشركة الأقل أداءً",
+      totalEvaluations: "إجمالي التقييمات",
+    },
+    tables: {
+      companyPerformance: "أداء الشركات",
+      companyName: "اسم الشركة",
+      averageRating: "متوسط التقييم",
+      totalEvaluations: "إجمالي التقييمات",
+      lastEvaluation: "آخر تقييم",
+      actions: "الإجراءات",
+      viewDetails: "عرض التفاصيل",
+    },
+    charts: {
+      monthlyReport: "تقرير الأداء الشهري",
+      ratingDistribution: "توزيع التقييمات",
+      monthlyAverage: "المتوسط الشهري",
+    },
+    modal: {
+      title: "تقرير التقييم التفصيلي",
+      overallScore: "النتيجة الإجمالية",
+      evaluator: "المقيّم",
+      summary: "الملخص",
+      close: "إغلاق",
+    },
+    startDate: "تاريخ البدء",
+    endDate: "تاريخ الانتهاء",
+  },
+  en: {
+    title: "Reports",
+    filters: "Filters",
+    year: "Year",
+    month: "Month",
+    company: "Company",
+    all: "All",
+    export: "Export",
+    noData: "No data available for this selection.",
+    metrics: {
+      overallAverage: "Overall Average Rating",
+      bestPerformer: "Best Performing Company",
+      worstPerformer: "Worst Performing Company",
+      totalEvaluations: "Total Evaluations",
+    },
+    tables: {
+      companyPerformance: "Company Performance",
+      companyName: "Company Name",
+      averageRating: "Average Rating",
+      totalEvaluations: "Total Evaluations",
+      lastEvaluation: "Last Evaluation",
+      actions: "Actions",
+      viewDetails: "View Details",
+    },
+    charts: {
+      monthlyReport: "Monthly Performance Report",
+      ratingDistribution: "Rating Distribution",
+      monthlyAverage: "Monthly Average",
+    },
+    modal: {
+      title: "Detailed Evaluation Report",
+      overallScore: "Overall Score",
+      evaluator: "Evaluator",
+      summary: "Summary",
+      close: "Close",
+    },
+    startDate: "Start Date",
+    endDate: "End Date",
+  }
 };
 
-type EvaluationDetail = {
-    id: string;
-    selected_rating: number;
-    note: string | null;
-    security_questions: QuestionData | null;
-    question_id: number; // 🆕 تم تعديل النوع إلى number ليتوافق مع `security_questions`
-};
-
-type ApprovalHistory = {
-    id: string;
-    status: EvaluationStatus;
-    comments: string | null;
-    actioned_at: { seconds: number; nanoseconds: number; } | null;
-    created_at: { seconds: number; nanoseconds: number; };
-    users: UserData | null;
-    approver_id: string;
-};
-
-const translations = { ar: { pageTitle: "سجل التقييمات", searchPlaceholder: "ابحث باسم الشركة...", evaluationPeriod: "فترة التقييم", evaluator: "منشئ التقييم", status: "الحالة", score: "النتيجة", company: "الشركة", noRecords: "لا توجد سجلات تقييم.", loading: "جاري التحميل...", evaluationDetails: "تفاصيل التقييم", questionnaire: "أسئلة الاستبيان", approvalHistory: "سجل الإجراءات", evaluationCreated: "تم إنشاء التقييم", actionBy: "بواسطة", approved: "تم الاعتماد", rejected: "تم الرفض", pdfNotReady: "التقرير غير معتمد بعد", downloadPDF: "تحميل PDF", summary: "الملخص التنفيذي", contractNo: "رقم العقد التاريخي", evaluatorJob: "المسمى الوظيفي", statuses: { 'Draft': 'قيد الإعداد', 'Awaiting Approval': 'غير معتمد', 'Approved': 'معتمد', 'Rejected': 'مرفوض', 'Archived': 'مؤرشف' } }, en: { pageTitle: "Evaluation Records", searchPlaceholder: "Search by company name...", evaluationPeriod: "Evaluation Period", evaluator: "Evaluation Creator", status: "Status", score: "Score", company: "Company", noRecords: "No evaluation records available.", loading: "Loading...", evaluationDetails: "Evaluation Details", questionnaire: "Questionnaire Items", approvalHistory: "Action History", evaluationCreated: "Evaluation Created", actionBy: "by", approved: "Approved", rejected: "Rejected", pdfNotReady: "Report Not Approved Yet", downloadPDF: "Download PDF", summary: "Executive Summary", contractNo: "Historical Contract No.", evaluatorJob: "Job Title", statuses: { 'Draft': 'Draft', 'Awaiting Approval': 'Awaiting Approval', 'Approved': 'Approved', 'Rejected': 'Rejected', 'Archived': 'Archived' } }, };
-
-// ... (بقية المكونات كما هي)
-
-const EvaluationListItem = ({ evaluation, onSelect }: { evaluation: Evaluation; onSelect: (ev: Evaluation) => void; }) => {
-    const { language } = useLanguage();
-    const t = translations[language];
-    const companyName = language === 'ar' ? evaluation.companies?.name_ar : evaluation.companies?.name_en;
-    const evaluatorName = language === 'ar' ? evaluation.users?.name_ar : evaluation.users?.name_en;
-    const scorePercentage = (evaluation.overall_score * 20).toFixed(0);
-    const monthLabel = new Date(evaluation.evaluation_year, evaluation.evaluation_month - 1).toLocaleString(language === 'ar' ? 'ar-EG' : 'en-US', { month: 'long', year: 'numeric' });
-    const statusInfo: any = { 'Approved': { icon: ShieldCheck, color: 'text-green-400' }, 'Awaiting Approval': { icon: FileClock, color: 'text-yellow-400' }, 'Draft': { icon: Pencil, color: 'text-blue-400' }, 'Rejected': { icon: X, color: 'text-red-400' }, 'Archived': { icon: X, color: 'text-gray-500' } };
-    const currentStatus = statusInfo[evaluation.status] || statusInfo['Archived'];
-    const StatusIcon = currentStatus.icon;
-
-    return (
-        <div onClick={() => onSelect(evaluation)} className="grid grid-cols-2 sm:grid-cols-5 gap-4 px-6 py-4 items-center cursor-pointer hover:bg-gray-700/50 transition-colors duration-200">
-            <div className="col-span-2"><p className="font-bold text-white">{companyName}</p><p className="text-xs text-gray-400">{translations[language].evaluator}: {evaluatorName || '...'}</p></div>
-            <div className='max-sm:col-start-1'><p className="text-sm text-gray-300">{monthLabel}</p></div>
-            <div className="text-center sm:text-center"><p className="font-bold text-lg text-[#FFD700]">{scorePercentage}%</p></div>
-            <div className={`flex items-center gap-2 justify-start sm:justify-center`}><StatusIcon className={currentStatus.color} size={18} /><span className={`text-xs font-bold ${currentStatus.color}`}>{t.statuses[evaluation.status]}</span></div>
-        </div>
-    );
-};
-
-const EvaluationDetailModal = ({ evaluation, onClose }: { evaluation: Evaluation | null; onClose: () => void; }) => {
-    const { language } = useLanguage();
-    const t = translations[language];
-    const [fullData, setFullData] = useState<EvaluationFull | null>(null);
-    const [details, setDetails] = useState<EvaluationDetail[]>([]);
-    const [history, setHistory] = useState<ApprovalHistory[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
-
-    useEffect(() => {
-        if (!evaluation) return;
-        const fetchAllDetails = async () => {
-            setIsLoading(true);
-            try {
-                const evaluationDocRef = doc(db, "security_evaluations", evaluation.id);
-                const evaluationDoc = await getDoc(evaluationDocRef);
-                const fullEvaluationData = evaluationDoc.data() as EvaluationFull;
-
-                if (!fullEvaluationData) {
-                    console.error("Evaluation details not found in Firestore!");
-                    onClose();
-                    return;
-                }
-                
-                const companyDoc = await getDoc(doc(db, "companies", fullEvaluationData.company_id));
-                const userDoc = await getDoc(doc(db, "users", fullEvaluationData.evaluator_id));
-                const jobDoc = await getDoc(doc(db, "jobs", String(fullEvaluationData.historical_job_id)));
-
-                const detailsQuery = query(collection(db, "security_evaluation_details"), where("evaluation_id", "==", evaluation.id));
-                const detailsSnapshot = await getDocs(detailsQuery);
-                
-                const fetchedDetails = await Promise.all(detailsSnapshot.docs.map(async docSnapshot => {
-                    const data = docSnapshot.data() as DocumentData;
-                    const questionDoc = await getDoc(doc(db, "security_questions", String(data.question_id)));
-                    return {
-                        id: docSnapshot.id,
-                        selected_rating: data.selected_rating,
-                        note: data.note,
-                        question_id: data.question_id,
-                        security_questions: questionDoc.exists() ? questionDoc.data() as QuestionData : null
-                    };
-                }));
-                
-                const historyQuery = query(collection(db, "evaluation_approvals"), where("evaluation_id", "==", evaluation.id));
-                const historySnapshot = await getDocs(historyQuery);
-
-                const historyWithUsers = await Promise.all(historySnapshot.docs.map(async docSnapshot => {
-                    const data = docSnapshot.data() as DocumentData;
-                    const approverDoc = await getDoc(doc(db, "users", data.approver_id));
-                    return {
-                        id: docSnapshot.id,
-                        status: data.status,
-                        comments: data.comments,
-                        actioned_at: data.actioned_at,
-                        created_at: data.created_at,
-                        approver_id: data.approver_id,
-                        users: approverDoc.exists() ? approverDoc.data() as UserData : null
-                    };
-                }));
-
-                setFullData({
-                    ...(fullEvaluationData as EvaluationFull),
-                    id: evaluationDoc.id,
-                    companies: companyDoc.exists() ? companyDoc.data() as CompanyData : null,
-                    users: userDoc.exists() ? userDoc.data() as UserData : null,
-                    jobs: jobDoc.exists() ? jobDoc.data() as JobData : null,
-                });
-                setDetails(fetchedDetails as EvaluationDetail[]);
-                setHistory(historyWithUsers as ApprovalHistory[]);
-
-            } catch (error) {
-                console.error("Error fetching evaluation details:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchAllDetails();
-    }, [evaluation, onClose]);
-    
-    const statusStyles: any = {
-        'Approved': { icon: ShieldCheck, bgColor: 'bg-green-500/10', textColor: 'text-green-300', borderColor: 'border-green-500/30' },
-        'Awaiting Approval': { icon: FileClock, bgColor: 'bg-yellow-500/10', textColor: 'text-yellow-300', borderColor: 'border-yellow-500/30' },
-        'Rejected': { icon: AlertOctagon, bgColor: 'bg-red-500/10', textColor: 'text-red-300', borderColor: 'border-red-500/30' },
-        'Archived': { icon: X, bgColor: 'bg-gray-500/10', textColor: 'text-gray-300', borderColor: 'border-gray-500/30' },
-        'Draft': { icon: Pencil, bgColor: 'bg-blue-500/10', textColor: 'text-blue-300', borderColor: 'border-blue-500/30' }
-    };
-    const currentStatusStyle = fullData ? statusStyles[fullData.status] : null;
-    const StatusIcon = currentStatusStyle?.icon;
-    const downloadPDF = () => { /* ... */ };
-
-    return (
-        <Transition appear show={!!evaluation} as={Fragment}>
-            <Dialog as="div" className="relative z-[60]" onClose={onClose} dir={language === 'ar' ? 'rtl' : 'ltr'}>
-                <Transition.Child as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100" leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0"><div className="fixed inset-0 bg-black/70 backdrop-blur-sm" /></Transition.Child>
-                <div className="fixed inset-0 overflow-y-auto"><div className="flex min-h-full items-center justify-center p-4">
-                    <Dialog.Panel className="w-full max-w-4xl transform overflow-hidden rounded-2xl bg-[#0D1B2A] border border-gray-700 p-6 align-middle shadow-xl transition-all">
-                        <Dialog.Title as="h3" className="text-xl font-bold leading-6 text-white flex justify-between items-center mb-4">{t.evaluationDetails}<button onClick={onClose} className="p-1 rounded-full hover:bg-gray-700"><X size={20} /></button></Dialog.Title>
-
-                        <div className="max-h-[80vh] overflow-y-auto custom-scrollbar pr-2 space-y-6">
-                            {isLoading ? <p className='text-center py-8'>{t.loading}</p> : fullData && (
-                                <>
-                                    {currentStatusStyle && StatusIcon && (
-                                        <div className={`flex items-center gap-3 p-3 rounded-lg border ${currentStatusStyle.bgColor} ${currentStatusStyle.borderColor}`}>
-                                            <StatusIcon size={24} className={currentStatusStyle.textColor} />
-                                            <div>
-                                                <div className="text-sm text-gray-400">{t.status}</div>
-                                                <div className={`font-bold text-lg ${currentStatusStyle.textColor}`}>{t.statuses[fullData.status] as string}</div>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    <div className="p-4 bg-gray-900/50 rounded-lg grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 text-sm">
-                                        <div className="flex items-start gap-3"><Building size={18} className="text-[#FFD700] mt-1 flex-shrink-0" /><div><div className="text-gray-400">{t.company}</div><div className="font-bold text-white">{language === 'ar' ? fullData.companies?.name_ar : fullData.companies?.name_en}</div></div></div>
-                                        <div className="flex items-start gap-3"><Calendar size={18} className="text-[#FFD700] mt-1 flex-shrink-0" /><div><div className="text-gray-400">{t.evaluationPeriod}</div><div className="font-bold text-white">{new Date(fullData.evaluation_year, fullData.evaluation_month - 1).toLocaleString(language === 'ar' ? 'ar-EG' : 'en-US', { month: 'long', year: 'numeric' })}</div></div></div>
-                                        <div className="flex items-start gap-3"><FileText size={18} className="text-[#FFD700] mt-1 flex-shrink-0" /><div><div className="text-gray-400">{t.contractNo}</div><div className="font-bold text-white">{fullData.historical_contract_no || 'N/A'}</div></div></div>
-                                        <div className="flex items-start gap-3"><Star size={18} className="text-[#FFD700] mt-1 flex-shrink-0" /><div><div className="text-gray-400">{t.score}</div><div className="font-bold text-white">{(fullData.overall_score * 20).toFixed(0)}%</div></div></div>
-                                    </div>
-
-                                    {fullData.summary && (
-                                        <div className="p-4 bg-gray-900/50 rounded-lg">
-                                            <h3 className="text-lg font-bold text-white mb-2">{t.summary}</h3>
-                                            <p className="text-gray-300 text-sm whitespace-pre-wrap">{fullData.summary}</p>
-                                        </div>
-                                    )}
-
-                                    <div>
-                                        <h3 className="text-lg font-bold text-white mb-2">{t.questionnaire}</h3>
-                                        <div className="space-y-4 rounded-lg bg-gray-900/50 p-4">
-                                            {details.length > 0 ? details.map(d => (
-                                                <div key={d.id} className="text-sm border-b border-gray-700 pb-3 last:border-b-0 last:pb-0">
-                                                    <p className="font-semibold text-gray-200">{language === 'ar' ? d.security_questions?.question_text_ar : d.security_questions?.question_text_en}</p>
-                                                    <div className="flex items-center gap-4 mt-2">
-                                                        <div className="flex items-center gap-2">
-                                                            {[1, 2, 3, 4, 5].map(star => (<Star key={star} size={16} className={star <= d.selected_rating ? "text-yellow-400" : "text-gray-600"} />))}
-                                                            <span className="font-bold text-white">{d.selected_rating}/5</span>
-                                                        </div>
-                                                        {d.note && <p className={`text-gray-400 text-xs italic ${language === 'ar' ? 'pr-3 mr-3 border-r' : 'pl-3 ml-3 border-l'} border-gray-600`}>"{d.note}"</p>}
-                                                    </div>
-                                                </div>
-                                            )) : <p className="text-gray-500 text-center py-4">{language === 'ar' ? 'لا توجد تفاصيل أسئلة لهذا التقييم.' : 'No question details found for this evaluation.'}</p>}
-                                        </div>
-                                    </div>
-
-                                    <div className="border-t border-gray-700 pt-4">
-                                        <h3 className="text-lg font-bold text-white mb-4">{t.approvalHistory}</h3>
-                                        <div className="space-y-6">
-                                            {/* ==== تعديل: المقيّم كأول حدث في السجل ==== */}
-                                            <div className="flex items-start gap-4">
-                                                <div className="bg-blue-500/20 rounded-full p-2 mt-1"><Pencil size={18} className="text-blue-400" /></div>
-                                                <div>
-                                                    <p className="font-bold text-gray-200">{t.evaluationCreated}</p>
-                                                    <p className="text-sm text-gray-400">
-                                                        {t.actionBy} {language === 'ar' ? fullData.users?.name_ar : fullData.users?.name_en}
-                                                        <span className="text-gray-500"> ({language === 'ar' ? fullData.jobs?.name_ar : fullData.jobs?.name_en || 'N/A'})</span>
-                                                    </p>
-                                                    <p className="text-xs text-gray-500 mt-1">{new Date(fullData.created_at.seconds * 1000).toLocaleString(language === 'ar' ? 'ar-EG' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' })}</p>
-                                                </div>
-                                            </div>
-
-                                            {history.map(item => (
-                                                <div key={item.id} className="flex items-start gap-4">
-                                                    <div className={`${item.status === 'Approved' ? 'bg-green-500/20' : 'bg-red-500/20'} rounded-full p-2 mt-1`}>{item.status === 'Approved' ? <CheckCircle size={18} className="text-green-400" /> : <X size={18} className="text-red-400" />}</div>
-                                                    <div>
-                                                        <p className="font-bold text-gray-200">{item.status === 'Approved' ? t.approved : t.rejected}</p>
-                                                        <p className="text-sm text-gray-400">{t.actionBy} {language === 'ar' ? item.users?.name_ar : item.users?.name_en}</p>
-                                                        {item.comments && <p className={`text-sm text-gray-300 mt-2 italic ${language === 'ar' ? 'border-r-2 pr-2' : 'border-l-2 pl-2'} border-gray-600`}>"{item.comments}"</p>}
-                                                        <p className="text-xs text-gray-500 mt-1">{new Date((item.actioned_at?.seconds || item.created_at.seconds) * 1000).toLocaleString(language === 'ar' ? 'ar-EG' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' })}</p>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    </Dialog.Panel>
-                </div></div>
-            </Dialog>
-        </Transition>
-    );
-};
-
-// --- محتوى الصفحة الفعلي ---
-function EvaluationRecordsContent() {
-    const { language } = useLanguage();
-    const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [selectedEvaluation, setSelectedEvaluation] = useState<Evaluation | null>(null);
-    const t = translations[language];
-
-    useEffect(() => {
-        const fetchEvaluations = async () => {
-            setIsLoading(true);
-            try {
-                const evaluationsSnapshot = await getDocs(query(collection(db, "security_evaluations"), orderBy('created_at', 'desc')));
-                const fetchedEvaluations = await Promise.all(evaluationsSnapshot.docs.map(async docSnapshot => {
-                    const data = docSnapshot.data() as DocumentData;
-                    
-                    const companyDoc = await getDoc(doc(db, "companies", data.company_id));
-                    const userDoc = await getDoc(doc(db, "users", data.evaluator_id));
-                    
-                    return {
-                        id: docSnapshot.id,
-                        evaluation_year: data.evaluation_year,
-                        evaluation_month: data.evaluation_month,
-                        overall_score: data.overall_score,
-                        created_at: data.created_at,
-                        status: data.status,
-                        company_id: data.company_id,
-                        evaluator_id: data.evaluator_id,
-                        companies: companyDoc.exists() ? companyDoc.data() as CompanyData : null,
-                        users: userDoc.exists() ? userDoc.data() as UserData : null,
-                    };
-                }));
-                setEvaluations(fetchedEvaluations as Evaluation[]);
-            } catch (error) {
-                console.error("Error fetching evaluations:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchEvaluations();
-    }, []);
-
-    const filteredEvaluations = useMemo(() => {
-        return evaluations.filter(ev => {
-            const companyName = language === 'ar' ? ev.companies?.name_ar?.toLowerCase() : ev.companies?.name_en?.toLowerCase();
-            return companyName?.includes(searchTerm.toLowerCase());
-        });
-    }, [evaluations, searchTerm, language]);
-
-    return (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-7xl mx-auto">
-            <div className="flex justify-start mb-4">
-                <div className="relative w-full sm:w-auto">
-                    <input type="text" placeholder={t.searchPlaceholder} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className={`w-full sm:w-64 bg-gray-800 text-white rounded-full py-2 focus:outline-none focus:ring-2 focus:ring-[#FFD700] ${language === 'ar' ? 'pr-10 pl-4' : 'pl-10 pr-4'}`} />
-                    <Search className={`absolute top-1/2 -translate-y-1/2 text-gray-400 ${language === 'ar' ? 'right-3' : 'left-3'}`} size={20} />
-                </div>
-            </div>
-            {isLoading ? <div className="text-center py-10">{t.loading}</div> :
-                filteredEvaluations.length === 0 ? <div className="text-center py-10 text-gray-500">{t.noRecords}</div> :
-                    (
-                        <div className="bg-gray-800/50 border border-gray-700 rounded-lg shadow-lg overflow-x-auto">
-                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 px-6 py-3 text-xs font-bold text-gray-400 uppercase border-b border-gray-700 min-w-[700px]">
-                                <div className="col-span-2">{t.company}</div><div className='max-sm:col-start-1'>{t.evaluationPeriod}</div><div className="text-center">{t.score}</div><div className="text-center">{t.status}</div>
-                            </div>
-                            <div className="divide-y divide-gray-700 min-w-[700px]">
-                                {filteredEvaluations.map(ev => <EvaluationListItem key={ev.id} evaluation={ev} onSelect={setSelectedEvaluation} />)}
-                            </div>
-                        </div>
-                    )}
-            <EvaluationDetailModal evaluation={selectedEvaluation} onClose={() => setSelectedEvaluation(null)} />
-        </motion.div>
-    );
+// دالة تنسيق الأرقام
+const formatNumberEn = (value: number | string, options?: Intl.NumberFormatOptions): string => {
+  return new Intl.NumberFormat('en-US', { ...options, useGrouping: false }).format(Number(value));
 }
 
-// --- المكون النهائي الذي يجمع الهيكل والمحتوى ---
-export default function EvaluationRecordsPage() {
-    const { language } = useLanguage();
-    const pageTitle = translations[language].pageTitle;
-    const activeServiceId = "evaluation-records";
-    return (
-        <GuardsRatingLayout activeServiceId={activeServiceId} pageTitle={pageTitle}>
-            <EvaluationRecordsContent />
-        </GuardsRatingLayout>
-    );
+// مكون InfoCard
+const InfoCard = ({ title, value, icon: Icon, color }: any) => (
+  <div className="bg-gray-800/50 p-4 rounded-lg shadow-md flex items-center space-x-4">
+    {Icon && <Icon className={`h-8 w-8 ${color}`} />}
+    <div className="flex-1">
+      <h3 className="text-sm font-semibold text-gray-400">{title}</h3>
+      <p className="text-xl font-bold text-white mt-1" dir="ltr">{value}</p>
+    </div>
+  </div>
+);
+
+export default function EvaluationReportsPage() {
+  const { language } = useLanguage();
+  const t = translations[language];
+
+  // 1. STATE HOOKS (ALWAYS FIRST)
+  const [selectedYears, setSelectedYears] = useState<string[]>(['all']);
+  const [selectedMonths, setSelectedMonths] = useState<string[]>(['all']);
+  const [selectedCompanies, setSelectedCompanies] = useState<string[]>(['all']);
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [selectedEvaluation, setSelectedEvaluation] = useState<Evaluation | null>(null);
+
+  // 2. DATA FETCHING HOOKS (ALWAYS NEXT)
+  const [companies, companiesLoading] = useCollectionData<Company>(collection(db, "companies").withConverter(companyConverter));
+  const [evaluations, evaluationsLoading] = useCollectionData<Evaluation>(collection(db, "security_evaluations").withConverter(evaluationConverter));
+  const [questions, questionsLoading] = useCollectionData<QuestionDoc>(collection(db, "security_questions").withConverter(questionConverter));
+
+  // 3. DERIVED DATA HOOKS (useMemo)
+  const availableYears = useMemo(() => {
+    if (!evaluations) return [];
+    const years = [...new Set(evaluations.map(e => e.evaluation_year))].filter(y => y !== null).sort((a, b) => b - a);
+    return ['all', ...years.map(y => y.toString())];
+  }, [evaluations]);
+
+  const availableMonths = useMemo(() => {
+    if (!evaluations || selectedYears.includes('all')) return [];
+    const yearsToFilterBy = selectedYears.filter(y => y !== 'all').map(Number);
+    const months = [...new Set(evaluations.filter(e => yearsToFilterBy.includes(e.evaluation_year)).map(e => e.evaluation_month))].sort((a, b) => a - b);
+    return ['all', ...months.map(m => m.toString())];
+  }, [evaluations, selectedYears]);
+  
+  const companiesOptions = useMemo(() => {
+    if (!companies) return [];
+    return companies.map(c => ({
+        value: c.id,
+        label: language === 'ar' ? c.name_ar : c.name_en || c.name_ar
+    }));
+  }, [companies, language]);
+
+  const companiesMap = useMemo(() => new Map(companies?.map(c => [c.id, language === 'ar' ? c.name_ar : c.name_en || c.name_ar])), [companies, language]);
+
+  const filteredEvaluations = useMemo(() => {
+    if (!evaluations) return [];
+    return evaluations.filter(e => {
+        const yearMatch = selectedYears.includes('all') || selectedYears.includes(e.evaluation_year.toString());
+        const monthMatch = selectedMonths.includes('all') || selectedMonths.includes(e.evaluation_month.toString());
+        const companyMatch = selectedCompanies.includes('all') || selectedCompanies.includes(e.company_id);
+        
+        // التحقق من صلاحية التاريخ قبل المقارنة
+        const evaluationDate = e.created_at?.toDate();
+        const dateMatch = (!startDate || (evaluationDate && evaluationDate >= startDate)) && (!endDate || (evaluationDate && evaluationDate <= endDate));
+        
+        return yearMatch && monthMatch && companyMatch && dateMatch;
+    });
+  }, [evaluations, selectedYears, selectedMonths, selectedCompanies, startDate, endDate]);
+
+  const companyPerformanceData = useMemo(() => {
+    const data: any = {};
+    filteredEvaluations.forEach(evalu => {
+        if (!data[evalu.company_id]) {
+            data[evalu.company_id] = {
+                companyId: evalu.company_id,
+                companyName: companiesMap.get(evalu.company_id) || "N/A",
+                totalScore: 0,
+                count: 0,
+                lastEvaluationDate: new Date(0),
+            };
+        }
+        data[evalu.company_id].totalScore += evalu.overall_score;
+        data[evalu.company_id].count += 1;
+        if (evalu.created_at && evalu.created_at.toDate() > data[evalu.company_id].lastEvaluationDate) {
+            data[evalu.company_id].lastEvaluationDate = evalu.created_at.toDate();
+        }
+    });
+    return Object.values(data).map((item: any) => ({
+        ...item,
+        averageRating: (item.totalScore / item.count).toFixed(2)
+    }));
+  }, [filteredEvaluations, companiesMap]);
+
+  const metricsData = useMemo(() => {
+    const totalEvaluations = filteredEvaluations.length;
+    const overallAverage = totalEvaluations > 0 ? (filteredEvaluations.reduce((sum, e) => sum + e.overall_score, 0) / totalEvaluations).toFixed(2) : '0.00';
+    const sortedByRating = [...companyPerformanceData].sort((a: any, b: any) => b.averageRating - a.averageRating);
+    const bestPerformer = sortedByRating.length > 0 ? sortedByRating[0] : null;
+    const worstPerformer = sortedByRating.length > 0 ? sortedByRating[sortedByRating.length - 1] : null;
+    return {
+      totalEvaluations: formatNumberEn(totalEvaluations),
+      overallAverage: formatNumberEn(overallAverage),
+      bestPerformer: bestPerformer ? `${bestPerformer.companyName} (${formatNumberEn(bestPerformer.averageRating)})` : t.all,
+      worstPerformer: worstPerformer ? `${worstPerformer.companyName} (${formatNumberEn(worstPerformer.averageRating)})` : t.all,
+    };
+  }, [filteredEvaluations, companyPerformanceData, t]);
+
+  // 4. CALLBACKS (useCallback)
+  const handleViewDetails = useCallback((evaluation: Evaluation | undefined) => {
+    if (evaluation) {
+      setSelectedEvaluation(evaluation);
+      setIsModalOpen(true);
+    }
+  }, []);
+
+  const closeModal = useCallback(() => {
+    setIsModalOpen(false);
+    setSelectedEvaluation(null);
+  }, []);
+
+  // 5. CONDITIONAL RENDER CHECK (placed after all hooks)
+  if (companiesLoading || evaluationsLoading || questionsLoading) {
+    return <LoadingScreen />;
+  }
+
+  return (
+    <div className="p-4 sm:p-6 lg:p-8 flex flex-col min-h-[calc(100vh-6rem)]">
+      <h1 className="text-3xl font-bold text-gray-100 mb-6">{t.title}</h1>
+      <div className="bg-gray-800/50 p-4 rounded-xl shadow-2xl space-y-4 border border-gray-700">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* فلتر السنة */}
+          <div>
+            <label htmlFor="year-select" className="block text-sm font-medium text-gray-400">{t.year}</label>
+            <Select
+                isMulti
+                options={availableYears.map(y => ({ value: y, label: y === 'all' ? t.all : formatNumberEn(y) }))}
+                value={selectedYears.map(y => ({ value: y, label: y === 'all' ? t.all : formatNumberEn(y) }))}
+                onChange={(selectedOptions) => setSelectedYears(selectedOptions.map(o => o.value))}
+                className="mt-1"
+                classNamePrefix="react-select"
+                placeholder={t.year}
+            />
+          </div>
+          {/* فلتر الشهر */}
+          <div>
+            <label htmlFor="month-select" className="block text-sm font-medium text-gray-400">{t.month}</label>
+            <Select
+                isMulti
+                options={availableMonths.map(m => ({ value: m, label: m === 'all' ? t.all : new Date(2000, Number(m) - 1).toLocaleString(language === 'ar' ? 'ar-EG' : 'en-US', { month: 'long' }) }))}
+                value={selectedMonths.map(m => ({ value: m, label: m === 'all' ? t.all : new Date(2000, Number(m) - 1).toLocaleString(language === 'ar' ? 'ar-EG' : 'en-US', { month: 'long' }) }))}
+                onChange={(selectedOptions) => setSelectedMonths(selectedOptions.map(o => o.value))}
+                className="mt-1"
+                classNamePrefix="react-select"
+                placeholder={t.month}
+            />
+          </div>
+          {/* فلتر الشركات (اختيار متعدد) */}
+          <div>
+            <label htmlFor="company-select" className="block text-sm font-medium text-gray-400">{t.company}</label>
+            <Select
+                isMulti
+                options={companiesOptions}
+                value={companiesOptions.filter(o => selectedCompanies.includes(o.value))}
+                onChange={(selectedOptions) => setSelectedCompanies(selectedOptions.map(o => o.value))}
+                className="mt-1"
+                classNamePrefix="react-select"
+                placeholder={t.company}
+            />
+          </div>
+          {/* فلتر التاريخ */}
+          <div className="flex flex-col md:flex-row gap-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-400">{t.startDate}</label>
+              <DatePicker
+                selected={startDate}
+                onChange={(date: Date | null) => setStartDate(date)}
+                className="w-full bg-gray-700 text-gray-200 border-gray-600 rounded-md shadow-sm py-2 px-3 sm:text-sm"
+                dateFormat="yyyy-MM-dd"
+                placeholderText={t.startDate}
+                isClearable
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-400">{t.endDate}</label>
+              <DatePicker
+                selected={endDate}
+                onChange={(date: Date | null) => setEndDate(date)}
+                className="w-full bg-gray-700 text-gray-200 border-gray-600 rounded-md shadow-sm py-2 px-3 sm:text-sm"
+                dateFormat="yyyy-MM-dd"
+                placeholderText={t.endDate}
+                isClearable
+              />
+            </div>
+          </div>
+        </div>
+        <div className="flex-shrink-0 mt-6 text-right">
+          <button className="w-full md:w-auto bg-[#FFD700] text-black px-4 py-2.5 rounded-md font-semibold">
+            {t.export}
+          </button>
+        </div>
+      </div>
+      
+      <div className="flex-1 mt-6">
+        {filteredEvaluations.length === 0 ? (
+          <div className="text-center py-20 bg-gray-800/50 rounded-xl border border-gray-700">
+            <InformationCircleIcon className="h-12 w-12 mx-auto text-gray-400" />
+            <p className="mt-4 text-lg font-semibold text-gray-400">{t.noData}</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Key Metrics Section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <InfoCard title={t.metrics.overallAverage} value={`${metricsData.overallAverage} / 5`} icon={InformationCircleIcon} color="text-yellow-400" />
+              <InfoCard title={t.metrics.bestPerformer} value={metricsData.bestPerformer} icon={TrophyIcon} color="text-green-400" />
+              <InfoCard title={t.metrics.worstPerformer} value={metricsData.worstPerformer} icon={ArrowDownIcon} color="text-red-400" />
+              <InfoCard title={t.metrics.totalEvaluations} value={metricsData.totalEvaluations} icon={ArrowRightIcon} color="text-blue-400" />
+            </div>
+            
+            {/* Report Charts Section */}
+            <ReportCharts evaluations={filteredEvaluations} translations={translations} />
+
+            {/* Company Performance Table */}
+            <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
+              <h2 className="text-xl font-bold text-gray-200 mb-4">{t.tables.companyPerformance}</h2>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-700">
+                  <thead className="bg-gray-700/50">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">{t.tables.companyName}</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">{t.tables.averageRating}</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">{t.tables.totalEvaluations}</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">{t.tables.lastEvaluation}</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">{t.tables.actions}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-gray-900/50 divide-y divide-gray-700">
+                    {companyPerformanceData.length > 0 ? (
+                      companyPerformanceData.map((item: any) => (
+                        <tr key={item.companyId}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">{item.companyName}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300" dir="ltr">{formatNumberEn(item.averageRating)} / 5</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300" dir="ltr">{formatNumberEn(item.count)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            {item.lastEvaluationDate && item.lastEvaluationDate.getTime() > 0 
+                              ? item.lastEvaluationDate.toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US') 
+                              : 'N/A'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">
+                            <button 
+                              onClick={() => handleViewDetails(filteredEvaluations.find(e => e.company_id === item.companyId))}
+                              className="text-yellow-400 hover:text-yellow-500 font-semibold"
+                            >
+                              {t.tables.viewDetails}
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-4 text-center text-gray-400">{t.noData}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {isModalOpen && selectedEvaluation && (
+        <DetailedReportModal
+          evaluation={selectedEvaluation}
+          onClose={closeModal}
+          translations={translations}
+        />
+      )}
+    </div>
+  );
 }

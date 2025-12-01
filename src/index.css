@@ -2,18 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
-/* إعادة تعيين الهوامش الافتراضية */
-html, body, #root {
+/* إعادة تعيين الهوامش الافتراضية وإجبار شريط التمرير على الظهور لمنع اهتزاز الصفحة عند ظهور النوافذ المنبثقة */
+html,
+body,
+#root {
   margin: 0;
   padding: 0;
   height: 100%;
-  background-color: #0d1b2a; /* اللون الأزرق الداكن المطلوب */
+  background-color: #0d1b2a;
+  /* اللون الأزرق الداكن المطلوب */
+
 }
 
 /* --- أكواد التأثيرات الكريستالية الجديدة --- */
 
 .crystalline-card-container {
-  perspective: 1000px; /* ضروري للتأثير ثلاثي الأبعاد */
+  perspective: 1500px;
+  /* زيادة العمق للتأثير ثلاثي الأبعاد */
   aspect-ratio: 1 / 1;
   cursor: pointer;
 }
@@ -23,61 +28,113 @@ html, body, #root {
   width: 100%;
   height: 100%;
   transform-style: preserve-3d;
+  will-change: transform;
 }
 
 .card-face {
   position: absolute;
   width: 100%;
   height: 100%;
-  -webkit-backface-visibility: hidden; /* Safari */
+  -webkit-backface-visibility: hidden;
+  /* Safari */
   backface-visibility: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  border-radius: 0.75rem; /* 12px */
+  border-radius: 1rem;
+  /* 16px for a softer look */
   border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(17, 24, 39, 0.5); /* bg-gray-900/50 */
+  background: rgba(23, 37, 56, 0.6);
+  /* A slightly different glass color */
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
   overflow: hidden;
-}
-
-.card-back {
-  transform: rotateY(180deg);
+  /* إضافة تأثير ضبابي للخلفية */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transform: translateZ(0);
 }
 
 .text-shadow {
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
-.aurora-bg {
-  position: absolute;
-  inset: 0;
-  background: 
-    radial-gradient(ellipse at 30% 20%, rgba(255, 215, 0, 0.15) 0%, transparent 50%),
-    radial-gradient(ellipse at 70% 80%, rgba(0, 100, 255, 0.15) 0%, transparent 50%);
-  transition: opacity 0.5s;
-  opacity: 0;
-}
-
-.crystalline-card-container:hover .aurora-bg {
-  opacity: 1;
-}
-
-
-/* تصميم شريط التمرير المخصص */
-.custom-scrollbar::-webkit-scrollbar {
+/* --- تخصيص شريط التمرير لجميع العناصر القابلة للتمرير --- */
+::-webkit-scrollbar {
   width: 8px;
+  /* عرض شريط التمرير العمودي */
+  height: 8px;
+  /* ارتفاع شريط التمرير الأفقي */
 }
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
+
+::-webkit-scrollbar-track {
+  background-color: transparent;
+  /* خلفية الشريط الشفافة */
 }
-.custom-scrollbar::-webkit-scrollbar-thumb {
+
+::-webkit-scrollbar-thumb {
   background-color: rgba(255, 215, 0, 0.3);
+  /* لون شريط التمرير (أصفر شفاف) */
   border-radius: 10px;
+  /* جعل الحواف مستديرة */
   border: 2px solid transparent;
+  /* مساحة شفافة حول الشريط */
   background-clip: content-box;
+  /* التأكد من أن الخلفية لا تتجاوز المساحة المحددة بالـ border */
 }
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+
+::-webkit-scrollbar-thumb:hover {
   background-color: rgba(255, 215, 0, 0.5);
+  /* لون الشريط عند التحويم عليه */
+}
+
+/* تخصيص شريط التمرير في Firefox */
+* {
+  scrollbar-color: rgba(255, 215, 0, 0.3) transparent;
+  /* لون شريط التمرير ثم لون الخلفية */
+}
+
+
+/* تخصيص حقول الإدخال عند الملء التلقائي */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px #374151 inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* --- إضافة: تعريف حركة الاهتزاز --- */
+@keyframes shake {
+
+  10%,
+  90% {
+    transform: translate3d(-1px, 0, 0);
+  }
+
+  20%,
+  80% {
+    transform: translate3d(2px, 0, 0);
+  }
+
+  30%,
+  50%,
+  70% {
+    transform: translate3d(-3px, 0, 0);
+  }
+
+  40%,
+  60% {
+    transform: translate3d(3px, 0, 0);
+  }
+}
+
+.shake {
+  animation: shake 0.6s cubic-bezier(.36, .07, .19, .97) both;
+}
+
+/* --- تحريك مسار الملاحة (للمستكشف الذكي) --- */
+.animated-path {
+  animation: dash-animation 1s linear infinite;
 }

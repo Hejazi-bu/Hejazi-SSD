@@ -1,69 +1,94 @@
 import React from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { AnimatePresence } from "framer-motion";
 import { useAuth } from "./components/contexts/UserContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
-import { LoginPage } from "./pages/LoginPage";
+import LoginPage from './pages/LoginPage';
 import HomePage from "./components/HomePage";
-import AppSecurityPage from "./pages/admin/AppSecurityPage";
-import NewEvaluationPage from "./components/GuardsRating/NewEvaluationPage";
-import EvaluationRecordsPage from "./components/GuardsRating/EvaluationRecordsPage";
-import JobPermissionsPage from "./pages/Permission/JobPermissionsPage";
-import UserExceptionsPage from "./pages/Permission/UserExceptionsPage"; 
 import LoadingScreen from "./components/LoadingScreen";
+import SubServicesPage from "./components/home/SubServicesPage";
+import AppLockedScreen from "./components/AppLockedScreen";
+import SubServicePageRenderer from "./pages/SubServicePageRenderer";
+import { usePageLoading } from "./components/contexts/LoadingContext"; 
+import ActionLoadingOverlay from "./components/ActionLoadingOverlay";
+import { NavigationBlocker } from "./components/NavigationBlocker";
+// استيراد الصفحات الأخرى
+import EvaluationDetails from "./components/GuardsRating/EvaluationDetails";
+import EditEvaluation from "./components/GuardsRating/EditEvaluation";
+import { useServices } from "./components/contexts/ServicesContext";
+import UserRequestDetails from "./components/Users/UserRequestDetails";
+// ✅ 1. استيراد صفحة التعديل الجديدة
+import EditUserRequest from "./components/Users/EditUserRequest"; 
+
+import HandleAuthAction from "./pages/HandleAuthAction";
+import SetPasswordPage from "./pages/SetPasswordPage";
 
 function App() {
-  const { isLoading, user } = useAuth();
+    const auth = useAuth();
+    const page = usePageLoading();
+    const services = useServices();
+    const location = useLocation();
+    
+    const showLoadingScreen = auth.isLoading || (auth.user && services.isLoading) || page.isPageLoading;
 
-  if (isLoading) {
-    return <LoadingScreen />;
-  }
+    return (
+        <>
+            <ActionLoadingOverlay /> 
+            <NavigationBlocker />
+            <AnimatePresence mode="wait">
+                {showLoadingScreen ? (
+                    <LoadingScreen key="loading-screen" />
+                ) : (
+                    <Routes location={location} key={location.pathname}>
+                        
+                        <Route path="/__/auth/action" element={<HandleAuthAction />} />
+                        <Route path="/set-password" element={<SetPasswordPage />} />
 
-  return (
-    <Routes>
-      <Route path="/login" element={!user ? <LoginPage /> : <Navigate to="/dashboard" replace />} />
-      <Route path="/" element={<ProtectedRoute><Navigate to="/dashboard" replace /></ProtectedRoute>} />
-      
-      <Route
-        path="/dashboard"
-        element={<ProtectedRoute><HomePage /></ProtectedRoute>}
-      />
+                        {auth.user ? (
+                            auth.lockState !== 'NONE' ? (
+                                <Route path="*" element={<AppLockedScreen reason={auth.lockState} />} />
+                            ) : (
+                                <>
+                                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                                    
+                                    <Route path="/dashboard" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+                                    
+                                    <Route path="/:groupPage/:servicePage" element={<ProtectedRoute><SubServicesPage /></ProtectedRoute>} />
+                                    
+                                    {/* المسارات ذات الصلاحيات الثابتة */}
+                                    <Route path="/companies/evaluation/details/:evaluationSequenceNumber" element={<ProtectedRoute permissionKey="sss:4"><EvaluationDetails /></ProtectedRoute>} />
+                                    <Route path="/companies/evaluation/edit/:evaluationSequenceNumber" element={<ProtectedRoute permissionKey="sss:3"><EditEvaluation /></ProtectedRoute>} />
+                                    
+                                    <Route path="/system/users/details/:requestId" element={<ProtectedRoute><UserRequestDetails /></ProtectedRoute>} />
+                                    
+                                    {/* ✅ 2. تم إضافة المسار هنا */}
+                                    <Route path="/system/users/edit/:requestId" element={<ProtectedRoute permissionKey="sss:13"><EditUserRequest /></ProtectedRoute>} />
 
-      <Route
-        path="/guards-rating"
-        element={<ProtectedRoute permissionKey="s:5"><NewEvaluationPage /></ProtectedRoute>}
-      />
-      <Route
-        path="/evaluation-records"
-        element={<ProtectedRoute permissionKey="s:5"><EvaluationRecordsPage /></ProtectedRoute>}
-      />
-
-      <Route
-          path="/admin/app-security"
-          element={<ProtectedRoute permissionKey="ss:4"><AppSecurityPage /></ProtectedRoute>}
-      />
-      
-      <Route
-          path="/admin/job-permissions"
-          element={
-              <ProtectedRoute permissionKey="ss:8">
-                  <JobPermissionsPage />
-              </ProtectedRoute>
-          }
-      />
-      
-      {/* 👈 إضافة المسار الجديد هنا */}
-      <Route
-          path="/admin/user-exceptions"
-          element={
-              <ProtectedRoute permissionKey="ss:9">
-                  <UserExceptionsPage />
-              </ProtectedRoute>
-          }
-      />
-
-      <Route path="*" element={<Navigate to={user ? "/dashboard" : "/login"} replace />} />
-    </Routes>
-  );
+                                    {/* المسار الديناميكي الرئيسي */}
+                                    <Route 
+                                        path="/:groupPage/:servicePage/:subServicePage" 
+                                        element={
+                                            <ProtectedRoute dynamic level="ss">
+                                                <SubServicePageRenderer />
+                                            </ProtectedRoute>
+                                        } 
+                                    />
+                                    
+                                    <Route path="/login" element={<Navigate to="/dashboard" replace />} />
+                                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                                </>
+                            )
+                        ) : (
+                            <>
+                                <Route path="/login" element={<LoginPage />} />
+                                <Route path="*" element={<Navigate to="/login" replace />} />
+                            </>
+                        )}
+                    </Routes>
+                )}
+            </AnimatePresence>
+        </>
+    );
 }
 
 export default App;

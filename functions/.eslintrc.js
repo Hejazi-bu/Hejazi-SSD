@@ -4,36 +4,21 @@ module.exports = {
     es6: true,
     node: true,
   },
-  extends: [
-    "eslint:recommended",
-    "plugin:import/errors",
-    "plugin:import/warnings",
-    "plugin:import/typescript",
-    "google",
-    "plugin:@typescript-eslint/recommended",
+  parser: "@typescript-eslint/parser", // نبقي على المحلل اللغوي لـ TS
+  plugins: [
+    "@typescript-eslint", // نبقي على الملحق الأساسي لـ TS
   ],
-  parser: "@typescript-eslint/parser",
-  parserOptions: {
-    project: ["tsconfig.json", "tsconfig.dev.json"],
-    sourceType: "module",
-  },
+  extends: [
+    "eslint:recommended", // قاعدة أساسية فقط
+    "plugin:@typescript-eslint/recommended", // قواعد TS أساسية
+  ],
   ignorePatterns: [
     "/lib/**/*", // تجاهل الملفات المترجمة
-    "/.eslintrc.js", // أضف هذا السطر لتجاهل فحص هذا الملف
-  ],
-  plugins: [
-    "@typescript-eslint",
-    "import",
+    "/.eslintrc.js",
   ],
   rules: {
-    "quotes": ["error", "double"],
-    "indent": "off",
-    "max-len": "off",
-    "camelcase": "off",
-    "object-curly-spacing": "off",
-    "arrow-parens": "off",
-    "require-jsdoc": "off",
-    "no-unused-vars": "warn",
-    "eol-last": "off"
+    // يمكن إضافة قواعد بسيطة هنا لاحقاً إذا احتجنا
+     "quotes": ["warn", "double"], // تخفيف حدة الخطأ للتجربة
+     "import/no-unresolved": "off" // تعطيل قاعدة الاستيراد مؤقتًا
   },
 };

@@ -2139,52 +2139,43 @@ export const onUserUpdateCreateHistory = onDocumentUpdated("users/{userId}", asy
 /**
  * مُشغل تلقائي لتوزيع الوظائف (Auto Job Distribution)
  * الهدف: عندما يتم تعيين موظف في وظيفة ومكان معين، نقوم تلقائياً بتسجيل هذا التواجد
- * في جدول job_distribution لكي يظهر في قوائم النطاق للمدراء.
+ * في جدول job_distribution (مبسط: الشركة والقسم فقط).
  */
 export const syncJobDistribution = onDocumentWritten("users/{userId}", async (event) => {
     const after = event.data?.after.data();
     const before = event.data?.before.data();
 
-    // 1. التحقق من وجود البيانات الأساسية (يجب أن يكون هناك موظف ووظيفة وشركة)
+    // 1. التحقق من وجود البيانات الأساسية (موظف + وظيفة + شركة)
     if (!after || !after.job_id || !after.company_id) return;
 
-    // 2. التحقق من حدوث تغيير يستدعي التحديث (تحسين للأداء)
-    // نعمل فقط إذا كان مستخدماً جديداً (لا يوجد before) أو إذا تغيرت بياناته الهيكلية
+    // 2. التحقق من التغيير (الشركة أو القسم أو الوظيفة)
+    // ✅ تم إزالة sector_id و department_id من المقارنة
     const hasChanged = !before ||
         String(before.job_id) !== String(after.job_id) ||
         String(before.company_id) !== String(after.company_id) ||
-        String(before.sector_id) !== String(after.sector_id) ||
-        String(before.department_id) !== String(after.department_id) ||
         String(before.section_id) !== String(after.section_id);
 
     if (!hasChanged) return;
 
-    // 3. تجهيز بيانات التوزيع
+    // 3. تجهيز بيانات التوزيع (Simplified)
     const distributionData = {
         job_id: String(after.job_id),
         company_id: String(after.company_id),
-        sector_id: after.sector_id ? String(after.sector_id) : null,
-        department_id: after.department_id ? String(after.department_id) : null,
+        // ✅ تم إزالة sector_id و department_id
         section_id: after.section_id ? String(after.section_id) : null,
-        auto_generated: true, // علامة لتمييز أن النظام هو من أنشأ هذا السجل
+        auto_generated: true,
         updated_at: admin.firestore.FieldValue.serverTimestamp()
     };
 
-    // 4. إنشاء مفتاح فريد (Deterministic ID) لمنع التكرار
-    // ندمج المعرفات لنحصل على نص فريد يمثل هذا التوزيع
-    // مثال: "101_50_0_20_5" (الوظيفة_الشركة_القطاع_الإدارة_القسم)
-    // نستخدم "0" لتمثيل الـ null في المفتاح فقط
+    // 4. إنشاء مفتاح فريد (Simplified Composite Key)
+    // المثال الجديد: "101_50_5" (الوظيفة_الشركة_القسم)
     const compositeKey = [
         distributionData.job_id,
         distributionData.company_id,
-        distributionData.sector_id || "0",
-        distributionData.department_id || "0",
-        distributionData.section_id || "0"
+        distributionData.section_id || "0" // "0" لتمثيل الـ null
     ].join("_");
 
-    // 5. الحفظ في قاعدة البيانات
-    // نستخدم set مع merge: true
-    // هذا يضمن أنه إذا كان السجل موجوداً مسبقاً، لن نكرره ولن نمسح أي بيانات يدوية إضافية قد تكون فيه
+    // 5. الحفظ (Merge)
     try {
         await db.collection("job_distribution").doc(compositeKey).set(distributionData, { merge: true });
         console.log(`✅ Auto-distributed job structure: ${compositeKey}`);

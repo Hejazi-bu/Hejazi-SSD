@@ -1,49 +1,58 @@
 // src/components/contexts/LanguageContext.tsx
 import React, {
-  createContext,
-  useState,
-  useContext,
-  ReactNode,
-  useEffect,
-} from "react";
+    createContext,
+    useContext,
+    useState,
+    useEffect,
+    ReactNode,
+    useCallback,
+    // 👈 1. استيراد الأنواع المطلوبة من React
+    Dispatch,
+    SetStateAction
+} from 'react';
 
-export type Language = "ar" | "en";
-
+// تحديد أنواع البيانات التي سيوفرها الـ Context
 interface LanguageContextProps {
-  language: Language;
-  toggleLanguage: () => void;
+    language: 'ar' | 'en';
+    // 👈 2. استخدام النوع الصحيح لدالة تغيير الحالة
+    setLanguage: Dispatch<SetStateAction<'ar' | 'en'>>;
+    toggleLanguage: () => void;
 }
 
-const LanguageContext = createContext<LanguageContextProps | undefined>(
-  undefined
-);
+// إنشاء الـ Context
+const LanguageContext = createContext<LanguageContextProps | undefined>(undefined);
 
+// المكون المزود (Provider)
 export const LanguageProvider = ({ children }: { children: ReactNode }) => {
-  const initialLang = (localStorage.getItem("lang") as Language) || "ar";
-  const [language, setLanguage] = useState<Language>(initialLang);
+    const [language, setLanguage] = useState<'ar' | 'en'>(() => {
+        const savedLang = localStorage.getItem('language');
+        return (savedLang === 'ar' || savedLang === 'en') ? savedLang : 'ar';
+    });
 
-  const toggleLanguage = () => {
-    const newLang = language === "ar" ? "en" : "ar";
-    setLanguage(newLang);
-    localStorage.setItem("lang", newLang);
-  };
+    useEffect(() => {
+        localStorage.setItem('language', language);
+        document.documentElement.lang = language;
+        document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
+    }, [language]);
 
-  useEffect(() => {
-    document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
-    document.documentElement.lang = language;
-  }, [language]);
+    const toggleLanguage = useCallback(() => {
+        setLanguage(prevLang => (prevLang === 'ar' ? 'en' : 'ar'));
+    }, []);
 
-  return (
-    <LanguageContext.Provider value={{ language, toggleLanguage }}>
-      {children}
-    </LanguageContext.Provider>
-  );
+    const value = { language, setLanguage, toggleLanguage };
+
+    return (
+        <LanguageContext.Provider value={value}>
+            {children}
+        </LanguageContext.Provider>
+    );
 };
 
+// Hook مخصص لتسهيل استخدام الـ Context
 export const useLanguage = (): LanguageContextProps => {
-  const context = useContext(LanguageContext);
-  if (!context) {
-    throw new Error("useLanguage must be used within a LanguageProvider");
-  }
-  return context;
+    const context = useContext(LanguageContext);
+    if (context === undefined) {
+        throw new Error("useLanguage must be used within a LanguageProvider");
+    }
+    return context;
 };
