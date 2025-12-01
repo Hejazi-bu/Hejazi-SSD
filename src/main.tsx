@@ -16,6 +16,8 @@ import { ActionLoadingProvider } from "./components/contexts/ActionLoadingContex
 import { UnsavedChangesProvider } from "./components/contexts/UnsavedChangesContext";
 // ✨ 1. استيراد المزود الجديد
 import { ConnectivityProvider } from "./components/contexts/ConnectivityContext";
+// ✨ نظام التنبيهات اللحظية للصلاحيات
+import { RealtimeNotificationsProvider } from "./components/contexts/RealtimeNotificationsContext";
 
 const router = createBrowserRouter([
     {
@@ -33,12 +35,15 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                         {/* ✨ 1. نقل ConnectivityProvider ليغلف UserProvider */}
                         <ConnectivityProvider>
                             <UserProvider>
-                                <LoadingProvider>
-                                    <ActionLoadingProvider>
-                                        {/* ✨ 2. RouterProvider أصبح بالداخل مباشرة */}
-                                        <RouterProvider router={router} />
-                                    </ActionLoadingProvider>
-                                </LoadingProvider>
+                                {/* ✨ نظام التنبيهات اللحظية */}
+                                <RealtimeNotificationsProvider>
+                                    <LoadingProvider>
+                                        <ActionLoadingProvider>
+                                            {/* ✨ 2. RouterProvider أصبح بالداخل مباشرة */}
+                                            <RouterProvider router={router} />
+                                        </ActionLoadingProvider>
+                                    </LoadingProvider>
+                                </RealtimeNotificationsProvider>
                             </UserProvider>
                         </ConnectivityProvider>
                     </ServicesProvider>

@@ -94,11 +94,9 @@ export default function AccessJobScopes() {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [searchParams, setSearchParams] = useSearchParams();
 
-    // البيانات الأساسية
+    // البيانات الأساسية (فقط الشركات والأقسام)
     const [jobs, setJobs] = useState<BasicEntity[]>([]);
     const [companies, setCompanies] = useState<BasicEntity[]>([]);
-    const [sectors, setSectors] = useState<BasicEntity[]>([]);
-    const [departments, setDepartments] = useState<BasicEntity[]>([]);
     const [sections, setSections] = useState<BasicEntity[]>([]);
 
     // ✅ القوائم المفلترة بناءً على التوزيع (للـ RuleBuilder)
@@ -115,16 +113,14 @@ export default function AccessJobScopes() {
     const [localRules, setLocalRules] = useState<any[]>([]);
     const [isLoadingData, setIsLoadingData] = useState(true);
 
-    // 1. Fetch Basic Data
+    // 1. Fetch Basic Data (فقط الشركات والأقسام)
     useEffect(() => {
         const fetchData = async () => {
             setIsLoadingData(true);
             try {
-                const [jobsSnap, companiesSnap, sectorsSnap, deptsSnap, sectionsSnap] = await Promise.all([
+                const [jobsSnap, companiesSnap, sectionsSnap] = await Promise.all([
                     getDocs(collection(firestore, 'jobs')),
                     getDocs(query(collection(firestore, 'companies'), where('is_allowed', '==', true))),
-                    getDocs(collection(firestore, 'sectors')),
-                    getDocs(collection(firestore, 'departments')),
                     getDocs(collection(firestore, 'sections'))
                 ]);
 
@@ -133,8 +129,6 @@ export default function AccessJobScopes() {
                 setJobs(allJobs.filter(j => canManageScope('control', { jobId: j.id })));
 
                 setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() } as BasicEntity)));
-                setSectors(sectorsSnap.docs.map(d => ({ id: d.id, ...d.data() } as BasicEntity)));
-                setDepartments(deptsSnap.docs.map(d => ({ id: d.id, ...d.data() } as BasicEntity)));
                 setSections(sectionsSnap.docs.map(d => ({ id: d.id, ...d.data() } as BasicEntity)));
 
             } catch (error) {
@@ -313,18 +307,16 @@ export default function AccessJobScopes() {
                         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                             <div className="xl:col-span-3 space-y-6">
                                 {/* ✅ نمرر القوائم المفلترة (validCompanies, validSections) بدلاً من الكل */}
-                                <ScopeRuleBuilder 
-                                    jobs={jobs} 
-                                    companies={validCompanies} 
-                                    sectors={sectors} 
-                                    departments={departments} 
-                                    sections={validSections} 
-                                    onAddRule={handleAddRule} 
-                                    t={t} 
+                                <ScopeRuleBuilder
+                                    jobs={jobs}
+                                    companies={validCompanies}
+                                    sections={validSections}
+                                    onAddRule={handleAddRule}
+                                    t={t}
                                 />
                                 <div className="flex items-center gap-3 my-4"><div className="h-px bg-gray-700 flex-1"></div><span className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1"><FunnelIcon className="w-3 h-3" /> {t.currentRules}</span><div className="h-px bg-gray-700 flex-1"></div></div>
                                 {/* في القائمة نعرض كل البيانات لغرض التسمية الصحيحة */}
-                                <ScopeList rules={localRules} onRemove={handleRemoveRule} jobs={jobs} companies={companies} sectors={sectors} departments={departments} sections={sections} t={t} />
+                                <ScopeList rules={localRules} onRemove={handleRemoveRule} jobs={jobs} companies={companies} sections={sections} t={t} />
                             </div>
                         </div>
                         

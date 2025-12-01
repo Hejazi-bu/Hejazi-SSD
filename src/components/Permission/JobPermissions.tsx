@@ -6,7 +6,8 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useActionLoading } from '../contexts/ActionLoadingContext';
 import { useDialog } from '../contexts/DialogContext';
 import { useUnsavedChanges } from "../contexts/UnsavedChangesContext";
-import { useAccessManager, JobPermissionInput } from '../../hooks/useAccessManager'; 
+import { useAccessManager, JobPermissionInput } from '../../hooks/useAccessManager';
+import { usePermissionChangeListener, useConcurrentEditListener } from '../../hooks/usePermissionChangeListener'; 
 import { ServiceTreeRow, ServiceNode } from './Delegation/Shared/DelegationTree'; 
 import { ScopeConfigDialog } from './Delegation/Shared/ScopeConfigDialog'; // ✅ استيراد النافذة المشتركة
 
@@ -106,6 +107,20 @@ export default function JobPermissions() {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [searchParams, setSearchParams] = useSearchParams();
 
+    // ✅ نظام الاستماع اللحظي للتغييرات
+    usePermissionChangeListener({
+        listenToJobPermissions: true,
+        listenToAccessDelegation: true,
+        listenToControlDelegation: true,
+        specificJobId: null // سيستمع لوظيفة المستخدم الحالي
+    });
+
+    // ✅ مراقبة التعديلات المتزامنة عند اختيار وظيفة
+    const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+    useConcurrentEditListener('job_permissions', selectedJobId, (message) => {
+        console.warn('Concurrent edit detected:', message);
+    });
+
     const [jobs, setJobs] = useState<BasicEntity[]>([]);
     const [servicesTree, setServicesTree] = useState<ServiceNode[]>([]);
     
@@ -113,7 +128,6 @@ export default function JobPermissions() {
     const [validCompanies, setValidCompanies] = useState<BasicEntity[]>([]);
     const [validSections, setValidSections] = useState<BasicEntity[]>([]);
 
-    const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
     const [selectedJobObj, setSelectedJobObj] = useState<BasicEntity | null>(null);
     
     const [jobSearchTerm, setJobSearchTerm] = useState('');

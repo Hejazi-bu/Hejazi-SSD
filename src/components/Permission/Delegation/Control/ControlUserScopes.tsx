@@ -99,11 +99,9 @@ export default function ControlUserScopes() {
 
     // --- Data State ---
     const [users, setUsers] = useState<User[]>([]);
-    const [jobs, setJobs] = useState<BasicEntity[]>([]); 
+    const [jobs, setJobs] = useState<BasicEntity[]>([]);
     const [companies, setCompanies] = useState<BasicEntity[]>([]);
-    const [sectors, setSectors] = useState<BasicEntity[]>([]);
-    const [departments, setDepartments] = useState<BasicEntity[]>([]);
-    const [sections, setSections] = useState<BasicEntity[]>([]); // ✅ إضافة حالة الأقسام
+    const [sections, setSections] = useState<BasicEntity[]>([]);
 
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
     const [selectedUserObj, setSelectedUserObj] = useState<User | null>(null);
@@ -130,19 +128,15 @@ export default function ControlUserScopes() {
                     setUsers(allowedUsers);
                 });
 
-                const [jobsSnap, companiesSnap, sectorsSnap, deptsSnap, sectionsSnap] = await Promise.all([
+                const [jobsSnap, companiesSnap, sectionsSnap] = await Promise.all([
                     getDocs(collection(firestore, 'jobs')),
                     getDocs(query(collection(firestore, 'companies'), where('is_allowed', '==', true))),
-                    getDocs(collection(firestore, 'sectors')),
-                    getDocs(collection(firestore, 'departments')),
-                    getDocs(collection(firestore, 'sections')) // ✅ جلب الأقسام
+                    getDocs(collection(firestore, 'sections'))
                 ]);
 
                 setJobs(jobsSnap.docs.map(d => ({ id: d.id, ...d.data() } as BasicEntity)));
                 setCompanies(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() } as BasicEntity)));
-                setSectors(sectorsSnap.docs.map(d => ({ id: d.id, ...d.data() } as BasicEntity)));
-                setDepartments(deptsSnap.docs.map(d => ({ id: d.id, ...d.data() } as BasicEntity)));
-                setSections(sectionsSnap.docs.map(d => ({ id: d.id, ...d.data() } as BasicEntity))); // ✅ تخزين الأقسام
+                setSections(sectionsSnap.docs.map(d => ({ id: d.id, ...d.data() } as BasicEntity)));
 
                 setIsLoadingData(false);
                 return () => unsubUsers();
@@ -285,18 +279,16 @@ export default function ControlUserScopes() {
 
                         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                             <div className="xl:col-span-3 space-y-6">
-                                {/* ✅ تمرير الأقسام إلى ScopeRuleBuilder و ScopeList */}
-                                <ScopeRuleBuilder 
-                                    jobs={jobs} 
-                                    companies={companies} 
-                                    sectors={sectors} 
-                                    departments={departments} 
-                                    sections={sections} // ✅
-                                    onAddRule={handleAddRule} 
-                                    t={t} 
+                                {/* ✅ تمرير الشركات والأقسام فقط */}
+                                <ScopeRuleBuilder
+                                    jobs={jobs}
+                                    companies={companies}
+                                    sections={sections}
+                                    onAddRule={handleAddRule}
+                                    t={t}
                                 />
                                 <div className="flex items-center gap-3 my-4"><div className="h-px bg-gray-700 flex-1"></div><span className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1"><FunnelIcon className="w-3 h-3" /> {t.currentRules}</span><div className="h-px bg-gray-700 flex-1"></div></div>
-                                <ScopeList rules={localRules} onRemove={handleRemoveRule} jobs={jobs} companies={companies} sectors={sectors} departments={departments} sections={sections} t={t} />
+                                <ScopeList rules={localRules} onRemove={handleRemoveRule} jobs={jobs} companies={companies} sections={sections} t={t} />
                             </div>
                         </div>
                         

@@ -14,24 +14,24 @@ interface CloudFunctionResponse {
 
 // 1. واجهة النطاق (Scope Definition)
 // تستخدم داخل الصلاحيات والموارد لتحديد "أين" تطبق القاعدة
+// ✅ تم التوحيد: فقط الشركة والقسم
 export interface ScopeDefinition {
     companies?: string[];    // مصفوفة معرفات الشركات
-    departments?: string[];  // مصفوفة معرفات الإدارات
     sections?: string[];     // مصفوفة معرفات الأقسام
 }
 
 // 2. واجهة النطاق العام (Scope Payload for Delegation Scopes)
 // تستخدم عند تحديد "من" يمكنه التحكم فيهم (Users/Jobs)
+// ✅ تم التوحيد: فقط الشركة والقسم
 export interface ScopePayload {
     target_company_id?: string | null;
     target_job_id?: string | null;
     target_user_id?: string | null;
-    
-    // النطاق الممنوح
+
+    // النطاق الممنوح (الشركة والقسم فقط)
     scope_company_id?: string | null;
-    scope_department_id?: string | null;
     scope_section_id?: string | null;
-    
+
     restricted_to_company?: boolean;
     [key: string]: unknown;
 }

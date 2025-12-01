@@ -12,14 +12,12 @@ interface ScopeListProps {
     onRemove: (index: number) => void;
     jobs: any[];
     companies: any[];
-    sectors: any[];
-    departments: any[];
-    sections: any[]; // ✅
+    sections: any[]; // ✅ فقط الشركات والأقسام
     t: any;
 }
 
-export const ScopeList = ({ 
-    rules, onRemove, jobs, companies, sectors, departments, sections, t 
+export const ScopeList = ({
+    rules, onRemove, jobs, companies, sections, t
 }: ScopeListProps) => {
     const { language } = useLanguage();
     const isAr = language === 'ar';
@@ -81,35 +79,13 @@ export const ScopeList = ({
                                     )}
                                 </div>
 
-                                {/* القطاع */}
-                                {rule.scope_sector_id && (
-                                    <>
-                                        <span className="text-gray-600 mx-1">/</span>
-                                        <span className="flex items-center gap-1 text-gray-300">
-                                            <BuildingLibraryIcon className="w-3 h-3 text-gray-500" />
-                                            {getName(sectors, rule.scope_sector_id, '')}
-                                        </span>
-                                    </>
-                                )}
-
-                                {/* الإدارة */}
-                                {rule.scope_department_id && (
-                                    <>
-                                        <span className="text-gray-600 mx-1">/</span>
-                                        <span className="flex items-center gap-1 text-gray-300">
-                                            <UserGroupIcon className="w-3 h-3 text-gray-500" />
-                                            {getName(departments, rule.scope_department_id, '')}
-                                        </span>
-                                    </>
-                                )}
-
-                                {/* القسم (Section) ✅ */}
+                                {/* القسم */}
                                 {rule.scope_section_id && (
                                     <>
                                         <span className="text-gray-600 mx-1">/</span>
                                         <span className="flex items-center gap-1 text-gray-300">
-                                            <span className="text-gray-500 text-[10px] border border-gray-600 px-1 rounded">قسم</span>
-                                            {getName(sections, rule.scope_section_id, '')}
+                                            <UserGroupIcon className="w-3 h-3 text-gray-500" />
+                                            {getName(sections, rule.scope_section_id, 'كل الأقسام')}
                                         </span>
                                     </>
                                 )}
