@@ -26,10 +26,11 @@ interface ResourceData {
 }
 
 // واجهة الحقول الهيكلية (لإعادة الاستخدام)
-// ✅ تم التحديث: استخدام الشركة والقسم فقط (company + department)
 interface ScopeDefinition {
     scope_company_id?: string | null;    // إذا حدد، يطبق على هذه الشركة فقط
-    scope_department_id?: string | null; // إذا حدد، يطبق على هذا القسم فقط
+    scope_sector_id?: string | null;     // إذا حدد، يطبق على هذا القطاع
+    scope_department_id?: string | null; // إذا حدد، يطبق على هذه الإدارة
+    scope_section_id?: string | null;    // إذا حدد، يطبق على هذا القسم
 }
 
 interface UserData {
@@ -39,6 +40,7 @@ interface UserData {
     job_id?: string;
     company_id?: string;
     department_id?: string;
+    section_id?: string;
     is_super_admin?: boolean;
     avatar_url?: string;
     [key: string]: unknown;
@@ -130,6 +132,7 @@ async function updateUserDelegationCache(userId: string) {
                     target_job_id: d.target_job_id || null,
                     scope_company_id: d.target_company_id || d.scope_company_id || null, // دعمنا الاسمين
                     scope_department_id: d.scope_department_id || null,
+                    scope_section_id: d.scope_section_id || null,
                     restricted_to_company: d.restricted_to_company || false
                 });
             }
@@ -174,56 +177,7 @@ async function updateUserDelegationCache(userId: string) {
     return finalProfile;
 }
 
-// ============================================================================
-// دالة الإشعارات اللحظية للصلاحيات (Permission Notifications)
-// ============================================================================
-/**
- * دالة لإرسال إشعار للمستخدمين المتأثرين بتغيير الصلاحيات
- * @param params - معاملات الإشعار
- */
-async function notifyPermissionChange(params: {
-    affectedUserIds: string[],
-    changeType: 'added' | 'removed' | 'modified',
-    permissionType: 'direct' | 'access' | 'control',
-    resourceKey?: string,
-    jobId?: string,
-    message_ar: string,
-    message_en: string
-}) {
-    if (params.affectedUserIds.length === 0) {
-        console.log('No users to notify');
-        return;
-    }
-
-    const batch = db.batch();
-    const timestamp = admin.firestore.FieldValue.serverTimestamp();
-
-    console.log(`Preparing notifications for ${params.affectedUserIds.length} users`);
-
-    for (const userId of params.affectedUserIds) {
-        const notifRef = db.collection('users').doc(userId).collection('notifications').doc();
-        batch.set(notifRef, {
-            type: 'permission_change',
-            changeType: params.changeType,
-            permissionType: params.permissionType,
-            resourceKey: params.resourceKey,
-            jobId: params.jobId,
-            message_ar: params.message_ar,
-            message_en: params.message_en,
-            read: false,
-            created_at: timestamp
-        });
-
-        // تحديث الكاش
-        await updateUserDelegationCache(userId);
-    }
-
-    await batch.commit();
-    console.log(`✅ Sent permission change notifications to ${params.affectedUserIds.length} users`);
-}
-
 // ✅ تعديل دالة التحقق لتطبيق قاعدة "التحكم أعلى من الوصول"
-// ✅ تم التحديث: إزالة section_id
 function validateAuthority(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     actorProfile: any,
@@ -232,6 +186,7 @@ function validateAuthority(
         job_id?: string | null,
         company_id?: string | null,
         department_id?: string | null,
+        section_id?: string | null,
         user_id?: string | null
     }
 ): boolean {
@@ -267,6 +222,9 @@ function validateAuthority(
 
             // ج) مطابقة القسم (اختياري)
             if (rule.scope_department_id && String(rule.scope_department_id) !== String(targetEntity.department_id)) {
+                return false;
+            }
+            if (rule.scope_section_id && String(rule.scope_section_id) !== String(targetEntity.section_id)) {
                 return false;
             }
 
@@ -316,13 +274,16 @@ const parsePermissionString = (perm: string): PermissionData => {
 
 // --- Helper: Scope Matcher (محرك المطابقة) ---
 // يتحقق هل بيانات المستخدم تطابق شروط النطاق في القاعدة
-// ✅ تم التحديث: استخدام الشركة والقسم فقط
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function isScopeMatching(rule: ScopeDefinition, userData: any): boolean {
     // 1. الشركة
     if (rule.scope_company_id && rule.scope_company_id !== userData.company_id) return false;
-    // 2. القسم
+    // 2. القطاع
+    if (rule.scope_sector_id && rule.scope_sector_id !== userData.sector_id) return false;
+    // 3. الإدارة
     if (rule.scope_department_id && rule.scope_department_id !== userData.department_id) return false;
+    // 4. القسم
+    if (rule.scope_section_id && rule.scope_section_id !== userData.section_id) return false;
 
     return true; // إذا عبر كل الفلاتر (أو كانت null)، فهو مطابق
 }
@@ -569,6 +530,7 @@ export const getMyManagedUsers = onCall({ region: "us-central1", cors: true }, a
             user_id: doc.id,
             company_id: userData.company_id,
             department_id: userData.department_id,
+            section_id: userData.section_id,
             job_id: userData.job_id
         });
 
@@ -892,239 +854,6 @@ export const onUserJobChange = onDocumentUpdated("users/{userId}", async (event)
 // 🔐 نظام إدارة الصلاحيات المباشرة (Direct Permissions System) - (System 1)
 // ============================================================================
 //END
-
-// ============================================================================
-// 📬 الإشعارات اللحظية (Real-time Notifications) - Triggers
-// ============================================================================
-// هذا القسم يحتوي على الـ Triggers التي تُشغَّل تلقائياً عند تغيير البيانات
-
-// --- Trigger 1: إشعار عند تغيير صلاحيات الوظيفة ---
-export const onJobPermissionChangeNotify = onDocumentWritten(
-    "job_permissions/{docId}",
-    async (event) => {
-        try {
-            const before = event.data?.before.data();
-            const after = event.data?.after.data();
-
-            // حالة الحذف
-            if (!after) {
-                console.log(`Job permission deleted: ${event.params.docId}`);
-                return;
-            }
-
-            const jobId = after.job_id;
-            if (!jobId) {
-                console.log('No job_id found in permission document');
-                return;
-            }
-
-            // جلب جميع المستخدمين في هذه الوظيفة
-            const usersSnap = await db.collection('users')
-                .where('job_id', '==', jobId)
-                .get();
-
-            const userIds = usersSnap.docs.map(d => d.id);
-
-            if (userIds.length === 0) {
-                console.log(`No users found for job_id: ${jobId}`);
-                return;
-            }
-
-            // تحديد نوع التغيير
-            const changeType = !before ? 'added' : 'modified';
-
-            // تحديد المورد المتأثر
-            let resourceKey: string | undefined;
-            if (after.service_id) resourceKey = `s:${after.service_id}`;
-            else if (after.sub_service_id) resourceKey = `ss:${after.sub_service_id}`;
-            else if (after.sub_sub_service_id) resourceKey = `sss:${after.sub_sub_service_id}`;
-
-            // إرسال الإشعارات
-            await notifyPermissionChange({
-                affectedUserIds: userIds,
-                changeType,
-                permissionType: 'direct',
-                resourceKey,
-                jobId: String(jobId),
-                message_ar: `تم ${changeType === 'added' ? 'إضافة' : 'تعديل'} صلاحية في وظيفتك`,
-                message_en: `A permission was ${changeType === 'added' ? 'added to' : 'modified in'} your job`
-            });
-
-            console.log(`✅ Job permission change notification sent for job_id: ${jobId}`);
-
-        } catch (error) {
-            console.error('Error in onJobPermissionChangeNotify:', error);
-        }
-    }
-);
-
-// --- Trigger 2: إشعار عند تغيير نطاق الوصول للوظيفة ---
-export const onAccessJobScopeChangeNotify = onDocumentWritten(
-    "access_job_scopes/{docId}",
-    async (event) => {
-        try {
-            const before = event.data?.before.data();
-            const after = event.data?.after.data();
-
-            if (!after) return;
-
-            const jobId = after.job_id;
-            if (!jobId) return;
-
-            const usersSnap = await db.collection('users')
-                .where('job_id', '==', jobId)
-                .get();
-
-            const userIds = usersSnap.docs.map(d => d.id);
-            if (userIds.length === 0) return;
-
-            const changeType = !before ? 'added' : 'modified';
-
-            await notifyPermissionChange({
-                affectedUserIds: userIds,
-                changeType,
-                permissionType: 'access',
-                jobId: String(jobId),
-                message_ar: `تم ${changeType === 'added' ? 'إضافة' : 'تعديل'} نطاق الوصول لوظيفتك`,
-                message_en: `Access scope for your job has been ${changeType === 'added' ? 'added' : 'modified'}`
-            });
-
-            console.log(`✅ Access scope change notification sent for job_id: ${jobId}`);
-
-        } catch (error) {
-            console.error('Error in onAccessJobScopeChangeNotify:', error);
-        }
-    }
-);
-
-// --- Trigger 3: إشعار عند تغيير نطاق التحكم للوظيفة ---
-export const onControlJobScopeChangeNotify = onDocumentWritten(
-    "control_job_scopes/{docId}",
-    async (event) => {
-        try {
-            const before = event.data?.before.data();
-            const after = event.data?.after.data();
-
-            if (!after) return;
-
-            const jobId = after.job_id;
-            if (!jobId) return;
-
-            const usersSnap = await db.collection('users')
-                .where('job_id', '==', jobId)
-                .get();
-
-            const userIds = usersSnap.docs.map(d => d.id);
-            if (userIds.length === 0) return;
-
-            const changeType = !before ? 'added' : 'modified';
-
-            await notifyPermissionChange({
-                affectedUserIds: userIds,
-                changeType,
-                permissionType: 'control',
-                jobId: String(jobId),
-                message_ar: `تم ${changeType === 'added' ? 'إضافة' : 'تعديل'} نطاق التحكم لوظيفتك`,
-                message_en: `Control scope for your job has been ${changeType === 'added' ? 'added' : 'modified'}`
-            });
-
-            console.log(`✅ Control scope change notification sent for job_id: ${jobId}`);
-
-        } catch (error) {
-            console.error('Error in onControlJobScopeChangeNotify:', error);
-        }
-    }
-);
-
-// --- Trigger 4: إشعار عند تغيير موارد الوصول للوظيفة ---
-export const onAccessJobResourceChangeNotify = onDocumentWritten(
-    "access_job_resources/{docId}",
-    async (event) => {
-        try {
-            const before = event.data?.before.data();
-            const after = event.data?.after.data();
-
-            if (!after) return;
-
-            const jobId = after.job_id;
-            if (!jobId) return;
-
-            const usersSnap = await db.collection('users')
-                .where('job_id', '==', jobId)
-                .get();
-
-            const userIds = usersSnap.docs.map(d => d.id);
-            if (userIds.length === 0) return;
-
-            const changeType = !before ? 'added' : 'modified';
-
-            let resourceKey: string | undefined;
-            if (after.service_id) resourceKey = `s:${after.service_id}`;
-            else if (after.sub_service_id) resourceKey = `ss:${after.sub_service_id}`;
-            else if (after.sub_sub_service_id) resourceKey = `sss:${after.sub_sub_service_id}`;
-
-            await notifyPermissionChange({
-                affectedUserIds: userIds,
-                changeType,
-                permissionType: 'access',
-                resourceKey,
-                jobId: String(jobId),
-                message_ar: `تم ${changeType === 'added' ? 'إضافة' : 'تعديل'} موارد الوصول لوظيفتك`,
-                message_en: `Access resources for your job have been ${changeType === 'added' ? 'added' : 'modified'}`
-            });
-
-            console.log(`✅ Access resource change notification sent for job_id: ${jobId}`);
-
-        } catch (error) {
-            console.error('Error in onAccessJobResourceChangeNotify:', error);
-        }
-    }
-);
-
-// --- Trigger 5: إشعار عند تغيير موارد التحكم للوظيفة ---
-export const onControlJobResourceChangeNotify = onDocumentWritten(
-    "control_job_resources/{docId}",
-    async (event) => {
-        try {
-            const before = event.data?.before.data();
-            const after = event.data?.after.data();
-
-            if (!after) return;
-
-            const jobId = after.job_id;
-            if (!jobId) return;
-
-            const usersSnap = await db.collection('users')
-                .where('job_id', '==', jobId)
-                .get();
-
-            const userIds = usersSnap.docs.map(d => d.id);
-            if (userIds.length === 0) return;
-
-            const changeType = !before ? 'added' : 'modified';
-
-            let resourceKey: string | undefined;
-            if (after.service_id) resourceKey = `s:${after.service_id}`;
-            else if (after.sub_service_id) resourceKey = `ss:${after.sub_service_id}`;
-            else if (after.sub_sub_service_id) resourceKey = `sss:${after.sub_sub_service_id}`;
-
-            await notifyPermissionChange({
-                affectedUserIds: userIds,
-                changeType,
-                permissionType: 'control',
-                resourceKey,
-                jobId: String(jobId),
-                message_ar: `تم ${changeType === 'added' ? 'إضافة' : 'تعديل'} موارد التحكم لوظيفتك`,
-                message_en: `Control resources for your job have been ${changeType === 'added' ? 'added' : 'modified'}`
-            });
-
-            console.log(`✅ Control resource change notification sent for job_id: ${jobId}`);
-
-        } catch (error) {
-            console.error('Error in onControlJobResourceChangeNotify:', error);
-        }
-    }
-);
 
 // ============================================================================
 // 🔓 نظام تفويض الوصول (Access Delegation System) - (System 2)
@@ -2505,11 +2234,11 @@ interface DelegationProfile {
 // --- New Scoped System Interfaces (The Atomic Design v2) ---
 
 // ✅ (واجهة جديدة) تستخدم داخلياً لربط الوظيفة بالنطاق أثناء التحقق
-// ✅ تم التحديث: استخدام company + department فقط
 interface EnforcedRule {
     target_job_id: string | null;       // الوظيفة
     scope_company_id: string | null;    // الشركة التابعة لها
-    scope_department_id: string | null; // القسم التابع له
+    scope_department_id: string | null; // الإدارة التابعة لها
+    scope_section_id: string | null;    // القسم التابع له
     restricted_to_company?: boolean;    // هل هي مقيدة بشركة الموظف المانح؟
 }
 
