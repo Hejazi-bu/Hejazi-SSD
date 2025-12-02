@@ -183,15 +183,15 @@ async function updateUserDelegationCache(userId: string) {
  */
 async function notifyPermissionChange(params: {
     affectedUserIds: string[],
-    changeType: 'added' | 'removed' | 'modified',
-    permissionType: 'direct' | 'access' | 'control',
+    changeType: "added" | "removed" | "modified",
+    permissionType: "direct" | "access" | "control",
     resourceKey?: string,
     jobId?: string,
     message_ar: string,
     message_en: string
 }) {
     if (params.affectedUserIds.length === 0) {
-        console.log('No users to notify');
+        console.log("No users to notify");
         return;
     }
 
@@ -201,9 +201,9 @@ async function notifyPermissionChange(params: {
     console.log(`Preparing notifications for ${params.affectedUserIds.length} users`);
 
     for (const userId of params.affectedUserIds) {
-        const notifRef = db.collection('users').doc(userId).collection('notifications').doc();
+        const notifRef = db.collection("users").doc(userId).collection("notifications").doc();
         batch.set(notifRef, {
-            type: 'permission_change',
+            type: "permission_change",
             changeType: params.changeType,
             permissionType: params.permissionType,
             resourceKey: params.resourceKey,
@@ -914,13 +914,13 @@ export const onJobPermissionChangeNotify = onDocumentWritten(
 
             const jobId = after.job_id;
             if (!jobId) {
-                console.log('No job_id found in permission document');
+                console.log("No job_id found in permission document");
                 return;
             }
 
             // جلب جميع المستخدمين في هذه الوظيفة
-            const usersSnap = await db.collection('users')
-                .where('job_id', '==', jobId)
+            const usersSnap = await db.collection("users")
+                .where("job_id", "==", jobId)
                 .get();
 
             const userIds = usersSnap.docs.map(d => d.id);
@@ -931,7 +931,7 @@ export const onJobPermissionChangeNotify = onDocumentWritten(
             }
 
             // تحديد نوع التغيير
-            const changeType = !before ? 'added' : 'modified';
+            const changeType = !before ? "added" : "modified";
 
             // تحديد المورد المتأثر
             let resourceKey: string | undefined;
@@ -943,17 +943,17 @@ export const onJobPermissionChangeNotify = onDocumentWritten(
             await notifyPermissionChange({
                 affectedUserIds: userIds,
                 changeType,
-                permissionType: 'direct',
+                permissionType: "direct",
                 resourceKey,
                 jobId: String(jobId),
-                message_ar: `تم ${changeType === 'added' ? 'إضافة' : 'تعديل'} صلاحية في وظيفتك`,
-                message_en: `A permission was ${changeType === 'added' ? 'added to' : 'modified in'} your job`
+                message_ar: `تم ${changeType === "added" ? "إضافة" : "تعديل"} صلاحية في وظيفتك`,
+                message_en: `A permission was ${changeType === "added" ? "added to" : "modified in"} your job`
             });
 
             console.log(`✅ Job permission change notification sent for job_id: ${jobId}`);
 
         } catch (error) {
-            console.error('Error in onJobPermissionChangeNotify:', error);
+            console.error("Error in onJobPermissionChangeNotify:", error);
         }
     }
 );
@@ -971,28 +971,28 @@ export const onAccessJobScopeChangeNotify = onDocumentWritten(
             const jobId = after.job_id;
             if (!jobId) return;
 
-            const usersSnap = await db.collection('users')
-                .where('job_id', '==', jobId)
+            const usersSnap = await db.collection("users")
+                .where("job_id", "==", jobId)
                 .get();
 
             const userIds = usersSnap.docs.map(d => d.id);
             if (userIds.length === 0) return;
 
-            const changeType = !before ? 'added' : 'modified';
+            const changeType = !before ? "added" : "modified";
 
             await notifyPermissionChange({
                 affectedUserIds: userIds,
                 changeType,
-                permissionType: 'access',
+                permissionType: "access",
                 jobId: String(jobId),
-                message_ar: `تم ${changeType === 'added' ? 'إضافة' : 'تعديل'} نطاق الوصول لوظيفتك`,
-                message_en: `Access scope for your job has been ${changeType === 'added' ? 'added' : 'modified'}`
+                message_ar: `تم ${changeType === "added" ? "إضافة" : "تعديل"} نطاق الوصول لوظيفتك`,
+                message_en: `Access scope for your job has been ${changeType === "added" ? "added" : "modified"}`
             });
 
             console.log(`✅ Access scope change notification sent for job_id: ${jobId}`);
 
         } catch (error) {
-            console.error('Error in onAccessJobScopeChangeNotify:', error);
+            console.error("Error in onAccessJobScopeChangeNotify:", error);
         }
     }
 );
@@ -1010,28 +1010,28 @@ export const onControlJobScopeChangeNotify = onDocumentWritten(
             const jobId = after.job_id;
             if (!jobId) return;
 
-            const usersSnap = await db.collection('users')
-                .where('job_id', '==', jobId)
+            const usersSnap = await db.collection("users")
+                .where("job_id", "==", jobId)
                 .get();
 
             const userIds = usersSnap.docs.map(d => d.id);
             if (userIds.length === 0) return;
 
-            const changeType = !before ? 'added' : 'modified';
+            const changeType = !before ? "added" : "modified";
 
             await notifyPermissionChange({
                 affectedUserIds: userIds,
                 changeType,
-                permissionType: 'control',
+                permissionType: "control",
                 jobId: String(jobId),
-                message_ar: `تم ${changeType === 'added' ? 'إضافة' : 'تعديل'} نطاق التحكم لوظيفتك`,
-                message_en: `Control scope for your job has been ${changeType === 'added' ? 'added' : 'modified'}`
+                message_ar: `تم ${changeType === "added" ? "إضافة" : "تعديل"} نطاق التحكم لوظيفتك`,
+                message_en: `Control scope for your job has been ${changeType === "added" ? "added" : "modified"}`
             });
 
             console.log(`✅ Control scope change notification sent for job_id: ${jobId}`);
 
         } catch (error) {
-            console.error('Error in onControlJobScopeChangeNotify:', error);
+            console.error("Error in onControlJobScopeChangeNotify:", error);
         }
     }
 );
@@ -1049,14 +1049,14 @@ export const onAccessJobResourceChangeNotify = onDocumentWritten(
             const jobId = after.job_id;
             if (!jobId) return;
 
-            const usersSnap = await db.collection('users')
-                .where('job_id', '==', jobId)
+            const usersSnap = await db.collection("users")
+                .where("job_id", "==", jobId)
                 .get();
 
             const userIds = usersSnap.docs.map(d => d.id);
             if (userIds.length === 0) return;
 
-            const changeType = !before ? 'added' : 'modified';
+            const changeType = !before ? "added" : "modified";
 
             let resourceKey: string | undefined;
             if (after.service_id) resourceKey = `s:${after.service_id}`;
@@ -1066,17 +1066,17 @@ export const onAccessJobResourceChangeNotify = onDocumentWritten(
             await notifyPermissionChange({
                 affectedUserIds: userIds,
                 changeType,
-                permissionType: 'access',
+                permissionType: "access",
                 resourceKey,
                 jobId: String(jobId),
-                message_ar: `تم ${changeType === 'added' ? 'إضافة' : 'تعديل'} موارد الوصول لوظيفتك`,
-                message_en: `Access resources for your job have been ${changeType === 'added' ? 'added' : 'modified'}`
+                message_ar: `تم ${changeType === "added" ? "إضافة" : "تعديل"} موارد الوصول لوظيفتك`,
+                message_en: `Access resources for your job have been ${changeType === "added" ? "added" : "modified"}`
             });
 
             console.log(`✅ Access resource change notification sent for job_id: ${jobId}`);
 
         } catch (error) {
-            console.error('Error in onAccessJobResourceChangeNotify:', error);
+            console.error("Error in onAccessJobResourceChangeNotify:", error);
         }
     }
 );
@@ -1094,14 +1094,14 @@ export const onControlJobResourceChangeNotify = onDocumentWritten(
             const jobId = after.job_id;
             if (!jobId) return;
 
-            const usersSnap = await db.collection('users')
-                .where('job_id', '==', jobId)
+            const usersSnap = await db.collection("users")
+                .where("job_id", "==", jobId)
                 .get();
 
             const userIds = usersSnap.docs.map(d => d.id);
             if (userIds.length === 0) return;
 
-            const changeType = !before ? 'added' : 'modified';
+            const changeType = !before ? "added" : "modified";
 
             let resourceKey: string | undefined;
             if (after.service_id) resourceKey = `s:${after.service_id}`;
@@ -1111,17 +1111,17 @@ export const onControlJobResourceChangeNotify = onDocumentWritten(
             await notifyPermissionChange({
                 affectedUserIds: userIds,
                 changeType,
-                permissionType: 'control',
+                permissionType: "control",
                 resourceKey,
                 jobId: String(jobId),
-                message_ar: `تم ${changeType === 'added' ? 'إضافة' : 'تعديل'} موارد التحكم لوظيفتك`,
-                message_en: `Control resources for your job have been ${changeType === 'added' ? 'added' : 'modified'}`
+                message_ar: `تم ${changeType === "added" ? "إضافة" : "تعديل"} موارد التحكم لوظيفتك`,
+                message_en: `Control resources for your job have been ${changeType === "added" ? "added" : "modified"}`
             });
 
             console.log(`✅ Control resource change notification sent for job_id: ${jobId}`);
 
         } catch (error) {
-            console.error('Error in onControlJobResourceChangeNotify:', error);
+            console.error("Error in onControlJobResourceChangeNotify:", error);
         }
     }
 );
