@@ -1,0 +1,8 @@
+{
+  "scripts": {
+    "emulators": "bash start-emulators.sh",
+    "emulators:ui": "firebase emulators:start",
+    "test:permissions": "node test-permissions-local.js",
+    "test:local": "npm run emulators & sleep 10 && npm run test:permissions"
+  }
+}
